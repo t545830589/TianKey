@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'dart:convert';
-import 'dart:math';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 强制锁定竖屏，彻底解决模拟器/手机横屏拉伸变形问题
+  // 强制锁定竖屏，彻底解决横屏拉伸变形问题
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  runApp(const TianKeyApp());
+  runApp(const TianKeyV11App());
 }
 
-class TianKeyApp extends StatelessWidget {
-  const TianKeyApp({Key? key}) : super(key: key);
+class TianKeyV11App extends StatelessWidget {
+  const TianKeyV11App({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +20,7 @@ class TianKeyApp extends StatelessWidget {
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF050B14),
+        scaffoldBackgroundColor: const Color(0xFF050B14), // 深蓝黑赛博底色
         primaryColor: const Color(0xFF00F0FF),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF08101E),
@@ -42,6 +39,7 @@ class TianKeyApp extends StatelessWidget {
   }
 }
 
+// 底部 Tab 导航框架
 class MainTabFrame extends StatefulWidget {
   const MainTabFrame({Key? key}) : super(key: key);
 
@@ -51,19 +49,12 @@ class MainTabFrame extends StatefulWidget {
 
 class _MainTabFrameState extends State<MainTabFrame> {
   int _currentIndex = 0;
-  final BleService _bleService = BleService();
 
-  late List<Widget> _pages;
-
-  @override
-  void initState() {
-    super.initState();
-    _pages = [
-      HomePage(bleService: _bleService),
-      const TempBorrowPage(),
-      const SettingsPage(),
-    ];
-  }
+  final List<Widget> _pages = const [
+    HomePage(),
+    TempBorrowPage(),
+    SettingsPage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -85,9 +76,21 @@ class _MainTabFrameState extends State<MainTabFrame> {
           elevation: 0,
           onTap: (index) => setState(() => _currentIndex = index),
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: "首页"),
-            BottomNavigationBarItem(icon: Icon(Icons.key_outlined), activeIcon: Icon(Icons.key), label: "临时借车"),
-            BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: "设置"),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: "首页",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.key_outlined),
+              activeIcon: Icon(Icons.key),
+              label: "临时借车",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: "设置",
+            ),
           ],
         ),
       ),
@@ -96,52 +99,18 @@ class _MainTabFrameState extends State<MainTabFrame> {
 }
 
 // ==========================================
-// 1. 赛博黑金 HUD 首页 (Strict 1:1 图二)
+// 1. 首页 (Home Page - 严格冻结版)
 // ==========================================
-class HomePage extends StatefulWidget {
-  final BleService bleService;
-  const HomePage({Key? key, required this.bleService}) : super(key: key);
+class HomePage extends StatelessWidget {
+  const HomePage({Key? key}) : super(key: key);
 
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  bool _isConnected = false;
-  bool _isAdminAuthorized = false;
-
-  void _connectDevice() async {
+  void _sendCmd(BuildContext context, String actionName, String code) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("正在搜索 陕A0P92Y (Tian_92Y) 设备...")),
+      SnackBar(
+        content: Text("请先连接蓝牙设备以发送指令: $actionName ($code)"),
+        duration: const Duration(seconds: 1),
+      ),
     );
-    bool success = await widget.bleService.connectToDevice();
-    setState(() => _isConnected = success);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(success ? "蓝牙设备连接成功！" : "未能连接到设备")),
-      );
-    }
-  }
-
-  void _showAuthDialog() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminAuthPage(onAuthSuccess: () {
-      setState(() => _isAdminAuthorized = true);
-    })));
-  }
-
-  void _sendCmd(String payload, String name) async {
-    if (!_isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("请先连接蓝牙设备")),
-      );
-      return;
-    }
-    await widget.bleService.sendPayload(payload);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("指令已发送: $name ($payload)")),
-      );
-    }
   }
 
   @override
@@ -164,14 +133,14 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Column(
           children: [
-            // 跑车 & 陕A·0P92Y 车牌雷达 HUD 卡片
+            // 红色昂克赛拉 HUD 雷达卡片
             Container(
               width: double.infinity,
-              height: 190,
+              height: 185,
               decoration: BoxDecoration(
                 color: const Color(0xFF091326),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.4), width: 1.5),
+                border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.35), width: 1.5),
                 boxShadow: [
                   BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.12), blurRadius: 16)
                 ],
@@ -179,26 +148,26 @@ class _HomePageState extends State<HomePage> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // 雷达科技光圈背景
+                  // 科技发光雷达背景
                   Container(
-                    width: 150,
-                    height: 150,
+                    width: 145,
+                    height: 145,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.25), width: 1.5),
+                      border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.2), width: 1.5),
                       gradient: RadialGradient(
-                        colors: [const Color(0xFF00F0FF).withOpacity(0.18), Colors.transparent],
+                        colors: [const Color(0xFF00F0FF).withOpacity(0.15), Colors.transparent],
                       ),
                     ),
                   ),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.directions_car_filled_sharp, size: 95, color: Colors.redAccent.shade400),
-                      const SizedBox(height: 4),
-                      // 车牌 Badge
+                      Icon(Icons.directions_car_filled_sharp, size: 90, color: Colors.redAccent.shade400),
+                      const SizedBox(height: 6),
+                      // 标准蓝色车牌 陕A·0P92Y
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0044B2),
                           borderRadius: BorderRadius.circular(4),
@@ -206,7 +175,12 @@ class _HomePageState extends State<HomePage> {
                         ),
                         child: const Text(
                           "陕A·0P92Y",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.5),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                       ),
                     ],
@@ -216,7 +190,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 14),
 
-            // 5大冷启动待初始化状态
+            // 5 大待初始化状态栏 (纯灰色未连接)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               decoration: BoxDecoration(
@@ -227,41 +201,47 @@ class _HomePageState extends State<HomePage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _statusItem(Icons.bluetooth_disabled, "设备状态", _isConnected ? "已连接" : "未连接", _isConnected),
-                  _statusItem(Icons.shield_outlined, "管理员状态", _isAdminAuthorized ? "已授权" : "未授权", _isAdminAuthorized),
-                  _statusItem(Icons.electric_bolt, "供电状态", "未知", false),
-                  _statusItem(Icons.access_time, "时间同步", "未同步", false),
-                  _statusItem(Icons.key_off_outlined, "临时借车", "无有效密码", false),
+                  _statusItem(Icons.bluetooth_disabled, "设备状态", "未连接"),
+                  _statusItem(Icons.shield_outlined, "管理员状态", "未授权"),
+                  _statusItem(Icons.electric_bolt, "供电状态", "未知"),
+                  _statusItem(Icons.access_time, "时间同步", "未同步"),
+                  _statusItem(Icons.key_off_outlined, "临时借车", "无有效密码"),
                 ],
               ),
             ),
             const SizedBox(height: 14),
 
-            // 两个核心连接/授权按键
+            // 两个核心动作按键
             Row(
               children: [
                 Expanded(
                   child: _cyberActionButton(
-                    label: _isConnected ? "设备已连接" : "连接设备",
+                    label: "连接设备",
                     icon: Icons.bluetooth,
                     color: const Color(0xFF00F0FF),
-                    onTap: _connectDevice,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("正在搜索设备: 陕A0P92Y...")),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _cyberActionButton(
-                    label: _isAdminAuthorized ? "管理员已授权" : "管理员授权",
+                    label: "管理员授权",
                     icon: Icons.security,
                     color: const Color(0xFFFFB800),
-                    onTap: _showAuthDialog,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAuthPage()));
+                    },
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 14),
 
-            // 6个车辆控制按键
+            // 6 个车辆动作控车按键
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -270,12 +250,12 @@ class _HomePageState extends State<HomePage> {
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               children: [
-                _ctrlBtn("锁车", Icons.lock_outline, () => _sendCmd("suoche", "锁车")),
-                _ctrlBtn("解锁", Icons.lock_open_outlined, () => _sendCmd("jiesuo", "解锁")),
-                _ctrlBtn("车窗升", Icons.keyboard_double_arrow_up, () => _sendCmd("chuangsheng", "车窗升")),
-                _ctrlBtn("车窗降", Icons.keyboard_double_arrow_down, () => _sendCmd("chuangjiang", "车窗降")),
-                _ctrlBtn("寻车", Icons.cell_tower, () => _sendCmd("xunche", "寻车")),
-                _ctrlBtn("后备箱", Icons.time_to_leave_outlined, () => _sendCmd("houbeixiang", "后备箱")),
+                _ctrlBtn("锁车", Icons.lock_outline, () => _sendCmd(context, "锁车", "suoche")),
+                _ctrlBtn("解锁", Icons.lock_open_outlined, () => _sendCmd(context, "解锁", "jiesuo")),
+                _ctrlBtn("车窗升", Icons.keyboard_double_arrow_up, () => _sendCmd(context, "车窗升", "chuangsheng")),
+                _ctrlBtn("车窗降", Icons.keyboard_double_arrow_down, () => _sendCmd(context, "车窗降", "chuangjiang")),
+                _ctrlBtn("寻车", Icons.cell_tower, () => _sendCmd(context, "寻车", "xunche")),
+                _ctrlBtn("后备箱", Icons.time_to_leave_outlined, () => _sendCmd(context, "后备箱", "houbeixiang")),
               ],
             ),
           ],
@@ -284,14 +264,14 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _statusItem(IconData icon, String title, String val, bool active) {
+  Widget _statusItem(IconData icon, String title, String val) {
     return Column(
       children: [
-        Icon(icon, size: 18, color: active ? const Color(0xFF00F0FF) : Colors.grey.shade600),
+        Icon(icon, size: 18, color: Colors.grey.shade600),
         const SizedBox(height: 4),
         Text(title, style: const TextStyle(fontSize: 10, color: Colors.white54)),
         const SizedBox(height: 2),
-        Text(val, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: active ? const Color(0xFF00F0FF) : Colors.grey.shade400)),
+        Text(val, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
       ],
     );
   }
@@ -328,8 +308,8 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: const Color(0xFF0A152A),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.5), width: 1),
-          boxShadow: [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.06), blurRadius: 6)],
+          border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.4), width: 1),
+          boxShadow: [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.05), blurRadius: 6)],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -345,7 +325,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ==========================================
-// 2. 临时借车页面（真正的密码生成与刷新逻辑）
+// 2. 临时借车页面 (Temp Borrow Page)
 // ==========================================
 class TempBorrowPage extends StatefulWidget {
   const TempBorrowPage({Key? key}) : super(key: key);
@@ -356,35 +336,10 @@ class TempBorrowPage extends StatefulWidget {
 
 class _TempBorrowPageState extends State<TempBorrowPage> {
   String _selectedDuration = "5分钟";
-  String? _generatedPassword;
-
   final List<String> _durations = ["5分钟", "1天", "2天", "3天", "4天", "5天", "6天", "7天"];
-
-  // 随机生成 6 位黑科技密码
-  void _createPassword() {
-    final random = Random();
-    final code = (100000 + random.nextInt(900000)).toString();
-    setState(() {
-      _generatedPassword = code;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("已生成临时借车密码：$code (有效时间：$_selectedDuration)")),
-    );
-  }
-
-  void _cancelPassword() {
-    setState(() {
-      _generatedPassword = null;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("已取消临时借车权限")),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    bool hasPassword = _generatedPassword != null;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("临时借车"),
@@ -402,22 +357,11 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
           children: [
             const Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 12)),
             const SizedBox(height: 6),
-            Row(
+            const Row(
               children: [
-                Icon(
-                  hasPassword ? Icons.vpn_key : Icons.key_off,
-                  color: hasPassword ? const Color(0xFF00F0FF) : Colors.grey,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  hasPassword ? "密码已生效 (有效时间：$_selectedDuration)" : "无有效临时密码",
-                  style: TextStyle(
-                    color: hasPassword ? const Color(0xFF00F0FF) : Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Icon(Icons.key_off, color: Colors.grey, size: 20),
+                SizedBox(width: 8),
+                Text("无有效临时密码", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 20),
@@ -456,77 +400,30 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
             const Text("临时密码", style: TextStyle(color: Colors.white54, fontSize: 13)),
             const SizedBox(height: 8),
 
-            // 核心：临时密码生成后真正卡片显示
+            // 未生成密码卡片 (绝对不预填任何临时密码)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFF081224),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: hasPassword ? const Color(0xFF00F0FF) : const Color(0xFF1B3254),
-                  width: hasPassword ? 1.5 : 1.0,
-                ),
-                boxShadow: hasPassword
-                    ? [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.2), blurRadius: 14)]
-                    : [],
+                border: Border.all(color: const Color(0xFF1B3254), width: 1.0),
               ),
               child: Column(
                 children: [
-                  Icon(
-                    hasPassword ? Icons.lock_open : Icons.lock_clock,
-                    color: hasPassword ? const Color(0xFF00F0FF) : Colors.white38,
-                    size: 38,
-                  ),
+                  const Icon(Icons.lock_clock, color: Colors.white38, size: 38),
                   const SizedBox(height: 12),
-                  if (hasPassword) ...[
-                    // 密码生成后在此以 36px 发光大字完美展示！
-                    SelectableText(
-                      _generatedPassword!,
-                      style: const TextStyle(
-                        color: Color(0xFF00F0FF),
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 8,
-                        shadows: [
-                          Shadow(color: Color(0xFF00F0FF), blurRadius: 12),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    const Text(
-                      "尚未生成",
-                      style: TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                  const Text("尚未生成", style: TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(
-                        color: hasPassword ? const Color(0xFF00F0FF) : Colors.white24,
-                      ),
+                      side: const BorderSide(color: Colors.white24),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     ),
-                    onPressed: hasPassword
-                        ? () {
-                            Clipboard.setData(ClipboardData(text: _generatedPassword!));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("密码 $_generatedPassword 已复制到剪贴板")),
-                            );
-                          }
-                        : null,
-                    icon: Icon(
-                      Icons.copy,
-                      size: 16,
-                      color: hasPassword ? const Color(0xFF00F0FF) : Colors.white24,
-                    ),
-                    label: Text(
-                      "复制密码",
-                      style: TextStyle(
-                        color: hasPassword ? const Color(0xFF00F0FF) : Colors.white24,
-                      ),
-                    ),
+                    onPressed: null, // 未生成时禁用
+                    icon: const Icon(Icons.copy, size: 16, color: Colors.white24),
+                    label: const Text("复制密码", style: TextStyle(color: Colors.white24)),
                   ),
                 ],
               ),
@@ -539,7 +436,11 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: _createPassword,
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("已选择有效期 $_selectedDuration，请连接设备后生成密码")),
+                );
+              },
               child: const Text("生成临时密码", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
             const SizedBox(height: 12),
@@ -549,7 +450,7 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: _cancelPassword,
+              onPressed: () {},
               child: const Text("取消借车", style: TextStyle(color: Colors.redAccent, fontSize: 16)),
             ),
             const SizedBox(height: 12),
@@ -561,7 +462,7 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
 }
 
 // ==========================================
-// 3. 设置页面 (Settings Page)
+// 3. 设置主页 (Settings Page)
 // ==========================================
 class SettingsPage extends StatelessWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -577,7 +478,7 @@ class SettingsPage extends StatelessWidget {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ModifyBlePasswordPage()));
           }),
           _tile(context, Icons.restore, "恢复默认蓝牙密码", "", () {
-            _showRestoreDialog(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const RestoreDefaultPasswordPage()));
           }),
           _tile(context, Icons.directions_car, "设备名称", "陕A0P92Y", () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const DeviceNamePage()));
@@ -614,45 +515,20 @@ class SettingsPage extends StatelessWidget {
       onTap: tap,
     );
   }
-
-  void _showRestoreDialog(BuildContext ctx) {
-    showDialog(
-      context: ctx,
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF0A152A),
-        title: const Text("恢复默认蓝牙密码", style: TextStyle(color: Colors.orangeAccent)),
-        content: const Text("恢复后蓝牙密码将重置为出厂默认值", style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("取消", style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
-              Navigator.pop(c);
-              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text("已重置为出厂默认密码")));
-            },
-            child: const Text("恢复默认蓝牙密码"),
-          )
-        ],
-      ),
-    );
-  }
 }
 
 // ==========================================
-// 4. 图二对应的全套子页面
+// 4. 管理员授权页面 (Admin Auth)
 // ==========================================
-
-// 管理员授权页
 class AdminAuthPage extends StatefulWidget {
-  final VoidCallback onAuthSuccess;
-  const AdminAuthPage({Key? key, required this.onAuthSuccess}) : super(key: key);
+  const AdminAuthPage({Key? key}) : super(key: key);
 
   @override
   State<AdminAuthPage> createState() => _AdminAuthPageState();
 }
 
 class _AdminAuthPageState extends State<AdminAuthPage> {
-  final _ctrl = TextEditingController();
+  final _adminPassCtrl = TextEditingController(); // 绝对留空，无任何预填文本
 
   @override
   Widget build(BuildContext context) {
@@ -663,19 +539,28 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            const Icon(Icons.shield, size: 80, color: Color(0xFFFFB800)),
-            const SizedBox(height: 16),
-            const Text("请输入管理员密码进行授权", style: TextStyle(color: Colors.white70)),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFFFB800).withOpacity(0.1),
+                border: Border.all(color: const Color(0xFFFFB800), width: 1.5),
+              ),
+              child: const Icon(Icons.shield, size: 70, color: Color(0xFFFFB800)),
+            ),
+            const SizedBox(height: 20),
+            const Text("请输入管理员密码进行授权", style: TextStyle(color: Colors.white70, fontSize: 14)),
             const SizedBox(height: 24),
             TextField(
-              controller: _ctrl,
+              controller: _adminPassCtrl,
               obscureText: true,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
                 labelText: "管理员密码",
+                hintText: "请输入管理员密码",
                 labelStyle: TextStyle(color: Color(0xFFFFB800)),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFB800))),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFB800), width: 2)),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF13233F))),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFB800), width: 1.5)),
               ),
             ),
             const SizedBox(height: 30),
@@ -683,18 +568,18 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFB800),
                 minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
-                if (_ctrl.text == "13092991951") {
-                  widget.onAuthSuccess();
+                if (_adminPassCtrl.text.isNotEmpty) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("管理员授权成功")));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("密码不正确")));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("授权提交中...")));
                 }
               },
-              child: const Text("确认授权", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            )
+              child: const Text("确认授权", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            const SizedBox(height: 12),
+            const Text("授权后可使用全部管理员功能", style: TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
       ),
@@ -702,7 +587,9 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
   }
 }
 
-// 修改蓝牙密码页
+// ==========================================
+// 5. 修改蓝牙密码页面 (Modify BLE Password)
+// ==========================================
 class ModifyBlePasswordPage extends StatelessWidget {
   const ModifyBlePasswordPage({Key? key}) : super(key: key);
 
@@ -724,9 +611,10 @@ class ModifyBlePasswordPage extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF00F0FF),
                 minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () => Navigator.pop(context),
-              child: const Text("保存新密码", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text("保存新密码", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
             )
           ],
         ),
@@ -747,7 +635,60 @@ class ModifyBlePasswordPage extends StatelessWidget {
   }
 }
 
-// 设备名称页
+// ==========================================
+// 6. 恢复默认蓝牙密码页面 (Restore Default Password)
+// ==========================================
+class RestoreDefaultPasswordPage extends StatelessWidget {
+  const RestoreDefaultPasswordPage({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("恢复默认蓝牙密码")),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.redAccent.withOpacity(0.1),
+                border: Border.all(color: Colors.redAccent, width: 1.5),
+              ),
+              child: const Icon(Icons.refresh_rounded, size: 70, color: Colors.redAccent),
+            ),
+            const SizedBox(height: 24),
+            // 严格隐藏默认数字密码
+            const Text(
+              "恢复后蓝牙密码将重置为出厂默认值",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 36),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已重置为出厂默认状态")));
+              },
+              child: const Text("恢复默认蓝牙密码", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 7. 设备名称页面 (Device Name)
+// ==========================================
 class DeviceNamePage extends StatelessWidget {
   const DeviceNamePage({Key? key}) : super(key: key);
 
@@ -759,25 +700,31 @@ class DeviceNamePage extends StatelessWidget {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            const Icon(Icons.phone_android, size: 70, color: Color(0xFF00F0FF)),
             const SizedBox(height: 20),
+            const Icon(Icons.phone_android, size: 70, color: Color(0xFF00F0FF)),
+            const SizedBox(height: 24),
             TextFormField(
               initialValue: "陕A0P92Y",
               decoration: const InputDecoration(
                 labelText: "设备名称",
                 enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00F0FF))),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00F0FF), width: 1.5)),
               ),
             ),
             const SizedBox(height: 10),
-            const Text("设备名称将用于蓝牙连接和设备识别", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text("设备名称将用于蓝牙连接和设备识别", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            ),
             const SizedBox(height: 30),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF00F0FF),
                 minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () => Navigator.pop(context),
-              child: const Text("保存", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text("保存", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
             )
           ],
         ),
@@ -786,7 +733,9 @@ class DeviceNamePage extends StatelessWidget {
   }
 }
 
-// 时间同步设置页
+// ==========================================
+// 8. 时间同步设置页面 (Time Sync)
+// ==========================================
 class TimeSyncPage extends StatelessWidget {
   const TimeSyncPage({Key? key}) : super(key: key);
 
@@ -802,17 +751,20 @@ class TimeSyncPage extends StatelessWidget {
             children: [
               const Icon(Icons.access_time_filled, size: 90, color: Color(0xFF00F0FF)),
               const SizedBox(height: 20),
-              const Text("当前状态：未同步", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 13)),
+              const SizedBox(height: 4),
+              const Text("未同步", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 30),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00F0FF),
                   minimumSize: const Size(200, 48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("设备时间已校准同步")));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("请先连接蓝牙设备以校准时间")));
                 },
-                child: const Text("立即同步", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                child: const Text("立即同步", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
               const SizedBox(height: 12),
               const Text("同步后将自动校准设备时间", style: TextStyle(color: Colors.grey, fontSize: 12)),
@@ -824,7 +776,9 @@ class TimeSyncPage extends StatelessWidget {
   }
 }
 
-// 自动连接设置页
+// ==========================================
+// 自动连接设置页面 (Auto Connect)
+// ==========================================
 class AutoConnectPage extends StatelessWidget {
   const AutoConnectPage({Key? key}) : super(key: key);
 
@@ -833,24 +787,22 @@ class AutoConnectPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text("自动连接设置")),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            SwitchListTile(
-              secondary: const Icon(Icons.link, color: Color(0xFF00F0FF)),
-              title: const Text("自动连接"),
-              subtitle: const Text("开启后，APP启动时将自动连接已配对设备"),
-              value: false,
-              onChanged: (val) {},
-            ),
-          ],
+        padding: const EdgeInsets.all(16.0),
+        child: SwitchListTile(
+          secondary: const Icon(Icons.link, color: Color(0xFF00F0FF)),
+          title: const Text("自动连接"),
+          subtitle: const Text("开启后，APP启动时将自动连接已配对设备"),
+          value: false,
+          onChanged: (val) {},
         ),
       ),
     );
   }
 }
 
-// 提示音设置页
+// ==========================================
+// 提示音设置页面 (Sound Settings)
+// ==========================================
 class SoundSettingsPage extends StatelessWidget {
   const SoundSettingsPage({Key? key}) : super(key: key);
 
@@ -859,24 +811,22 @@ class SoundSettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text("提示音设置")),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            SwitchListTile(
-              secondary: const Icon(Icons.volume_up, color: Color(0xFF00F0FF)),
-              title: const Text("提示音"),
-              subtitle: const Text("开启后，操作时将播放提示音"),
-              value: false,
-              onChanged: (val) {},
-            ),
-          ],
+        padding: const EdgeInsets.all(16.0),
+        child: SwitchListTile(
+          secondary: const Icon(Icons.volume_up, color: Color(0xFF00F0FF)),
+          title: const Text("提示音"),
+          subtitle: const Text("开启后，操作时将播放提示音"),
+          value: false,
+          onChanged: (val) {},
         ),
       ),
     );
   }
 }
 
-// 关于系统页面（配马自达科技徽标）
+// ==========================================
+// 9. 关于系统页面 (About System - 图二全同)
+// ==========================================
 class AboutPage extends StatelessWidget {
   const AboutPage({Key? key}) : super(key: key);
 
@@ -890,10 +840,10 @@ class AboutPage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("Tian Key", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00F0FF))),
-              const SizedBox(height: 8),
-              const Icon(Icons.shield_outlined, size: 70, color: Colors.cyanAccent),
-              const SizedBox(height: 30),
+              const Text("Tian Key", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00F0FF), letterSpacing: 1.5)),
+              const SizedBox(height: 12),
+              const Icon(Icons.shield_outlined, size: 65, color: Colors.cyanAccent),
+              const SizedBox(height: 36),
               _infoRow("车型", "马自达昂克赛拉"),
               _infoRow("车牌", "陕A0P92Y"),
               _infoRow("设备", "ESP32"),
@@ -907,38 +857,16 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(String k, String v) {
+  Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(k, style: const TextStyle(color: Colors.white70, fontSize: 15)),
-          Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 15)),
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
         ],
       ),
     );
-  }
-}
-
-// 蓝牙底层通讯类
-class BleService {
-  BluetoothDevice? connectedDevice;
-  BluetoothCharacteristic? targetCharacteristic;
-
-  Future<bool> connectToDevice() async {
-    try {
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
-      await Future.delayed(const Duration(seconds: 2));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> sendPayload(String cmd) async {
-    if (targetCharacteristic != null) {
-      await targetCharacteristic!.write(utf8.encode(cmd), withoutResponse: true);
-    }
   }
 }
