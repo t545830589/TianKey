@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 强制锁定竖屏，彻底解决横屏拉伸变形问题
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -17,79 +16,119 @@ class TianKeyV11App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tian Key',
+      title: 'Tian Key V11 UI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF050B14), // 深蓝黑赛博底色
+        scaffoldBackgroundColor: const Color(0xFF030710), // 赛博超深蓝黑底色
         primaryColor: const Color(0xFF00F0FF),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF08101E),
-          centerTitle: true,
-          elevation: 0,
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
-        ),
       ),
-      home: const MainTabFrame(),
+      home: const NinePagesScrollViewer(),
     );
   }
 }
 
-// 底部 Tab 导航框架
-class MainTabFrame extends StatefulWidget {
-  const MainTabFrame({Key? key}) : super(key: key);
+// =========================================================================
+// 9 页全量横向滑动展示控制器 (可滑动滑动浏览全套 9 页UI)
+// =========================================================================
+class NinePagesScrollViewer extends StatefulWidget {
+  const NinePagesScrollViewer({Key? key}) : super(key: key);
 
   @override
-  State<MainTabFrame> createState() => _MainTabFrameState();
+  State<NinePagesScrollViewer> createState() => _NinePagesScrollViewerState();
 }
 
-class _MainTabFrameState extends State<MainTabFrame> {
-  int _currentIndex = 0;
+class _NinePagesScrollViewerState extends State<NinePagesScrollViewer> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
-  final List<Widget> _pages = const [
-    HomePage(),
-    TempBorrowPage(),
-    SettingsPage(),
+  final List<String> _pageTitles = [
+    "1.首页",
+    "2.临时借车",
+    "3.设置",
+    "4.管理员授权",
+    "5.修改蓝牙密码",
+    "6.恢复默认密码",
+    "7.设备名称",
+    "8.时间同步",
+    "9.关于系统",
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF08101E),
-          border: Border(top: BorderSide(color: Color(0xFF13233F), width: 1)),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          backgroundColor: Colors.transparent,
-          selectedItemColor: const Color(0xFF00F0FF),
-          unselectedItemColor: Colors.grey.shade600,
-          elevation: 0,
-          onTap: (index) => setState(() => _currentIndex = index),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: "首页",
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 顶部 9 页切换控制胶囊条
+            Container(
+              height: 48,
+              decoration: const BoxDecoration(
+                color: Color(0xFF07101E),
+                border: Border(bottom: BorderSide(color: Color(0xFF00F0FF), width: 0.8)),
+              ),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _pageTitles.length,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                itemBuilder: (context, index) {
+                  bool isSelected = _currentPage == index;
+                  return GestureDetector(
+                    onTap: () {
+                      _pageController.animateToPage(
+                        index,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF00F0FF) : const Color(0xFF0B172A),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF00F0FF) : const Color(0xFF1B355A),
+                        ),
+                        boxShadow: isSelected
+                            ? [const BoxShadow(color: Color(0xFF00F0FF), blurRadius: 8)]
+                            : [],
+                      ),
+                      child: Center(
+                        child: Text(
+                          _pageTitles[index],
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : Colors.white70,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.key_outlined),
-              activeIcon: Icon(Icons.key),
-              label: "临时借车",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
-              label: "设置",
+
+            // 9 页横向滑动主区域
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() => _currentPage = index);
+                },
+                children: const [
+                  PhoneMockupFrame(child: Page1Home()),
+                  PhoneMockupFrame(child: Page2TempBorrow()),
+                  PhoneMockupFrame(child: Page3Settings()),
+                  PhoneMockupFrame(child: Page4AdminAuth()),
+                  PhoneMockupFrame(child: Page5ModifyBlePass()),
+                  PhoneMockupFrame(child: Page6RestoreDefault()),
+                  PhoneMockupFrame(child: Page7DeviceName()),
+                  PhoneMockupFrame(child: Page8TimeSync()),
+                  PhoneMockupFrame(child: Page9AboutSystem()),
+                ],
+              ),
             ),
           ],
         ),
@@ -98,362 +137,440 @@ class _MainTabFrameState extends State<MainTabFrame> {
   }
 }
 
-// ==========================================
-// 1. 首页 (Home Page - 严格冻结版)
-// ==========================================
-class HomePage extends StatelessWidget {
-  const HomePage({Key? key}) : super(key: key);
+// 手机机身渲染容器外壳（确保比例精准）
+class PhoneMockupFrame extends StatelessWidget {
+  final Widget child;
+  const PhoneMockupFrame({Key? key, required this.child}) : super(key: key);
 
-  void _sendCmd(BuildContext context, String actionName, String code) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("请先连接蓝牙设备以发送指令: $actionName ($code)"),
-        duration: const Duration(seconds: 1),
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 410, maxHeight: 840),
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF050B15),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF1A3356), width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Color(0xFF00F0FF), blurRadius: 10, spreadRadius: -5)
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+// =========================================================================
+// 自定义赛博发光组件 Toolkit (告别毛坯感)
+// =========================================================================
+
+class CyberHeader extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final bool showBack;
+  const CyberHeader({Key? key, required this.title, this.showBack = false}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF071120),
+        border: Border(bottom: BorderSide(color: Color(0xFF132845), width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          showBack
+              ? const Icon(Icons.arrow_back_ios_new, color: Color(0xFF00F0FF), size: 18)
+              : const Icon(Icons.settings, color: Colors.white54, size: 20),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          showBack
+              ? const SizedBox(width: 20)
+              : const Icon(Icons.help_outline, color: Color(0xFF00F0FF), size: 20),
+        ],
       ),
     );
   }
 
   @override
+  Size get preferredSize => const Size.fromHeight(50);
+}
+
+class CyberButton extends StatelessWidget {
+  final String text;
+  final IconData? icon;
+  final Color glowColor;
+  final VoidCallback? onTap;
+  final bool isOutlined;
+
+  const CyberButton({
+    Key? key,
+    required this.text,
+    this.icon,
+    this.glowColor = const Color(0xFF00F0FF),
+    this.onTap,
+    this.isOutlined = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: isOutlined ? Colors.transparent : glowColor.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: glowColor, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: glowColor.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 0,
+            )
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: isOutlined ? glowColor : Colors.white, size: 18),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              text,
+              style: TextStyle(
+                color: isOutlined ? glowColor : Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CyberTextField extends StatelessWidget {
+  final String label;
+  final String hint;
+  final bool obscureText;
+  final String? initialValue;
+
+  const CyberTextField({
+    Key? key,
+    required this.label,
+    required this.hint,
+    this.obscureText = false,
+    this.initialValue,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 6),
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF071224),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFF1B3860), width: 1),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: initialValue,
+                  obscureText: obscureText,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                ),
+              ),
+              if (obscureText)
+                const Icon(Icons.remove_red_eye_outlined, color: Colors.white38, size: 18)
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =========================================================================
+// 第 1 页：首页 (Home Page)
+// =========================================================================
+class Page1Home extends StatelessWidget {
+  const Page1Home({Key? key}) : super(key: key);
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.settings, color: Colors.white70),
-          onPressed: () {},
-        ),
-        title: const Text("Tian Key"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Color(0xFF00F0FF)),
-            onPressed: () {},
-          )
-        ],
-      ),
+      appBar: const CyberHeader(title: "Tian Key"),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            // 红色昂克赛拉 HUD 雷达卡片
+            // 马自达昂克赛拉 HUD 卡片
             Container(
-              width: double.infinity,
-              height: 185,
+              height: 175,
               decoration: BoxDecoration(
-                color: const Color(0xFF091326),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.35), width: 1.5),
+                color: const Color(0xFF081428),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.5), width: 1.2),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.12), blurRadius: 16)
+                  BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.15), blurRadius: 12)
                 ],
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // 科技发光雷达背景
+                  // 雷达背景圈
                   Container(
-                    width: 145,
-                    height: 145,
+                    width: 140,
+                    height: 140,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.2), width: 1.5),
-                      gradient: RadialGradient(
-                        colors: [const Color(0xFF00F0FF).withOpacity(0.15), Colors.transparent],
-                      ),
+                      border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.2), width: 1),
                     ),
                   ),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.directions_car_filled_sharp, size: 90, color: Colors.redAccent.shade400),
-                      const SizedBox(height: 6),
-                      // 标准蓝色车牌 陕A·0P92Y
+                      Icon(Icons.directions_car_sharp, size: 85, color: Colors.redAccent.shade400),
+                      const SizedBox(height: 4),
+                      // 陕A·0P92Y 蓝色车牌
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0044B2),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.white, width: 1),
+                          color: const Color(0xFF0040A8),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: Colors.white, width: 0.8),
                         ),
                         child: const Text(
                           "陕A·0P92Y",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            letterSpacing: 1.2,
-                          ),
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                         ),
-                      ),
+                      )
                     ],
-                  ),
+                  )
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            // 5 大待初始化状态栏 (纯灰色未连接)
+            // 5 大未初始化状态栏
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF08101E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF13233F)),
+                color: const Color(0xFF07101E),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF142742)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _statusItem(Icons.bluetooth_disabled, "设备状态", "未连接"),
-                  _statusItem(Icons.shield_outlined, "管理员状态", "未授权"),
-                  _statusItem(Icons.electric_bolt, "供电状态", "未知"),
-                  _statusItem(Icons.access_time, "时间同步", "未同步"),
-                  _statusItem(Icons.key_off_outlined, "临时借车", "无有效密码"),
+                  _statusBadge(Icons.bluetooth_disabled, "设备状态", "未连接"),
+                  _statusBadge(Icons.shield_outlined, "管理员状态", "未授权"),
+                  _statusBadge(Icons.bolt, "供电状态", "未知"),
+                  _statusBadge(Icons.access_time, "时间同步", "未同步"),
+                  _statusBadge(Icons.key_off, "临时借车", "无有效密码"),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            // 两个核心动作按键
-            Row(
+            // 连接设备 & 管理员授权
+            const Row(
               children: [
-                Expanded(
-                  child: _cyberActionButton(
-                    label: "连接设备",
-                    icon: Icons.bluetooth,
-                    color: const Color(0xFF00F0FF),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("正在搜索设备: 陕A0P92Y...")),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _cyberActionButton(
-                    label: "管理员授权",
-                    icon: Icons.security,
-                    color: const Color(0xFFFFB800),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAuthPage()));
-                    },
-                  ),
-                ),
+                Expanded(child: CyberButton(text: "连接设备", icon: Icons.bluetooth, glowColor: Color(0xFF00F0FF))),
+                SizedBox(width: 10),
+                Expanded(child: CyberButton(text: "管理员授权", icon: Icons.security, glowColor: Color(0xFFFFB800))),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            // 6 个车辆动作控车按键
+            // 6 个车控按键 (2x3)
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
               childAspectRatio: 2.3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: [
-                _ctrlBtn("锁车", Icons.lock_outline, () => _sendCmd(context, "锁车", "suoche")),
-                _ctrlBtn("解锁", Icons.lock_open_outlined, () => _sendCmd(context, "解锁", "jiesuo")),
-                _ctrlBtn("车窗升", Icons.keyboard_double_arrow_up, () => _sendCmd(context, "车窗升", "chuangsheng")),
-                _ctrlBtn("车窗降", Icons.keyboard_double_arrow_down, () => _sendCmd(context, "车窗降", "chuangjiang")),
-                _ctrlBtn("寻车", Icons.cell_tower, () => _sendCmd(context, "寻车", "xunche")),
-                _ctrlBtn("后备箱", Icons.time_to_leave_outlined, () => _sendCmd(context, "后备箱", "houbeixiang")),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              children: const [
+                CyberButton(text: "锁车", icon: Icons.lock_outline, isOutlined: true),
+                CyberButton(text: "解锁", icon: Icons.lock_open, isOutlined: true),
+                CyberButton(text: "车窗升", icon: Icons.keyboard_double_arrow_up, isOutlined: true),
+                CyberButton(text: "车窗降", icon: Icons.keyboard_double_arrow_down, isOutlined: true),
+                CyberButton(text: "寻车", icon: Icons.cell_tower, isOutlined: true),
+                CyberButton(text: "后备箱", icon: Icons.minor_crash_outlined, isOutlined: true),
               ],
             ),
           ],
         ),
       ),
+      bottomNavigationBar: _cyberBottomNav(0),
     );
   }
 
-  Widget _statusItem(IconData icon, String title, String val) {
+  Widget _statusBadge(IconData icon, String label, String val) {
     return Column(
       children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
-        const SizedBox(height: 4),
-        Text(title, style: const TextStyle(fontSize: 10, color: Colors.white54)),
+        Icon(icon, size: 15, color: Colors.grey),
         const SizedBox(height: 2),
-        Text(val, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+        Text(label, style: const TextStyle(fontSize: 9, color: Colors.white54)),
+        Text(val, style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
       ],
     );
   }
-
-  Widget _cyberActionButton({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color, width: 1.2),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 8)],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _ctrlBtn(String name, IconData icon, VoidCallback tap) {
-    return InkWell(
-      onTap: tap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A152A),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.4), width: 1),
-          boxShadow: [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.05), blurRadius: 6)],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: const Color(0xFF00F0FF), size: 22),
-            const SizedBox(width: 10),
-            Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-// ==========================================
-// 2. 临时借车页面 (Temp Borrow Page)
-// ==========================================
-class TempBorrowPage extends StatefulWidget {
-  const TempBorrowPage({Key? key}) : super(key: key);
-
-  @override
-  State<TempBorrowPage> createState() => _TempBorrowPageState();
-}
-
-class _TempBorrowPageState extends State<TempBorrowPage> {
-  String _selectedDuration = "5分钟";
-  final List<String> _durations = ["5分钟", "1天", "2天", "3天", "4天", "5天", "6天", "7天"];
+// =========================================================================
+// 第 2 页：临时借车 (Temp Borrow)
+// =========================================================================
+class Page2TempBorrow extends StatelessWidget {
+  const Page2TempBorrow({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final List<String> times = ["5分钟", "1天", "2天", "3天", "4天", "5天", "6天", "7天"];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("临时借车"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.receipt_long, color: Colors.white70),
-            onPressed: () {},
-          )
-        ],
-      ),
+      appBar: const CyberHeader(title: "临时借车", showBack: true),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(14.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 12)),
-            const SizedBox(height: 6),
+            const Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 11)),
+            const SizedBox(height: 4),
             const Row(
               children: [
-                Icon(Icons.key_off, color: Colors.grey, size: 20),
-                SizedBox(width: 8),
-                Text("无有效临时密码", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                Icon(Icons.key_off, color: Colors.grey, size: 18),
+                SizedBox(width: 6),
+                Text("无有效临时密码", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 20),
-            const Text("选择有效时间", style: TextStyle(color: Color(0xFF00F0FF), fontSize: 14)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            const Text("选择有效时间", style: TextStyle(color: Color(0xFF00F0FF), fontSize: 12)),
+            const SizedBox(height: 8),
             Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _durations.map((d) {
-                bool isSelected = d == _selectedDuration;
-                return ChoiceChip(
-                  label: Text(
-                    d,
-                    style: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
+              spacing: 8,
+              runSpacing: 8,
+              children: times.map((t) {
+                bool isSelected = t == "5分钟";
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF00F0FF) : const Color(0xFF09162A),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: isSelected ? const Color(0xFF00F0FF) : const Color(0xFF1B3860)),
                   ),
-                  selected: isSelected,
-                  selectedColor: const Color(0xFF00F0FF),
-                  backgroundColor: const Color(0xFF0B172E),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(
-                      color: isSelected ? const Color(0xFF00F0FF) : const Color(0xFF1B3254),
-                    ),
-                  ),
-                  onSelected: (val) {
-                    if (val) setState(() => _selectedDuration = d);
-                  },
+                  child: Text(t, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 24),
-
-            const Text("临时密码", style: TextStyle(color: Colors.white54, fontSize: 13)),
-            const SizedBox(height: 8),
-
-            // 未生成密码卡片 (绝对不预填任何临时密码)
+            const SizedBox(height: 16),
+            const Text("临时密码", style: TextStyle(color: Colors.white54, fontSize: 11)),
+            const SizedBox(height: 6),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 24),
               decoration: BoxDecoration(
-                color: const Color(0xFF081224),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF1B3254), width: 1.0),
+                color: const Color(0xFF071224),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF183256)),
               ),
-              child: Column(
+              child: const Column(
                 children: [
-                  const Icon(Icons.lock_clock, color: Colors.white38, size: 38),
-                  const SizedBox(height: 12),
-                  const Text("尚未生成", style: TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    ),
-                    onPressed: null, // 未生成时禁用
-                    icon: const Icon(Icons.copy, size: 16, color: Colors.white24),
-                    label: const Text("复制密码", style: TextStyle(color: Colors.white24)),
-                  ),
+                  Icon(Icons.lock_clock, color: Colors.white24, size: 32),
+                  SizedBox(height: 6),
+                  Text("尚未生成", style: TextStyle(color: Colors.white38, fontSize: 14)),
+                  SizedBox(height: 10),
+                  Text("复制密码", style: TextStyle(color: Colors.white24, fontSize: 11)),
                 ],
               ),
             ),
-
             const Spacer(),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00F0FF),
-                minimumSize: const Size.fromHeight(50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("已选择有效期 $_selectedDuration，请连接设备后生成密码")),
-                );
-              },
-              child: const Text("生成临时密码", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.redAccent),
-                minimumSize: const Size.fromHeight(50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {},
-              child: const Text("取消借车", style: TextStyle(color: Colors.redAccent, fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
+            const CyberButton(text: "生成临时密码", glowColor: Color(0xFF00F0FF)),
+            const SizedBox(height: 8),
+            const CyberButton(text: "取消借车", glowColor: Colors.redAccent, isOutlined: true),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _cyberBottomNav(1),
+    );
+  }
+}
+
+// =========================================================================
+// 第 3 页：设置 (Settings)
+// =========================================================================
+class Page3Settings extends StatelessWidget {
+  const Page3Settings({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: const CyberHeader(title: "设置"),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          _settingsTile(Icons.lock_reset, "修改蓝牙密码", ""),
+          _settingsTile(Icons.restore, "恢复默认蓝牙密码", ""),
+          _settingsTile(Icons.directions_car, "设备名称", "陕A0P92Y"),
+          _settingsTile(Icons.sync, "时间同步设置", ""),
+          _settingsTile(Icons.bluetooth_searching, "自动连接设置", "关闭"),
+          _settingsTile(Icons.volume_up, "提示音设置", "关闭"),
+          _settingsTile(Icons.info_outline, "关于系统", ""),
+        ],
+      ),
+      bottomNavigationBar: _cyberBottomNav(2),
+    );
+  }
+
+  Widget _settingsTile(IconData icon, String title, String val) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF071224),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFF132845)),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: Icon(icon, color: const Color(0xFF00F0FF), size: 18),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 13)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (val.isNotEmpty) Text(val, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
           ],
         ),
       ),
@@ -461,125 +578,39 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
   }
 }
 
-// ==========================================
-// 3. 设置主页 (Settings Page)
-// ==========================================
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({Key? key}) : super(key: key);
+// =========================================================================
+// 第 4 页：管理员授权 (Admin Auth)
+// =========================================================================
+class Page4AdminAuth extends StatelessWidget {
+  const Page4AdminAuth({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("设置")),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          _tile(context, Icons.lock_reset, "修改蓝牙密码", "", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ModifyBlePasswordPage()));
-          }),
-          _tile(context, Icons.restore, "恢复默认蓝牙密码", "", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const RestoreDefaultPasswordPage()));
-          }),
-          _tile(context, Icons.directions_car, "设备名称", "陕A0P92Y", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const DeviceNamePage()));
-          }),
-          _tile(context, Icons.sync, "时间同步设置", "", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const TimeSyncPage()));
-          }),
-          _tile(context, Icons.bluetooth_searching, "自动连接设置", "关闭", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AutoConnectPage()));
-          }),
-          _tile(context, Icons.volume_up, "提示音设置", "关闭", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundSettingsPage()));
-          }),
-          _tile(context, Icons.info_outline, "关于系统", "", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()));
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _tile(BuildContext ctx, IconData icon, String title, String trailingText, VoidCallback tap) {
-    return ListTile(
-      leading: Icon(icon, color: const Color(0xFF00F0FF)),
-      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (trailingText.isNotEmpty) Text(trailingText, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(width: 4),
-          const Icon(Icons.chevron_right, color: Colors.grey),
-        ],
-      ),
-      onTap: tap,
-    );
-  }
-}
-
-// ==========================================
-// 4. 管理员授权页面 (Admin Auth)
-// ==========================================
-class AdminAuthPage extends StatefulWidget {
-  const AdminAuthPage({Key? key}) : super(key: key);
-
-  @override
-  State<AdminAuthPage> createState() => _AdminAuthPageState();
-}
-
-class _AdminAuthPageState extends State<AdminAuthPage> {
-  final _adminPassCtrl = TextEditingController(); // 绝对留空，无任何预填文本
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("管理员授权")),
+      appBar: const CyberHeader(title: "管理员授权", showBack: true),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
             const SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFFFFB800).withOpacity(0.1),
                 border: Border.all(color: const Color(0xFFFFB800), width: 1.5),
+                boxShadow: [BoxShadow(color: const Color(0xFFFFB800).withOpacity(0.2), blurRadius: 15)],
               ),
-              child: const Icon(Icons.shield, size: 70, color: Color(0xFFFFB800)),
+              child: const Icon(Icons.shield, size: 55, color: Color(0xFFFFB800)),
             ),
+            const SizedBox(height: 16),
+            const Text("请输入管理员密码进行授权", style: TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(height: 20),
-            const Text("请输入管理员密码进行授权", style: TextStyle(color: Colors.white70, fontSize: 14)),
+            const CyberTextField(label: "管理员密码", hint: "请输入管理员密码", obscureText: true),
             const SizedBox(height: 24),
-            TextField(
-              controller: _adminPassCtrl,
-              obscureText: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: "管理员密码",
-                hintText: "请输入管理员密码",
-                labelStyle: TextStyle(color: Color(0xFFFFB800)),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF13233F))),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFB800), width: 1.5)),
-              ),
-            ),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFB800),
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                if (_adminPassCtrl.text.isNotEmpty) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("授权提交中...")));
-                }
-              },
-              child: const Text("确认授权", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-            const SizedBox(height: 12),
-            const Text("授权后可使用全部管理员功能", style: TextStyle(color: Colors.white38, fontSize: 12)),
+            const CyberButton(text: "确认授权", glowColor: Color(0xFFFFB800)),
+            const SizedBox(height: 10),
+            const Text("授权后可使用全部管理员功能", style: TextStyle(color: Colors.white38, fontSize: 10)),
           ],
         ),
       ),
@@ -587,98 +618,67 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
   }
 }
 
-// ==========================================
-// 5. 修改蓝牙密码页面 (Modify BLE Password)
-// ==========================================
-class ModifyBlePasswordPage extends StatelessWidget {
-  const ModifyBlePasswordPage({Key? key}) : super(key: key);
+// =========================================================================
+// 第 5 页：修改蓝牙密码 (Modify BLE Password)
+// =========================================================================
+class Page5ModifyBlePass extends StatelessWidget {
+  const Page5ModifyBlePass({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("修改蓝牙密码")),
+    return const Scaffold(
+      appBar: CyberHeader(title: "修改蓝牙密码", showBack: true),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.all(20.0),
         child: Column(
           children: [
-            _passInput("当前蓝牙密码", "请输入当前蓝牙密码"),
-            const SizedBox(height: 16),
-            _passInput("新蓝牙密码", "请输入新蓝牙密码"),
-            const SizedBox(height: 16),
-            _passInput("确认新密码", "请再次输入新密码"),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00F0FF),
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text("保存新密码", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-            )
+            CyberTextField(label: "当前蓝牙密码", hint: "请输入当前蓝牙密码", obscureText: true),
+            SizedBox(height: 12),
+            CyberTextField(label: "新蓝牙密码", hint: "请输入新蓝牙密码", obscureText: true),
+            SizedBox(height: 12),
+            CyberTextField(label: "确认新密码", hint: "请再次输入新密码", obscureText: true),
+            SizedBox(height: 24),
+            CyberButton(text: "保存新密码", glowColor: Color(0xFF00F0FF)),
           ],
         ),
       ),
     );
   }
-
-  Widget _passInput(String label, String hint) {
-    return TextField(
-      obscureText: true,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF13233F))),
-        focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00F0FF))),
-      ),
-    );
-  }
 }
 
-// ==========================================
-// 6. 恢复默认蓝牙密码页面 (Restore Default Password)
-// ==========================================
-class RestoreDefaultPasswordPage extends StatelessWidget {
-  const RestoreDefaultPasswordPage({Key? key}) : super(key: key);
+// =========================================================================
+// 第 6 页：恢复默认蓝牙密码 (Restore Default Password)
+// =========================================================================
+class Page6RestoreDefault extends StatelessWidget {
+  const Page6RestoreDefault({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("恢复默认蓝牙密码")),
+      appBar: const CyberHeader(title: "恢复默认蓝牙密码", showBack: true),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.redAccent.withOpacity(0.1),
                 border: Border.all(color: Colors.redAccent, width: 1.5),
               ),
-              child: const Icon(Icons.refresh_rounded, size: 70, color: Colors.redAccent),
+              child: const Icon(Icons.refresh_rounded, size: 55, color: Colors.redAccent),
             ),
-            const SizedBox(height: 24),
-            // 严格隐藏默认数字密码
+            const SizedBox(height: 20),
+            // 隐藏 123456789，严格不显示真实密码
             const Text(
               "恢复后蓝牙密码将重置为出厂默认值",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 36),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("已重置为出厂默认状态")));
-              },
-              child: const Text("恢复默认蓝牙密码", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
+            const SizedBox(height: 30),
+            const CyberButton(text: "恢复默认蓝牙密码", glowColor: Colors.redAccent),
           ],
         ),
       ),
@@ -686,172 +686,116 @@ class RestoreDefaultPasswordPage extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 7. 设备名称页面 (Device Name)
-// ==========================================
-class DeviceNamePage extends StatelessWidget {
-  const DeviceNamePage({Key? key}) : super(key: key);
+// =========================================================================
+// 第 7 页：设备名称 (Device Name)
+// =========================================================================
+class Page7DeviceName extends StatelessWidget {
+  const Page7DeviceName({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      appBar: CyberHeader(title: "设备名称", showBack: true),
+      body: Padding(
+        padding: EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            SizedBox(height: 10),
+            Icon(Icons.phone_android, size: 55, color: Color(0xFF00F0FF)),
+            SizedBox(height: 16),
+            CyberTextField(label: "设备名称", hint: "设备名称", initialValue: "陕A0P92Y"),
+            SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text("设备名称将用于蓝牙连接和设备识别", style: TextStyle(color: Colors.grey, fontSize: 10)),
+            ),
+            SizedBox(height: 24),
+            CyberButton(text: "保存", glowColor: Color(0xFF00F0FF)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =========================================================================
+// 第 8 页：时间同步设置 (Time Sync)
+// =========================================================================
+class Page8TimeSync extends StatelessWidget {
+  const Page8TimeSync({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      appBar: CyberHeader(title: "时间同步设置", showBack: true),
+      body: Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.access_time_filled, size: 70, color: Color(0xFF00F0FF)),
+              SizedBox(height: 16),
+              Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 11)),
+              SizedBox(height: 2),
+              Text("未同步", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              SizedBox(height: 24),
+              CyberButton(text: "立即同步", glowColor: Color(0xFF00F0FF)),
+              SizedBox(height: 8),
+              Text("同步后将自动校准设备时间", style: TextStyle(color: Colors.grey, fontSize: 10)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =========================================================================
+// 第 9 页：关于系统 (About System)
+// =========================================================================
+class Page9AboutSystem extends StatelessWidget {
+  const Page9AboutSystem({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("设备名称")),
+      appBar: const CyberHeader(title: "关于系统", showBack: true),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
             const SizedBox(height: 20),
-            const Icon(Icons.phone_android, size: 70, color: Color(0xFF00F0FF)),
-            const SizedBox(height: 24),
-            TextFormField(
-              initialValue: "陕A0P92Y",
-              decoration: const InputDecoration(
-                labelText: "设备名称",
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00F0FF))),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00F0FF), width: 1.5)),
-              ),
+            const Text(
+              "Tian Key",
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF00F0FF), letterSpacing: 1.5),
             ),
             const SizedBox(height: 10),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text("设备名称将用于蓝牙连接和设备识别", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Icon(Icons.shield_outlined, size: 55, color: Colors.cyanAccent),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF071224),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF132845)),
+              ),
+              child: Column(
+                children: [
+                  _infoRow("车型", "马自达昂克赛拉"),
+                  const Divider(color: Color(0xFF132845)),
+                  _infoRow("车牌", "陕A0P92Y"),
+                  const Divider(color: Color(0xFF132845)),
+                  _infoRow("设备", "ESP32"),
+                  const Divider(color: Color(0xFF132845)),
+                  _infoRow("显示", "未连接设备"),
+                ],
+              ),
             ),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00F0FF),
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text("保存", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-            )
+            const Spacer(),
+            const Text("Tian Key 智能车钥匙控制系统", style: TextStyle(color: Colors.white38, fontSize: 10)),
+            const SizedBox(height: 10),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 8. 时间同步设置页面 (Time Sync)
-// ==========================================
-class TimeSyncPage extends StatelessWidget {
-  const TimeSyncPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("时间同步设置")),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.access_time_filled, size: 90, color: Color(0xFF00F0FF)),
-              const SizedBox(height: 20),
-              const Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 13)),
-              const SizedBox(height: 4),
-              const Text("未同步", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00F0FF),
-                  minimumSize: const Size(200, 48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("请先连接蓝牙设备以校准时间")));
-                },
-                child: const Text("立即同步", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-              const SizedBox(height: 12),
-              const Text("同步后将自动校准设备时间", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 自动连接设置页面 (Auto Connect)
-// ==========================================
-class AutoConnectPage extends StatelessWidget {
-  const AutoConnectPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("自动连接设置")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SwitchListTile(
-          secondary: const Icon(Icons.link, color: Color(0xFF00F0FF)),
-          title: const Text("自动连接"),
-          subtitle: const Text("开启后，APP启动时将自动连接已配对设备"),
-          value: false,
-          onChanged: (val) {},
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 提示音设置页面 (Sound Settings)
-// ==========================================
-class SoundSettingsPage extends StatelessWidget {
-  const SoundSettingsPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("提示音设置")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SwitchListTile(
-          secondary: const Icon(Icons.volume_up, color: Color(0xFF00F0FF)),
-          title: const Text("提示音"),
-          subtitle: const Text("开启后，操作时将播放提示音"),
-          value: false,
-          onChanged: (val) {},
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 9. 关于系统页面 (About System - 图二全同)
-// ==========================================
-class AboutPage extends StatelessWidget {
-  const AboutPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("关于系统")),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text("Tian Key", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00F0FF), letterSpacing: 1.5)),
-              const SizedBox(height: 12),
-              const Icon(Icons.shield_outlined, size: 65, color: Colors.cyanAccent),
-              const SizedBox(height: 36),
-              _infoRow("车型", "马自达昂克赛拉"),
-              _infoRow("车牌", "陕A0P92Y"),
-              _infoRow("设备", "ESP32"),
-              _infoRow("设备状态", "未连接设备"),
-              const SizedBox(height: 40),
-              const Text("Tian Key 智能车钥匙控制系统", style: TextStyle(color: Colors.white38, fontSize: 12)),
-            ],
-          ),
         ),
       ),
     );
@@ -859,14 +803,44 @@ class AboutPage extends StatelessWidget {
 
   Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 15)),
-          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
         ],
       ),
     );
   }
+}
+
+// 底部通用 Nav
+Widget _cyberBottomNav(int activeIdx) {
+  return Container(
+    height: 48,
+    decoration: const BoxDecoration(
+      color: Color(0xFF060E1A),
+      border: Border(top: BorderSide(color: Color(0xFF132845), width: 1)),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _navItem(Icons.home, "首页", activeIdx == 0),
+        _navItem(Icons.key, "临时借车", activeIdx == 1),
+        _navItem(Icons.settings, "设置", activeIdx == 2),
+      ],
+    ),
+  );
+}
+
+Widget _navItem(IconData icon, String label, bool isActive) {
+  Color col = isActive ? const Color(0xFF00F0FF) : Colors.grey;
+  return Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Icon(icon, color: col, size: 18),
+      Text(label, style: TextStyle(color: col, fontSize: 9)),
+    ],
+  );
 }
