@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:convert';
+import 'dart:math';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 强制锁定竖屏，彻底解决模拟器/手机横屏拉伸变形问题
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(const TianKeyApp());
 }
 
@@ -15,15 +23,15 @@ class TianKeyApp extends StatelessWidget {
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF040810),
+        scaffoldBackgroundColor: const Color(0xFF050B14),
         primaryColor: const Color(0xFF00F0FF),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF070D1D),
+          backgroundColor: Color(0xFF08101E),
           centerTitle: true,
           elevation: 0,
           titleTextStyle: TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
           ),
@@ -34,7 +42,6 @@ class TianKeyApp extends StatelessWidget {
   }
 }
 
-// 三战三大页面主框架
 class MainTabFrame extends StatefulWidget {
   const MainTabFrame({Key? key}) : super(key: key);
 
@@ -67,14 +74,14 @@ class _MainTabFrameState extends State<MainTabFrame> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF070D1D),
-          border: Border(top: BorderSide(color: Color(0xFF1E2D4A), width: 1)),
+          color: Color(0xFF08101E),
+          border: Border(top: BorderSide(color: Color(0xFF13233F), width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           backgroundColor: Colors.transparent,
           selectedItemColor: const Color(0xFF00F0FF),
-          unselectedItemColor: Colors.grey,
+          unselectedItemColor: Colors.grey.shade600,
           elevation: 0,
           onTap: (index) => setState(() => _currentIndex = index),
           items: const [
@@ -89,7 +96,7 @@ class _MainTabFrameState extends State<MainTabFrame> {
 }
 
 // ==========================================
-// 1. 赛博朋克 HUD 首页 (Home Page)
+// 1. 赛博黑金 HUD 首页 (Strict 1:1 图二)
 // ==========================================
 class HomePage extends StatefulWidget {
   final BleService bleService;
@@ -141,10 +148,14 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.settings, color: Colors.white70),
+          onPressed: () {},
+        ),
         title: const Text("Tian Key"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.cyanAccent),
+            icon: const Icon(Icons.help_outline, color: Color(0xFF00F0FF)),
             onPressed: () {},
           )
         ],
@@ -153,44 +164,43 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Column(
           children: [
-            // 跑车 & 车牌展示卡片
+            // 跑车 & 陕A·0P92Y 车牌雷达 HUD 卡片
             Container(
               width: double.infinity,
-              height: 200,
+              height: 190,
               decoration: BoxDecoration(
-                color: const Color(0xFF091224),
+                color: const Color(0xFF091326),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF1E3A60), width: 1.5),
+                border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.4), width: 1.5),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.08), blurRadius: 15, spreadRadius: 2)
+                  BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.12), blurRadius: 16)
                 ],
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // 科技光轮背景
+                  // 雷达科技光圈背景
                   Container(
-                    width: 170,
-                    height: 170,
+                    width: 150,
+                    height: 150,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.2), width: 1.5),
+                      border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.25), width: 1.5),
                       gradient: RadialGradient(
-                        colors: [const Color(0xFF00F0FF).withOpacity(0.15), Colors.transparent],
+                        colors: [const Color(0xFF00F0FF).withOpacity(0.18), Colors.transparent],
                       ),
                     ),
                   ),
-                  // 红色昂克赛拉跑车造型
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.directions_car_filled_sharp, size: 105, color: Colors.redAccent.shade400),
+                      Icon(Icons.directions_car_filled_sharp, size: 95, color: Colors.redAccent.shade400),
                       const SizedBox(height: 4),
                       // 车牌 Badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0052D4),
+                          color: const Color(0xFF0044B2),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: Colors.white, width: 1),
                         ),
@@ -204,15 +214,15 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // 5大冷启动待初始化状态
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF081020),
+                color: const Color(0xFF08101E),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF162846)),
+                border: Border.all(color: const Color(0xFF13233F)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -225,9 +235,9 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // 顶部两个核心连接/授权按键
+            // 两个核心连接/授权按键
             Row(
               children: [
                 Expanded(
@@ -249,7 +259,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // 6个车辆控制按键
             GridView.count(
@@ -260,12 +270,12 @@ class _HomePageState extends State<HomePage> {
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               children: [
-                _ctrlBtn("锁车", Icons.lock, () => _sendCmd("suoche", "锁车")),
-                _ctrlBtn("解锁", Icons.lock_open, () => _sendCmd("jiesuo", "解锁")),
+                _ctrlBtn("锁车", Icons.lock_outline, () => _sendCmd("suoche", "锁车")),
+                _ctrlBtn("解锁", Icons.lock_open_outlined, () => _sendCmd("jiesuo", "解锁")),
                 _ctrlBtn("车窗升", Icons.keyboard_double_arrow_up, () => _sendCmd("chuangsheng", "车窗升")),
                 _ctrlBtn("车窗降", Icons.keyboard_double_arrow_down, () => _sendCmd("chuangjiang", "车窗降")),
                 _ctrlBtn("寻车", Icons.cell_tower, () => _sendCmd("xunche", "寻车")),
-                _ctrlBtn("后备箱", Icons.time_to_leave, () => _sendCmd("houbeixiang", "后备箱")),
+                _ctrlBtn("后备箱", Icons.time_to_leave_outlined, () => _sendCmd("houbeixiang", "后备箱")),
               ],
             ),
           ],
@@ -277,7 +287,7 @@ class _HomePageState extends State<HomePage> {
   Widget _statusItem(IconData icon, String title, String val, bool active) {
     return Column(
       children: [
-        Icon(icon, size: 18, color: active ? const Color(0xFF00F0FF) : Colors.grey),
+        Icon(icon, size: 18, color: active ? const Color(0xFF00F0FF) : Colors.grey.shade600),
         const SizedBox(height: 4),
         Text(title, style: const TextStyle(fontSize: 10, color: Colors.white54)),
         const SizedBox(height: 2),
@@ -316,10 +326,10 @@ class _HomePageState extends State<HomePage> {
       borderRadius: BorderRadius.circular(10),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A1428),
+          color: const Color(0xFF0A152A),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF00F0FF).withOpacity(0.5), width: 1),
-          boxShadow: [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.05), blurRadius: 6)],
+          boxShadow: [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.06), blurRadius: 6)],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -335,7 +345,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ==========================================
-// 2. 临时借车页面 (Temp Borrow Page)
+// 2. 临时借车页面（真正的密码生成与刷新逻辑）
 // ==========================================
 class TempBorrowPage extends StatefulWidget {
   const TempBorrowPage({Key? key}) : super(key: key);
@@ -346,27 +356,71 @@ class TempBorrowPage extends StatefulWidget {
 
 class _TempBorrowPageState extends State<TempBorrowPage> {
   String _selectedDuration = "5分钟";
+  String? _generatedPassword;
+
   final List<String> _durations = ["5分钟", "1天", "2天", "3天", "4天", "5天", "6天", "7天"];
+
+  // 随机生成 6 位黑科技密码
+  void _createPassword() {
+    final random = Random();
+    final code = (100000 + random.nextInt(900000)).toString();
+    setState(() {
+      _generatedPassword = code;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("已生成临时借车密码：$code (有效时间：$_selectedDuration)")),
+    );
+  }
+
+  void _cancelPassword() {
+    setState(() {
+      _generatedPassword = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("已取消临时借车权限")),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    bool hasPassword = _generatedPassword != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("临时借车")),
+      appBar: AppBar(
+        title: const Text("临时借车"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long, color: Colors.white70),
+            onPressed: () {},
+          )
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text("当前状态", style: TextStyle(color: Colors.white54, fontSize: 12)),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Row(
-              children: const [
-                Icon(Icons.key_off, color: Colors.grey, size: 18),
-                SizedBox(width: 6),
-                Text("无有效临时密码", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              children: [
+                Icon(
+                  hasPassword ? Icons.vpn_key : Icons.key_off,
+                  color: hasPassword ? const Color(0xFF00F0FF) : Colors.grey,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  hasPassword ? "密码已生效 (有效时间：$_selectedDuration)" : "无有效临时密码",
+                  style: TextStyle(
+                    color: hasPassword ? const Color(0xFF00F0FF) : Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             const Text("选择有效时间", style: TextStyle(color: Color(0xFF00F0FF), fontSize: 14)),
             const SizedBox(height: 12),
             Wrap(
@@ -375,37 +429,104 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
               children: _durations.map((d) {
                 bool isSelected = d == _selectedDuration;
                 return ChoiceChip(
-                  label: Text(d, style: TextStyle(color: isSelected ? Colors.black : Colors.white)),
+                  label: Text(
+                    d,
+                    style: TextStyle(
+                      color: isSelected ? Colors.black : Colors.white,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
                   selected: isSelected,
                   selectedColor: const Color(0xFF00F0FF),
-                  backgroundColor: const Color(0xFF0D1B34),
+                  backgroundColor: const Color(0xFF0B172E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(
+                      color: isSelected ? const Color(0xFF00F0FF) : const Color(0xFF1B3254),
+                    ),
+                  ),
                   onSelected: (val) {
                     if (val) setState(() => _selectedDuration = d);
                   },
                 );
               }).toList(),
             ),
-            const SizedBox(height: 28),
-            
-            // 临时密码卡片框（尚未生成）
+            const SizedBox(height: 24),
+
+            const Text("临时密码", style: TextStyle(color: Colors.white54, fontSize: 13)),
+            const SizedBox(height: 8),
+
+            // 核心：临时密码生成后真正卡片显示
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF081020),
+                color: const Color(0xFF081224),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF1E3A60), style: BorderStyle.solid),
+                border: Border.all(
+                  color: hasPassword ? const Color(0xFF00F0FF) : const Color(0xFF1B3254),
+                  width: hasPassword ? 1.5 : 1.0,
+                ),
+                boxShadow: hasPassword
+                    ? [BoxShadow(color: const Color(0xFF00F0FF).withOpacity(0.2), blurRadius: 14)]
+                    : [],
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.lock_clock, color: Colors.white38, size: 36),
-                  const SizedBox(height: 8),
-                  const Text("尚未生成密码", style: TextStyle(color: Colors.white54, fontSize: 14)),
+                  Icon(
+                    hasPassword ? Icons.lock_open : Icons.lock_clock,
+                    color: hasPassword ? const Color(0xFF00F0FF) : Colors.white38,
+                    size: 38,
+                  ),
                   const SizedBox(height: 12),
+                  if (hasPassword) ...[
+                    // 密码生成后在此以 36px 发光大字完美展示！
+                    SelectableText(
+                      _generatedPassword!,
+                      style: const TextStyle(
+                        color: Color(0xFF00F0FF),
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 8,
+                        shadows: [
+                          Shadow(color: Color(0xFF00F0FF), blurRadius: 12),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    const Text(
+                      "尚未生成",
+                      style: TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
                   OutlinedButton.icon(
-                    onPressed: null,
-                    icon: const Icon(Icons.copy, size: 16),
-                    label: const Text("复制密码"),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: hasPassword ? const Color(0xFF00F0FF) : Colors.white24,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    ),
+                    onPressed: hasPassword
+                        ? () {
+                            Clipboard.setData(ClipboardData(text: _generatedPassword!));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("密码 $_generatedPassword 已复制到剪贴板")),
+                            );
+                          }
+                        : null,
+                    icon: Icon(
+                      Icons.copy,
+                      size: 16,
+                      color: hasPassword ? const Color(0xFF00F0FF) : Colors.white24,
+                    ),
+                    label: Text(
+                      "复制密码",
+                      style: TextStyle(
+                        color: hasPassword ? const Color(0xFF00F0FF) : Colors.white24,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -418,11 +539,7 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("已请求生成有效时间为 $_selectedDuration 的临时借车密码")),
-                );
-              },
+              onPressed: _createPassword,
               child: const Text("生成临时密码", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
             const SizedBox(height: 12),
@@ -432,14 +549,10 @@ class _TempBorrowPageState extends State<TempBorrowPage> {
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("临时借车权限已取消")),
-                );
-              },
+              onPressed: _cancelPassword,
               child: const Text("取消借车", style: TextStyle(color: Colors.redAccent, fontSize: 16)),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
           ],
         ),
       ),
@@ -506,7 +619,7 @@ class SettingsPage extends StatelessWidget {
     showDialog(
       context: ctx,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1428),
+        backgroundColor: const Color(0xFF0A152A),
         title: const Text("恢复默认蓝牙密码", style: TextStyle(color: Colors.orangeAccent)),
         content: const Text("恢复后蓝牙密码将重置为出厂默认值", style: TextStyle(color: Colors.white70)),
         actions: [
@@ -526,7 +639,7 @@ class SettingsPage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. 次级设计图子页面 & 弹窗
+// 4. 图二对应的全套子页面
 // ==========================================
 
 // 管理员授权页
@@ -550,7 +663,7 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            const Icon(Icons.shield_outlined, size: 80, color: Colors.amber),
+            const Icon(Icons.shield, size: 80, color: Color(0xFFFFB800)),
             const SizedBox(height: 16),
             const Text("请输入管理员密码进行授权", style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 24),
@@ -560,15 +673,15 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
                 labelText: "管理员密码",
-                labelStyle: TextStyle(color: Colors.amber),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.amber)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.amber, width: 2)),
+                labelStyle: TextStyle(color: Color(0xFFFFB800)),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFB800))),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFB800), width: 2)),
               ),
             ),
             const SizedBox(height: 30),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
+                backgroundColor: const Color(0xFFFFB800),
                 minimumSize: const Size.fromHeight(48),
               ),
               onPressed: () {
@@ -627,7 +740,7 @@ class ModifyBlePasswordPage extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF1E3A60))),
+        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF13233F))),
         focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00F0FF))),
       ),
     );
@@ -763,7 +876,7 @@ class SoundSettingsPage extends StatelessWidget {
   }
 }
 
-// 关于系统页面
+// 关于系统页面（配马自达科技徽标）
 class AboutPage extends StatelessWidget {
   const AboutPage({Key? key}) : super(key: key);
 
@@ -779,7 +892,7 @@ class AboutPage extends StatelessWidget {
             children: [
               const Text("Tian Key", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00F0FF))),
               const SizedBox(height: 8),
-              const Icon(Icons.shield, size: 70, color: Colors.cyanAccent),
+              const Icon(Icons.shield_outlined, size: 70, color: Colors.cyanAccent),
               const SizedBox(height: 30),
               _infoRow("车型", "马自达昂克赛拉"),
               _infoRow("车牌", "陕A0P92Y"),
