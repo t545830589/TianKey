@@ -23,6 +23,9 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Auto Create Android Platform Files
+        run: flutter create . --platforms=android --org=com.tiankey.app
+
       - name: Install Dependencies
         run: flutter pub get
 
