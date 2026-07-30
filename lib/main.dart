@@ -1,19 +1,8 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // APP 固定竖屏。
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-
-  // 设计图本身包含状态栏和底部横条，因此隐藏真实系统栏，
-  // 让 11 张设计图完整铺满手机屏幕。
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
   runApp(const TianKeyApp());
 }
 
@@ -25,1003 +14,1034 @@ class TianKeyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black,
-        useMaterial3: true,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF030712),
+        primaryColor: const Color(0xFF00E5FF),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF00E5FF),
+          secondary: Color(0xFF0066CC),
+          surface: Color(0xFF080F1D),
+        ),
       ),
-      home: const TianKeyShell(),
+      home: const AppSliderMainScreen(),
     );
   }
 }
 
-class TianKeyShell extends StatefulWidget {
-  const TianKeyShell({super.key});
+// ==========================================
+// 全局状态单例（支持9个滑动页面实时联动）
+// ==========================================
+class AppState extends ChangeNotifier {
+  static final AppState instance = AppState._internal();
+  factory AppState() => instance;
+  AppState._internal();
+
+  bool isConnected = false;
+  bool isAuthorized = false;
+  bool isTimeSynced = false;
+  bool autoConnect = true;
+  bool soundEffects = true;
+  String deviceName = '陕A0P92Y';
+  String blePassword = '******';
+  
+  // 临时密码状态
+  String tempPassword = '尚未生成';
+  bool hasTempPassword = false;
+  String selectedDuration = '5分钟';
+
+  void toggleConnection() {
+    isConnected = !isConnected;
+    notifyListeners();
+  }
+
+  void setAuthorized(bool val) {
+    isAuthorized = val;
+    notifyListeners();
+  }
+
+  void setTimeSynced(bool val) {
+    isTimeSynced = val;
+    notifyListeners();
+  }
+
+  void setDeviceName(String name) {
+    deviceName = name;
+    notifyListeners();
+  }
+
+  void setBlePassword(String pass) {
+    blePassword = pass;
+    notifyListeners();
+  }
+
+  void generateNewTempPassword(String duration) {
+    selectedDuration = duration;
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rnd = math.Random();
+    tempPassword = List.generate(6, (index) => chars[rnd.nextInt(chars.length)]).join();
+    hasTempPassword = true;
+    notifyListeners();
+  }
+
+  void cancelTempPassword() {
+    tempPassword = '尚未生成';
+    hasTempPassword = false;
+    notifyListeners();
+  }
+}
+
+// ==========================================
+// 核心9页滑动主容器 (PageView + 底部/顶部控制器)
+// ==========================================
+class AppSliderMainScreen extends StatefulWidget {
+  const AppSliderMainScreen({super.key});
 
   @override
-  State<TianKeyShell> createState() => _TianKeyShellState();
+  State<AppSliderMainScreen> createState() => _AppSliderMainScreenState();
 }
 
-class _TianKeyShellState extends State<TianKeyShell> {
-  String page = 'home';
+class _AppSliderMainScreenState extends State<AppSliderMainScreen> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
-  String selectedDuration = '5分钟';
-  String? tempPassword;
-
-  bool autoConnect = false;
-  bool soundEnabled = false;
-  bool authorized = false;
-
-  String deviceName = '陕A·0P92Y';
-  String bluetoothPassword = '123456';
-
-  final List<String> durations = const [
-    '5分钟',
-    '1天',
-    '2天',
-    '3天',
-    '4天',
-    '5天',
-    '6天',
-    '7天',
+  final List<String> _pageTitles = [
+    '1. 主控制台',
+    '2. 临时借车密码',
+    '3. 设置主页',
+    '4. 管理员授权',
+    '5. 修改蓝牙密码',
+    '6. 恢复默认密码',
+    '7. 修改设备名称',
+    '8. 时间同步校准',
+    '9. 关于系统硬件',
   ];
 
-  String createRandomPassword() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final random = Random.secure();
-
-    return List.generate(
-      6,
-      (_) => chars[random.nextInt(chars.length)],
-    ).join();
-  }
-
-  void go(String target) {
-    setState(() => page = target);
-  }
-
-  void showMessage(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF06131E),
-      ),
-    );
-  }
-
-  void showTextInputDialog({
-    required String title,
-    required String hint,
-    bool obscureText = false,
-    String initialText = '',
-    required void Function(String value) onConfirm,
-  }) {
-    final controller = TextEditingController(text: initialText);
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF07131C),
-          title: Text(
-            title,
-            style: const TextStyle(color: Color(0xFF5BD8FF)),
-          ),
-          content: TextField(
-            controller: controller,
-            obscureText: obscureText,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(color: Color(0xFF71808C)),
-              enabledBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF248BD0)),
-              ),
-              focusedBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF57D6FF), width: 2),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = controller.text.trim();
-                if (value.isEmpty) return;
-
-                Navigator.pop(dialogContext);
-                onConfirm(value);
-              },
-              child: const Text('确认'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void confirmRestoreBluetoothPassword() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF07131C),
-          title: const Text(
-            '恢复默认蓝牙密码',
-            style: TextStyle(color: Color(0xFFFF6B6B)),
-          ),
-          content: const Text('确定恢复默认蓝牙密码吗？当前密码将被替换。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFCE1010),
-              ),
-              onPressed: () {
-                setState(() => bluetoothPassword = '123456');
-                Navigator.pop(dialogContext);
-                showMessage('已恢复默认蓝牙密码：123456');
-              },
-              child: const Text('恢复'),
-            ),
-          ],
-        );
-      },
+  void _animateToPage(int page) {
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget content;
-
-    switch (page) {
-      case 'borrow':
-        content = buildBorrowPage();
-        break;
-      case 'settings':
-        content = buildSettingsPage();
-        break;
-      case 'admin':
-        content = buildAdminPage();
-        break;
-      case 'changePassword':
-        content = buildChangePasswordPage();
-        break;
-      case 'restorePassword':
-        content = buildRestorePasswordPage();
-        break;
-      case 'deviceName':
-        content = buildDeviceNamePage();
-        break;
-      case 'timeSync':
-        content = buildTimeSyncPage();
-        break;
-      case 'sound':
-        content = buildSoundPage();
-        break;
-      case 'autoConnect':
-        content = buildAutoConnectPage();
-        break;
-      case 'about':
-        content = buildAboutPage();
-        break;
-      case 'home':
-      default:
-        content = buildHomePage();
-    }
-
     return Scaffold(
-      body: content,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 顶部滑动提示与页面快速切换指示器
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Color(0xFF080F1D),
+                border: Border(bottom: BorderSide(color: Color(0xFF16253B), width: 1)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.swipe_outlined, color: Color(0xFF00E5FF), size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        _pageTitles[_currentPage],
+                        style: const TextStyle(
+                          color: Color(0xFF00E5FF),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00E5FF).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF00E5FF), width: 1),
+                    ),
+                    child: Text(
+                      '${_currentPage + 1} / 9 页 (可左右滑动)',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 9页连续滑动 PageView
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPage = index;
+                  });
+                },
+                children: [
+                  Page1Home(onNavigate: _animateToPage),
+                  Page2TempBorrow(onNavigate: _animateToPage),
+                  Page3SettingsList(onNavigate: _animateToPage),
+                  Page4AdminAuth(onNavigate: _animateToPage),
+                  Page5ChangeBlePass(onNavigate: _animateToPage),
+                  Page6ResetBlePass(onNavigate: _animateToPage),
+                  Page7DeviceName(onNavigate: _animateToPage),
+                  Page8TimeSync(onNavigate: _animateToPage),
+                  Page9AboutSystem(onNavigate: _animateToPage),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // 底部常驻导航栏（点击自动滑动到对应页面）
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF070D18),
+          border: Border(top: BorderSide(color: Color(0xFF16253B), width: 1)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentPage > 2 ? 2 : _currentPage,
+          onTap: (index) {
+            _animateToPage(index);
+          },
+          backgroundColor: Colors.transparent,
+          selectedItemColor: const Color(0xFF00E5FF),
+          unselectedItemColor: const Color(0xFF5A6E85),
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: '首页(1)'),
+            BottomNavigationBarItem(icon: Icon(Icons.people_alt_outlined), label: '临时借车(2)'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: '设置(3-9)'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 通用弹窗与 Toast 提示
+// ==========================================
+void showAppToast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).clearSnackBars();
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message, style: const TextStyle(color: Colors.white)),
+      backgroundColor: const Color(0xFF0A182E),
+      duration: const Duration(seconds: 1),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+      ),
+    ),
+  );
+}
+
+// ==========================================
+// 页面 1：首页（控制台与8个切片按键）
+// ==========================================
+class Page1Home extends StatelessWidget {
+  final Function(int) onNavigate;
+  const Page1Home({super.key, required this.onNavigate});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) {
+        final state = AppState.instance;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Column(
+            children: [
+              // 顶部 App 标题栏
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, color: Color(0xFF00E5FF), size: 22),
+                    onPressed: () => onNavigate(2), // 跳转设置
+                  ),
+                  const Text(
+                    'Tian Key',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(color: Color(0xFF00E5FF), blurRadius: 12),
+                        Shadow(color: Colors.blueAccent, blurRadius: 6),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF00E5FF), size: 22),
+                    onPressed: () => onNavigate(8), // 跳转关于
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // 车图区域 (调用切片 1.png)
+              Container(
+                height: 185,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.15), blurRadius: 10)
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Image.asset(
+                        '1.png',
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, stack) => Container(
+                          decoration: const BoxDecoration(
+                            gradient: RadialGradient(
+                              colors: [Color(0xFF0A2240), Color(0xFF030712)],
+                              radius: 0.9,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.directions_car_filled, size: 90, color: Colors.redAccent),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0033A0),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: Text(
+                            state.deviceName,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 5 项状态栏
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF080F1D),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF182840), width: 1),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatusItem('设备状态', state.isConnected ? '已连接' : '未连接', Icons.bluetooth),
+                    _buildStatusItem('管理员状态', state.isAuthorized ? '已授权' : '未授权', Icons.shield_outlined),
+                    _buildStatusItem('供电状态', '正常', Icons.flash_on),
+                    _buildStatusItem('时间同步', state.isTimeSynced ? '已同步' : '未同步', Icons.access_time),
+                    _buildStatusItem('临时借车', state.hasTempPassword ? '已生效' : '无有效密码', Icons.key_outlined),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 8 个赛博朋克控制按钮 (支持 GitHub 切片 2.png ~ 10.png)
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                childAspectRatio: 2.35,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                children: [
+                  _buildCyberButton(
+                    '连接设备',
+                    Icons.bluetooth,
+                    const Color(0xFF00E5FF),
+                    '2.png',
+                    () {
+                      state.toggleConnection();
+                      showAppToast(context, state.isConnected ? '蓝牙设备连接成功！' : '蓝牙设备已断开连接');
+                    },
+                  ),
+                  _buildCyberButton(
+                    '管理员授权',
+                    Icons.verified_user,
+                    const Color(0xFFFF9100),
+                    '3.png',
+                    () => onNavigate(3), // 滑动到第4页授权页
+                  ),
+                  _buildCyberButton('锁车', Icons.lock, const Color(0xFF0088FF), '4.png', () {
+                    showAppToast(context, '指令已下发：车辆已加锁');
+                  }),
+                  _buildCyberButton('解锁', Icons.lock_open, const Color(0xFF0088FF), '5.png', () {
+                    showAppToast(context, '指令已下发：车辆已解锁');
+                  }),
+                  _buildCyberButton('车窗升', Icons.keyboard_double_arrow_up, const Color(0xFFFF9100), '7.png', () {
+                    showAppToast(context, '指令已下发：四门车窗升起');
+                  }),
+                  _buildCyberButton('车窗降', Icons.keyboard_double_arrow_down, const Color(0xFFFF9100), '8.png', () {
+                    showAppToast(context, '指令已下发：四门车窗下降');
+                  }),
+                  _buildCyberButton('寻车', Icons.cell_tower, const Color(0xFF0088FF), '9.png', () {
+                    showAppToast(context, '寻车指令发送：车辆蜂鸣闪烁');
+                  }),
+                  _buildCyberButton('后备箱', Icons.minor_crash, const Color(0xFF0088FF), '10.png', () {
+                    showAppToast(context, '指令已下发：后备箱开启');
+                  }),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  /// 统一背景组件：
-  /// 设计图完整铺满屏幕，点击区域根据图片比例定位。
-  Widget imageScreen({
-    required String asset,
-    required List<Widget> children,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
+  Widget _buildStatusItem(String label, String val, IconData icon) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: const Color(0xFF00E5FF)),
+        const SizedBox(height: 3),
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[400])),
+        const SizedBox(height: 2),
+        Text(val, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
 
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(
-              asset,
-              fit: BoxFit.fill,
-              filterQuality: FilterQuality.high,
+  Widget _buildCyberButton(String title, IconData icon, Color themeColor, String sliceImg, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        splashColor: themeColor.withOpacity(0.4),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF070F1E),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: themeColor.withOpacity(0.85), width: 1.2),
+            boxShadow: [
+              BoxShadow(color: themeColor.withOpacity(0.2), blurRadius: 6),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Image.asset(
+                    sliceImg,
+                    fit: BoxFit.cover,
+                    errorBuilder: (ctx, err, stack) => const SizedBox.shrink(),
+                  ),
+                ),
+                Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, color: themeColor, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        title,
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            ...children.map(
-              (child) => SizedBox(
-                width: width,
-                height: height,
-                child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 页面 2：临时借车（真实动态随机密码）
+// ==========================================
+class Page2TempBorrow extends StatefulWidget {
+  final Function(int) onNavigate;
+  const Page2TempBorrow({super.key, required this.onNavigate});
+
+  @override
+  State<Page2TempBorrow> createState() => _Page2TempBorrowState();
+}
+
+class _Page2TempBorrowState extends State<Page2TempBorrow> {
+  String _selectedDuration = '5分钟';
+  final List<String> _durations = ['5分钟', '1天', '2天', '3天', '4天', '5天', '6天', '7天'];
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) {
+        final state = AppState.instance;
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('临时借车授权', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios, color: Color(0xFF00E5FF), size: 18),
+                    onPressed: () => widget.onNavigate(2),
+                  ),
+                ],
               ),
-            ),
+              const SizedBox(height: 10),
+
+              // 当前状态提示
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF080F1D),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF182840)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      state.hasTempPassword ? Icons.vpn_key : Icons.vpn_key_outlined,
+                      color: state.hasTempPassword ? const Color(0xFF00E5FF) : Colors.grey,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        state.hasTempPassword ? '当前状态：临时密码生效中 (${state.selectedDuration})' : '当前状态：无有效临时密码',
+                        style: TextStyle(color: state.hasTempPassword ? const Color(0xFF00E5FF) : Colors.grey, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              const Text('选择有效时间范围', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 10),
+
+              // 8个不同有效时长的可按选项
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _durations.map((d) {
+                  final isSel = _selectedDuration == d;
+                  return InkWell(
+                    onTap: () => setState(() => _selectedDuration = d),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      width: (MediaQuery.of(context).size.width - 32 - 24) / 4,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSel ? const Color(0xFF0A3054) : const Color(0xFF080F1D),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: isSel ? const Color(0xFF00E5FF) : const Color(0xFF182840)),
+                      ),
+                      child: Text(d, style: TextStyle(color: isSel ? const Color(0xFF00E5FF) : Colors.white, fontSize: 13)),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // 动态生成密码展示框
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF080F1D),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: state.hasTempPassword ? const Color(0xFF00E5FF) : const Color(0xFF182840)),
+                  boxShadow: state.hasTempPassword ? [BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.15), blurRadius: 10)] : [],
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.lock_clock_outlined, size: 36, color: Color(0xFF00E5FF)),
+                    const SizedBox(height: 8),
+                    Text(
+                      state.tempPassword,
+                      style: TextStyle(
+                        color: state.hasTempPassword ? const Color(0xFF00E5FF) : Colors.white60,
+                        fontSize: state.hasTempPassword ? 28 : 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: state.hasTempPassword ? 5 : 0,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: state.hasTempPassword
+                          ? () {
+                              Clipboard.setData(ClipboardData(text: state.tempPassword));
+                              showAppToast(context, '密码 [${state.tempPassword}] 已复制到剪贴板！');
+                            }
+                          : null,
+                      icon: const Icon(Icons.copy, size: 15),
+                      label: const Text('一键复制密码'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: state.hasTempPassword ? const Color(0xFF00E5FF) : Colors.grey,
+                        side: BorderSide(color: state.hasTempPassword ? const Color(0xFF00E5FF) : Colors.grey.shade800),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+              const Spacer(),
+
+              // 生成与取消按钮
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0066CC),
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  state.generateNewTempPassword(_selectedDuration);
+                  showAppToast(context, '已生成全新随机密码：${state.tempPassword}');
+                },
+                child: const Text('生成随机临时密码', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.redAccent),
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  state.cancelTempPassword();
+                  showAppToast(context, '临时借车授权已重置取消');
+                },
+                child: const Text('取消授权', style: TextStyle(color: Colors.redAccent, fontSize: 15)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ==========================================
+// 页面 3：设置主列表（平滑跳转到子页面）
+// ==========================================
+class Page3SettingsList extends StatelessWidget {
+  final Function(int) onNavigate;
+  const Page3SettingsList({super.key, required this.onNavigate});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) {
+        final state = AppState.instance;
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text('系统设置', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 15),
+            _buildTile('修改蓝牙密码', Icons.bluetooth, () => onNavigate(4)),
+            _buildTile('恢复默认蓝牙密码', Icons.refresh, () => onNavigate(5)),
+            _buildTile('设备名称', Icons.phone_android, () => onNavigate(6), trailingText: state.deviceName),
+            _buildTile('时间同步设置', Icons.access_time, () => onNavigate(7), trailingText: state.isTimeSynced ? '已同步' : '未同步'),
+            _buildTile('自动连接设置', Icons.link, () {
+              state.autoConnect = !state.autoConnect;
+              state.notifyListeners();
+              showAppToast(context, state.autoConnect ? '自动连接已开启' : '自动连接已关闭');
+            }, trailingText: state.autoConnect ? '开启' : '关闭'),
+            _buildTile('提示音设置', Icons.volume_up, () {
+              state.soundEffects = !state.soundEffects;
+              state.notifyListeners();
+              showAppToast(context, state.soundEffects ? '按键提示音已开启' : '按键提示音已关闭');
+            }, trailingText: state.soundEffects ? '开启' : '关闭'),
+            _buildTile('关于系统', Icons.info_outline, () => onNavigate(8)),
           ],
         );
       },
     );
   }
 
-  /// 透明按钮。
-  /// left / top / width / height 均是设计图比例，例如 0.1 = 10%。
-  Widget touch({
-    required double left,
-    required double top,
-    required double width,
-    required double height,
-    required VoidCallback onTap,
-  }) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        return Positioned(
-          left: box.maxWidth * left,
-          top: box.maxHeight * top,
-          width: box.maxWidth * width,
-          height: box.maxHeight * height,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              onTap: onTap,
+  Widget _buildTile(String title, IconData icon, VoidCallback onTap, {String? trailingText}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF080F1D),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF142236)),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF00E5FF), size: 20),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (trailingText != null) Text(trailingText, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 页面 4：管理员授权
+// ==========================================
+class Page4AdminAuth extends StatefulWidget {
+  final Function(int) onNavigate;
+  const Page4AdminAuth({super.key, required this.onNavigate});
+
+  @override
+  State<Page4AdminAuth> createState() => _Page4AdminAuthState();
+}
+
+class _Page4AdminAuthState extends State<Page4AdminAuth> {
+  final _passController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SubPageWrapper(
+      title: '管理员授权',
+      onBack: () => widget.onNavigate(0), // 返回首页
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          const Icon(Icons.shield, size: 80, color: Colors.amber),
+          const SizedBox(height: 15),
+          const Text('请输入管理员专属密码解锁高阶功能', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 25),
+          TextField(
+            controller: _passController,
+            obscureText: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              labelText: '管理员密码',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.lock_outline, color: Colors.amber),
             ),
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[800],
+              minimumSize: const Size(double.infinity, 48),
+            ),
+            onPressed: () {
+              if (_passController.text.isNotEmpty) {
+                AppState.instance.setAuthorized(true);
+                showAppToast(context, '管理员授权校验成功！');
+                widget.onNavigate(0);
+              } else {
+                showAppToast(context, '请输入授权密码');
+              }
+            },
+            child: const Text('确认授权', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 页面 5：修改蓝牙密码
+// ==========================================
+class Page5ChangeBlePass extends StatefulWidget {
+  final Function(int) onNavigate;
+  const Page5ChangeBlePass({super.key, required this.onNavigate});
+
+  @override
+  State<Page5ChangeBlePass> createState() => _Page5ChangeBlePassState();
+}
+
+class _Page5ChangeBlePassState extends State<Page5ChangeBlePass> {
+  final _oldPass = TextEditingController();
+  final _newPass = TextEditingController();
+  final _confirmPass = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SubPageWrapper(
+      title: '修改蓝牙密码',
+      onBack: () => widget.onNavigate(2), // 返回设置
+      child: Column(
+        children: [
+          TextField(controller: _oldPass, obscureText: true, decoration: const InputDecoration(labelText: '当前蓝牙密码', border: OutlineInputBorder())),
+          const SizedBox(height: 15),
+          TextField(controller: _newPass, obscureText: true, decoration: const InputDecoration(labelText: '新蓝牙密码', border: OutlineInputBorder())),
+          const SizedBox(height: 15),
+          TextField(controller: _confirmPass, obscureText: true, decoration: const InputDecoration(labelText: '确认新密码', border: OutlineInputBorder())),
+          const SizedBox(height: 30),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0066CC), minimumSize: const Size(double.infinity, 48)),
+            onPressed: () {
+              if (_newPass.text == _confirmPass.text && _newPass.text.isNotEmpty) {
+                AppState.instance.setBlePassword(_newPass.text);
+                showAppToast(context, '新蓝牙密码保存成功！');
+                widget.onNavigate(2);
+              } else {
+                showAppToast(context, '两次输入的新密码不一致或为空');
+              }
+            },
+            child: const Text('保存新密码', style: TextStyle(color: Colors.white, fontSize: 15)),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 页面 6：恢复默认蓝牙密码
+// ==========================================
+class Page6ResetBlePass extends StatelessWidget {
+  final Function(int) onNavigate;
+  const Page6ResetBlePass({super.key, required this.onNavigate});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SubPageWrapper(
+      title: '恢复默认蓝牙密码',
+      onBack: () => onNavigate(2),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40),
+          const Icon(Icons.refresh_rounded, size: 80, color: Color(0xFF00E5FF)),
+          const SizedBox(height: 20),
+          const Text('恢复后蓝牙密码将重置为出厂默认值 [123456]', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: const Size(double.infinity, 48)),
+            onPressed: () {
+              AppState.instance.setBlePassword('123456');
+              showAppToast(context, '已恢复出厂默认蓝牙密码');
+              onNavigate(2);
+            },
+            child: const Text('确认恢复默认密码', style: TextStyle(color: Colors.white, fontSize: 15)),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 页面 7：设备名称设置
+// ==========================================
+class Page7DeviceName extends StatefulWidget {
+  final Function(int) onNavigate;
+  const Page7DeviceName({super.key, required this.onNavigate});
+
+  @override
+  State<Page7DeviceName> createState() => _Page7DeviceNameState();
+}
+
+class _Page7DeviceNameState extends State<Page7DeviceName> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: AppState.instance.deviceName);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SubPageWrapper(
+      title: '设备名称',
+      onBack: () => widget.onNavigate(2),
+      child: Column(
+        children: [
+          TextField(controller: _controller, decoration: const InputDecoration(labelText: '设备名称', border: OutlineInputBorder())),
+          const SizedBox(height: 8),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('此名称将显示在主界面卡片及蓝牙识别名称中', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0066CC), minimumSize: const Size(double.infinity, 48)),
+            onPressed: () {
+              if (_controller.text.isNotEmpty) {
+                AppState.instance.setDeviceName(_controller.text);
+                showAppToast(context, '设备名称更新成功');
+                widget.onNavigate(2);
+              }
+            },
+            child: const Text('保存', style: TextStyle(color: Colors.white, fontSize: 15)),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 页面 8：时间同步设置
+// ==========================================
+class Page8TimeSync extends StatelessWidget {
+  final Function(int) onNavigate;
+  const Page8TimeSync({super.key, required this.onNavigate});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) {
+        final state = AppState.instance;
+        return _SubPageWrapper(
+          title: '时间同步设置',
+          onBack: () => onNavigate(2),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 40),
+              const Icon(Icons.access_time_filled, size: 80, color: Color(0xFF00E5FF)),
+              const SizedBox(height: 20),
+              Text(
+                state.isTimeSynced ? '当前状态：已与系统时间同步' : '当前状态：未同步',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text('点击下方按钮同步当前手机系统时间至 ESP32 钥匙设备', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0066CC), minimumSize: const Size(double.infinity, 48)),
+                onPressed: () {
+                  state.setTimeSynced(true);
+                  showAppToast(context, '时间与设备精准校准成功！');
+                },
+                child: const Text('立即同步时间', style: TextStyle(color: Colors.white, fontSize: 15)),
+              )
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ==========================================
+// 页面 9：关于系统
+// ==========================================
+class Page9AboutSystem extends StatelessWidget {
+  final Function(int) onNavigate;
+  const Page9AboutSystem({super.key, required this.onNavigate});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) {
+        final state = AppState.instance;
+        return _SubPageWrapper(
+          title: '关于系统',
+          onBack: () => onNavigate(2),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              const Icon(Icons.shield_moon_outlined, size: 70, color: Color(0xFF00E5FF)),
+              const SizedBox(height: 10),
+              const Text(
+                'Tian Key',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
+              ),
+              const SizedBox(height: 25),
+              _buildRow('车型', '马自达昂克赛拉'),
+              _buildRow('车牌', state.deviceName),
+              _buildRow('硬件芯片', 'ESP32_BLE_KEY'),
+              _buildRow('蓝牙状态', state.isConnected ? '已连接' : '未连接'),
+              _buildRow('系统版本', 'v1.0.0 Cyberpunk Edition'),
+              const Spacer(),
+              const Text('Tian Key 智能数字钥匙系统 © 2026', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 10),
+            ],
           ),
         );
       },
     );
   }
 
-  /// 首页：1.png
-  Widget buildHomePage() {
-    return imageScreen(
-      asset: '1.png',
-      children: [
-        // 左上齿轮：设置
-        touch(
-          left: 0.03,
-          top: 0.03,
-          width: 0.13,
-          height: 0.09,
-          onTap: () => go('settings'),
-        ),
-
-        // 右上问号：关于系统
-        touch(
-          left: 0.84,
-          top: 0.03,
-          width: 0.13,
-          height: 0.09,
-          onTap: () => go('about'),
-        ),
-
-        // 连接设备
-        touch(
-          left: 0.04,
-          top: 0.585,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('暂未发现设备，请先开启蓝牙并靠近设备。'),
-        ),
-
-        // 管理员授权
-        touch(
-          left: 0.52,
-          top: 0.585,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => go('admin'),
-        ),
-
-        // 锁车
-        touch(
-          left: 0.04,
-          top: 0.668,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('锁车失败：设备尚未连接。'),
-        ),
-
-        // 解锁
-        touch(
-          left: 0.52,
-          top: 0.668,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('解锁失败：设备尚未连接。'),
-        ),
-
-        // 车窗升
-        touch(
-          left: 0.04,
-          top: 0.750,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('车窗升失败：设备尚未连接。'),
-        ),
-
-        // 车窗降
-        touch(
-          left: 0.52,
-          top: 0.750,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('车窗降失败：设备尚未连接。'),
-        ),
-
-        // 寻车
-        touch(
-          left: 0.04,
-          top: 0.832,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('寻车失败：设备尚未连接。'),
-        ),
-
-        // 后备箱
-        touch(
-          left: 0.52,
-          top: 0.832,
-          width: 0.44,
-          height: 0.07,
-          onTap: () => showMessage('后备箱失败：设备尚未连接。'),
-        ),
-
-        // 底部：首页
-        touch(
-          left: 0.02,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('home'),
-        ),
-
-        // 底部：临时借车
-        touch(
-          left: 0.34,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('borrow'),
-        ),
-
-        // 底部：设置
-        touch(
-          left: 0.67,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-      ],
+  Widget _buildRow(String label, String val) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFF142236))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(val, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
+}
 
-  /// 临时借车：2.png
-  Widget buildBorrowPage() {
-    final positions = <Rect>[
-      const Rect.fromLTWH(0.05, 0.255, 0.21, 0.055),
-      const Rect.fromLTWH(0.28, 0.255, 0.21, 0.055),
-      const Rect.fromLTWH(0.51, 0.255, 0.21, 0.055),
-      const Rect.fromLTWH(0.74, 0.255, 0.21, 0.055),
-      const Rect.fromLTWH(0.05, 0.320, 0.21, 0.055),
-      const Rect.fromLTWH(0.28, 0.320, 0.21, 0.055),
-      const Rect.fromLTWH(0.51, 0.320, 0.21, 0.055),
-      const Rect.fromLTWH(0.74, 0.320, 0.21, 0.055),
-    ];
+// ==========================================
+// 通用子页面外壳组件（带返回按钮）
+// ==========================================
+class _SubPageWrapper extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  final Widget child;
 
-    final selectedIndex = durations.indexOf(selectedDuration);
+  const _SubPageWrapper({
+    required this.title,
+    required this.onBack,
+    required this.child,
+  });
 
-    return imageScreen(
-      asset: '2.png',
-      children: [
-        // 8 个有效时间选项
-        ...List.generate(8, (index) {
-          final rect = positions[index];
-
-          return touch(
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-            onTap: () {
-              setState(() => selectedDuration = durations[index]);
-              showMessage('已选择有效时间：${durations[index]}');
-            },
-          );
-        }),
-
-        // 当前选中时间的蓝色描边覆盖层
-        if (selectedIndex >= 0)
-          LayoutBuilder(
-            builder: (context, box) {
-              final rect = positions[selectedIndex];
-
-              return Positioned(
-                left: box.maxWidth * rect.left,
-                top: box.maxHeight * rect.top,
-                width: box.maxWidth * rect.width,
-                height: box.maxHeight * rect.height,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(
-                        color: const Color(0xFF27B6FF),
-                        width: 1.5,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0xAA008DFF),
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-        // 密码显示区：生成后覆盖“尚未生成”
-        if (tempPassword != null)
-          LayoutBuilder(
-            builder: (context, box) {
-              return Positioned(
-                left: box.maxWidth * 0.10,
-                top: box.maxHeight * 0.445,
-                width: box.maxWidth * 0.80,
-                height: box.maxHeight * 0.085,
-                child: IgnorePointer(
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF06131D),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFF1AA9FF),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      tempPassword!,
-                      style: const TextStyle(
-                        color: Color(0xFF5CD9FF),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 28,
-                        letterSpacing: 5,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-        // 复制密码
-        touch(
-          left: 0.08,
-          top: 0.543,
-          width: 0.84,
-          height: 0.055,
-          onTap: () async {
-            if (tempPassword == null) {
-              showMessage('请先生成临时密码。');
-              return;
-            }
-
-            await Clipboard.setData(
-              ClipboardData(text: tempPassword!),
-            );
-
-            showMessage('临时密码已复制：$tempPassword');
-          },
-        ),
-
-        // 生成临时密码
-        touch(
-          left: 0.06,
-          top: 0.618,
-          width: 0.88,
-          height: 0.065,
-          onTap: () {
-            setState(() {
-              tempPassword = createRandomPassword();
-            });
-
-            showMessage('已生成 $selectedDuration 有效的临时密码。');
-          },
-        ),
-
-        // 取消借车
-        touch(
-          left: 0.06,
-          top: 0.697,
-          width: 0.88,
-          height: 0.065,
-          onTap: () {
-            setState(() => tempPassword = null);
-            showMessage('临时借车已取消。');
-          },
-        ),
-
-        // 底部首页
-        touch(
-          left: 0.02,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('home'),
-        ),
-
-        // 底部临时借车
-        touch(
-          left: 0.34,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('borrow'),
-        ),
-
-        // 底部设置
-        touch(
-          left: 0.67,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-      ],
-    );
-  }
-
-  /// 设置：3.png
-  Widget buildSettingsPage() {
-    return imageScreen(
-      asset: '3.png',
-      children: [
-        // 修改蓝牙密码
-        touch(
-          left: 0.05,
-          top: 0.155,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('changePassword'),
-        ),
-
-        // 恢复默认蓝牙密码
-        touch(
-          left: 0.05,
-          top: 0.229,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('restorePassword'),
-        ),
-
-        // 设备名称
-        touch(
-          left: 0.05,
-          top: 0.317,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('deviceName'),
-        ),
-
-        // 时间同步设置
-        touch(
-          left: 0.05,
-          top: 0.392,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('timeSync'),
-        ),
-
-        // 自动连接设置
-        touch(
-          left: 0.05,
-          top: 0.467,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('autoConnect'),
-        ),
-
-        // 提示音设置
-        touch(
-          left: 0.05,
-          top: 0.542,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('sound'),
-        ),
-
-        // 关于系统
-        touch(
-          left: 0.05,
-          top: 0.617,
-          width: 0.90,
-          height: 0.073,
-          onTap: () => go('about'),
-        ),
-
-        // 底部首页
-        touch(
-          left: 0.02,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('home'),
-        ),
-
-        // 底部临时借车
-        touch(
-          left: 0.34,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('borrow'),
-        ),
-
-        // 底部设置
-        touch(
-          left: 0.67,
-          top: 0.910,
-          width: 0.30,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-      ],
-    );
-  }
-
-  /// 管理员授权：4.png
-  Widget buildAdminPage() {
-    return imageScreen(
-      asset: '4.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('home'),
-        ),
-
-        // 管理员密码输入框
-        touch(
-          left: 0.08,
-          top: 0.615,
-          width: 0.84,
-          height: 0.065,
-          onTap: () {
-            showTextInputDialog(
-              title: '管理员授权',
-              hint: '请输入管理员密码',
-              obscureText: true,
-              onConfirm: (value) {
-                setState(() => authorized = true);
-                showMessage('管理员授权成功。');
-              },
-            );
-          },
-        ),
-
-        // 确认授权
-        touch(
-          left: 0.08,
-          top: 0.705,
-          width: 0.84,
-          height: 0.075,
-          onTap: () {
-            setState(() => authorized = true);
-            showMessage(
-              authorized ? '管理员已授权。' : '请输入管理员密码后授权。',
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  /// 修改蓝牙密码：5.png
-  Widget buildChangePasswordPage() {
-    return imageScreen(
-      asset: '5.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-
-        // 三个密码输入区域都弹出修改窗口
-        touch(
-          left: 0.08,
-          top: 0.285,
-          width: 0.84,
-          height: 0.065,
-          onTap: () => openBluetoothPasswordInput(),
-        ),
-        touch(
-          left: 0.08,
-          top: 0.395,
-          width: 0.84,
-          height: 0.065,
-          onTap: () => openBluetoothPasswordInput(),
-        ),
-        touch(
-          left: 0.08,
-          top: 0.505,
-          width: 0.84,
-          height: 0.065,
-          onTap: () => openBluetoothPasswordInput(),
-        ),
-
-        // 保存新密码
-        touch(
-          left: 0.08,
-          top: 0.625,
-          width: 0.84,
-          height: 0.075,
-          onTap: () => openBluetoothPasswordInput(),
-        ),
-      ],
-    );
-  }
-
-  void openBluetoothPasswordInput() {
-    showTextInputDialog(
-      title: '修改蓝牙密码',
-      hint: '请输入新的蓝牙密码',
-      obscureText: true,
-      onConfirm: (value) {
-        setState(() => bluetoothPassword = value);
-        showMessage('蓝牙密码已保存。');
-      },
-    );
-  }
-
-  /// 恢复默认密码：7.png
-  Widget buildRestorePasswordPage() {
-    return imageScreen(
-      asset: '7.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-
-        // 恢复默认蓝牙密码
-        touch(
-          left: 0.08,
-          top: 0.670,
-          width: 0.84,
-          height: 0.075,
-          onTap: confirmRestoreBluetoothPassword,
-        ),
-      ],
-    );
-  }
-
-  /// 设备名称：8.png
-  Widget buildDeviceNamePage() {
-    return imageScreen(
-      asset: '8.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-
-        // 名称输入框
-        touch(
-          left: 0.08,
-          top: 0.475,
-          width: 0.84,
-          height: 0.065,
-          onTap: () => editDeviceName(),
-        ),
-
-        // 保存
-        touch(
-          left: 0.08,
-          top: 0.580,
-          width: 0.84,
-          height: 0.075,
-          onTap: () => editDeviceName(),
-        ),
-      ],
-    );
-  }
-
-  void editDeviceName() {
-    showTextInputDialog(
-      title: '设备名称',
-      hint: '请输入设备名称',
-      initialText: deviceName,
-      onConfirm: (value) {
-        setState(() => deviceName = value);
-        showMessage('设备名称已保存：$deviceName');
-      },
-    );
-  }
-
-  /// 时间同步：9.png
-  Widget buildTimeSyncPage() {
-    return imageScreen(
-      asset: '9.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-
-        // 立即同步
-        touch(
-          left: 0.08,
-          top: 0.600,
-          width: 0.84,
-          height: 0.075,
-          onTap: () {
-            final now = DateTime.now();
-            showMessage(
-              '时间同步完成：'
-              '${now.year}-${now.month.toString().padLeft(2, '0')}-'
-              '${now.day.toString().padLeft(2, '0')} '
-              '${now.hour.toString().padLeft(2, '0')}:'
-              '${now.minute.toString().padLeft(2, '0')}',
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  /// 提示音：10.png
-  Widget buildSoundPage() {
-    return imageScreen(
-      asset: '10.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-
-        // 提示音开关
-        touch(
-          left: 0.70,
-          top: 0.360,
-          width: 0.22,
-          height: 0.075,
-          onTap: () {
-            setState(() => soundEnabled = !soundEnabled);
-            showMessage(soundEnabled ? '提示音已开启。' : '提示音已关闭。');
-          },
-        ),
-
-        // 用真实开关显示当前状态
-        LayoutBuilder(
-          builder: (context, box) {
-            return Positioned(
-              left: box.maxWidth * 0.70,
-              top: box.maxHeight * 0.355,
-              width: box.maxWidth * 0.22,
-              height: box.maxHeight * 0.075,
-              child: IgnorePointer(
-                child: Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: soundEnabled,
-                    activeColor: const Color(0xFF2BB8FF),
-                    onChanged: null,
-                  ),
-                ),
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF00E5FF), size: 20),
+                onPressed: onBack,
               ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  /// 自动连接：11.png
-  Widget buildAutoConnectPage() {
-    return imageScreen(
-      asset: '11.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-
-        // 自动连接开关
-        touch(
-          left: 0.70,
-          top: 0.145,
-          width: 0.22,
-          height: 0.075,
-          onTap: () {
-            setState(() => autoConnect = !autoConnect);
-            showMessage(autoConnect ? '自动连接已开启。' : '自动连接已关闭。');
-          },
-        ),
-
-        // 用真实开关显示当前状态
-        LayoutBuilder(
-          builder: (context, box) {
-            return Positioned(
-              left: box.maxWidth * 0.70,
-              top: box.maxHeight * 0.140,
-              width: box.maxWidth * 0.22,
-              height: box.maxHeight * 0.075,
-              child: IgnorePointer(
-                child: Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: autoConnect,
-                    activeColor: const Color(0xFF2BB8FF),
-                    onChanged: null,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  /// 关于系统：12.png
-  Widget buildAboutPage() {
-    return imageScreen(
-      asset: '12.png',
-      children: [
-        // 返回
-        touch(
-          left: 0.02,
-          top: 0.035,
-          width: 0.12,
-          height: 0.075,
-          onTap: () => go('settings'),
-        ),
-      ],
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Expanded(child: child),
+        ],
+      ),
     );
   }
 }
