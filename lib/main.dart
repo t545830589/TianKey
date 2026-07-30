@@ -13,8 +13,8 @@ class TianKeyApp extends StatelessWidget {
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0FF060810),
-        primaryColor: const Color(0FF00E5FF),
+        scaffoldBackgroundColor: const Color(0xFF060810),
+        primaryColor: const Color(0xFF00E5FF),
       ),
       home: const MainPage(),
     );
@@ -31,7 +31,6 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
 
-  // 全局状态记录
   bool isConnected = false;
   bool isAuthorized = false;
   bool autoConnect = false;
@@ -53,14 +52,14 @@ class _MainPageState extends State<MainPage> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Color(0FF0C101D),
+          color: Color(0xFF0C101D),
           border: Border(top: BorderSide(color: Color(0xFF1E2D4A), width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
           backgroundColor: Colors.transparent,
-          selectedItemColor: const Color(0FF00E5FF),
+          selectedItemColor: const Color(0xFF00E5FF),
           unselectedItemColor: Colors.grey,
           elevation: 0,
           items: const [
@@ -73,21 +72,15 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // 智能图片加载器（兼容根目录与 assets 目录）
-  Widget buildSmartAssetImage(String fileName, {double? height, double? width, Widget? fallbackIcon}) {
+  // 安全图片加载组件
+  Widget buildAssetImage(String fileName, {double? height, double? width, Widget? fallbackIcon}) {
     return Image.asset(
       fileName,
       height: height,
       width: width,
       fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) {
-        return Image.asset(
-          'assets/$fileName',
-          height: height,
-          width: width,
-          fit: BoxFit.contain,
-          errorBuilder: (context, e, s) => fallbackIcon ?? const Icon(Icons.directions_car, size: 80, color: Colors.red),
-        );
+        return fallbackIcon ?? const Icon(Icons.directions_car, size: 80, color: Colors.cyanAccent);
       },
     );
   }
@@ -98,7 +91,6 @@ class _MainPageState extends State<MainPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         children: [
-          // 顶栏
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -131,7 +123,7 @@ class _MainPageState extends State<MainPage> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: const RadialGradient(
-                colors: [Color(0xFF152A4A), Color(0FF080C16)],
+                colors: [Color(0xFF152A4A), Color(0xFF080C16)],
                 radius: 0.85,
               ),
               border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1),
@@ -139,7 +131,6 @@ class _MainPageState extends State<MainPage> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // 底盘科幻发光环
                 Positioned(
                   bottom: 25,
                   child: Container(
@@ -158,14 +149,13 @@ class _MainPageState extends State<MainPage> {
                   ),
                 ),
 
-                // 渲染上传的汽车图片 car.png
+                // 渲染上传的车辆图片 1.png
                 Positioned(
                   top: 10,
                   bottom: 35,
-                  child: buildSmartAssetImage('car.png', height: 140),
+                  child: buildAssetImage('1.png', height: 140),
                 ),
 
-                // 车牌号固定展示
                 Positioned(
                   bottom: 12,
                   child: Container(
@@ -186,7 +176,6 @@ class _MainPageState extends State<MainPage> {
           ),
           const SizedBox(height: 15),
 
-          // 5个初始化状态指示
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
@@ -207,7 +196,6 @@ class _MainPageState extends State<MainPage> {
           ),
           const SizedBox(height: 15),
 
-          // 核心发光控制按键网格
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -377,10 +365,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 4. 管理员授权页 =================
   Widget buildAdminAuthPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('管理员授权'), backgroundColor: const Color(0FF060810)),
+      appBar: AppBar(title: const Text('管理员授权'), backgroundColor: const Color(0xFF060810)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -416,10 +403,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 5. 修改蓝牙密码页 =================
   Widget buildChangeBlePasswordPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('修改蓝牙密码'), backgroundColor: const Color(0FF060810)),
+      appBar: AppBar(title: const Text('修改蓝牙密码'), backgroundColor: const Color(0xFF060810)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -447,10 +433,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 6. 恢复默认蓝牙密码页 =================
   Widget buildResetBlePasswordPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('恢复默认蓝牙密码'), backgroundColor: const Color(0FF060810)),
+      appBar: AppBar(title: const Text('恢复默认蓝牙密码'), backgroundColor: const Color(0xFF060810)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -477,11 +462,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 7. 设备名称页 =================
   Widget buildDeviceNamePage(BuildContext context) {
     final controller = TextEditingController(text: '陕A0P92Y');
     return Scaffold(
-      appBar: AppBar(title: const Text('设备名称'), backgroundColor: const Color(0FF060810)),
+      appBar: AppBar(title: const Text('设备名称'), backgroundColor: const Color(0xFF060810)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -513,10 +497,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 8. 时间同步设置页 =================
   Widget buildTimeSyncPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('时间同步设置'), backgroundColor: const Color(0FF060810)),
+      appBar: AppBar(title: const Text('时间同步设置'), backgroundColor: const Color(0xFF060810)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -543,21 +526,16 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 9. 关于页面 =================
+  // 关于页面（使用 2.png）
   Widget buildAboutPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('关于系统'), backgroundColor: const Color(0FF060810)),
+      appBar: AppBar(title: const Text('关于系统'), backgroundColor: const Color(0xFF060810)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // 渲染上传的 Logo 图 logo.png
-            buildSmartAssetImage(
-              'logo.png',
-              height: 90,
-              fallbackIcon: const Icon(Icons.shield_outlined, size: 80, color: Colors.cyanAccent),
-            ),
+            buildAssetImage('2.png', height: 90),
             const SizedBox(height: 10),
             const Text('Tian Key', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
             const SizedBox(height: 30),
@@ -574,7 +552,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // --- 辅助小组件 ---
   Widget buildStatusItem(String label, String value, IconData icon) {
     return Column(
       children: [
