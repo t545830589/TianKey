@@ -13,7 +13,7 @@ class TianKeyApp extends StatelessWidget {
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF050811),
+        scaffoldBackgroundColor: const Color(0xFF03060D),
         primaryColor: const Color(0xFF00E5FF),
       ),
       home: const MainPage(),
@@ -48,12 +48,17 @@ class _MainPageState extends State<MainPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: pages[_currentIndex],
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 480), // 限制宽度防止大屏/横屏变形
+            child: pages[_currentIndex],
+          ),
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF0A0F1D),
-          border: Border(top: BorderSide(color: Color(0xFF1B2845), width: 1)),
+          color: Color(0xFF070C16),
+          border: Border(top: BorderSide(color: Color(0xFF132238), width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
@@ -63,8 +68,8 @@ class _MainPageState extends State<MainPage> {
           unselectedItemColor: Colors.grey,
           elevation: 0,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: '首页'),
-            BottomNavigationBarItem(icon: Icon(Icons.group_outlined), label: '临时借车'),
+            BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: '首页'),
+            BottomNavigationBarItem(icon: Icon(Icons.people_alt_outlined), label: '临时借车'),
             BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: '设置'),
           ],
         ),
@@ -72,18 +77,18 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 1. 首页 (根据设计图1:1还原) =================
+  // ================= 1. 首页 (完全按照设计图切片+布局还原) =================
   Widget buildHomePage(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Column(
         children: [
-          // 顶栏
+          // 顶部 Title 栏
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.settings, color: Colors.cyanAccent),
+                icon: const Icon(Icons.settings_outlined, color: Colors.cyanAccent, size: 22),
                 onPressed: () => setState(() => _currentIndex = 2),
               ),
               const Text(
@@ -93,98 +98,87 @@ class _MainPageState extends State<MainPage> {
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
                   color: Colors.white,
-                  shadows: [Shadow(color: Colors.cyanAccent, blurRadius: 12)],
+                  shadows: [
+                    Shadow(color: Colors.cyanAccent, blurRadius: 15),
+                    Shadow(color: Colors.blueAccent, blurRadius: 8),
+                  ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.help_outline, color: Colors.cyanAccent),
+                icon: const Icon(Icons.help_outline_rounded, color: Colors.cyanAccent, size: 22),
                 onPressed: () => openPage(context, buildAboutPage(context)),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
-          // 汽车展示区域 (原生代码绘制科技感圆盘与红车样式)
+          // 主车图展示区 (优先使用上传的 1.png / 2.png / 3.png 作为赛博红车背景)
           Container(
-            height: 220,
+            height: 200,
             width: double.infinity,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: const RadialGradient(
-                colors: [Color(0xFF0D2847), Color(0xFF050811)],
-                radius: 0.8,
-              ),
-              border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // 底部发光光圈
-                Positioned(
-                  bottom: 30,
-                  child: Container(
-                    width: 250,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.all(Radius.elliptical(250, 60)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.cyanAccent.withOpacity(0.4),
-                          blurRadius: 40,
-                          spreadRadius: 10,
-                        )
-                      ],
-                    ),
-                  ),
-                ),
-                // 车辆主体图标/图案 (原生代码矢量呈现)
-                Positioned(
-                  top: 20,
-                  bottom: 45,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.directions_car_filled, size: 100, color: Colors.red[600]),
-                      Container(
-                        width: 140,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: Colors.cyanAccent,
-                          boxShadow: [BoxShadow(color: Colors.cyanAccent, blurRadius: 6)],
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-                // 车牌标牌
-                Positioned(
-                  bottom: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF003399),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.white, width: 1),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
-                    ),
-                    child: const Text(
-                      '陕A0P92Y',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                  ),
-                ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4), width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.cyanAccent.withOpacity(0.1), blurRadius: 12, spreadRadius: 1)
               ],
             ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 切片背景图
+                  Image.asset(
+                    '1.png',
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // 兜底渲染切片背景
+                      return Container(
+                        decoration: const BoxDecoration(
+                          gradient: RadialGradient(
+                            colors: [Color(0xFF102847), Color(0xFF03060D)],
+                            radius: 0.8,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.directions_car_filled, size: 90, color: Colors.redAccent),
+                        ),
+                      );
+                    },
+                  ),
+                  // 车牌贴牌
+                  Positioned(
+                    bottom: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0033A0),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: Colors.white, width: 1),
+                        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
+                      ),
+                      child: const Text(
+                        '陕A·0P92Y',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 12),
 
           // 5项状态栏
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFF0C1322),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF1B2845)),
+              color: const Color(0xFF080E1A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF1A2A47), width: 1),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -197,45 +191,111 @@ class _MainPageState extends State<MainPage> {
               ],
             ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 12),
 
-          // 8个赛博朋克风格操作按钮
+          // 8个赛博朋克发光按钮 (2列 x 4行 1:1还原)
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            childAspectRatio: 2.2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            childAspectRatio: 2.3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
             children: [
-              buildCyberButton('连接设备', Icons.bluetooth, const Color(0xFF00E5FF), () {
-                showToast(context, '正在搜索设备 陕A0P92Y...');
+              buildCyberSliceButton('连接设备', Icons.bluetooth, const Color(0xFF00E5FF), '2.png', () {
+                showToast(context, '正在蓝牙搜索 陕A0P92Y...');
               }),
-              buildCyberButton('管理员授权', Icons.verified_user, const Color(0xFFFF9100), () {
+              buildCyberSliceButton('管理员授权', Icons.verified_user, const Color(0xFFFF9100), '3.png', () {
                 openPage(context, buildAdminAuthPage(context));
               }),
-              buildCyberButton('锁车', Icons.lock, const Color(0xFF0088FF), () {
-                showToast(context, '发送指令: suoche');
+              buildCyberSliceButton('锁车', Icons.lock, const Color(0xFF0088FF), '4.png', () {
+                showToast(context, '发送指令: 锁车');
               }),
-              buildCyberButton('解锁', Icons.lock_open, const Color(0xFF0088FF), () {
-                showToast(context, '发送指令: jiesuo');
+              buildCyberSliceButton('解锁', Icons.lock_open, const Color(0xFF0088FF), '5.png', () {
+                showToast(context, '发送指令: 解锁');
               }),
-              buildCyberButton('车窗升', Icons.keyboard_double_arrow_up, const Color(0xFFFF9100), () {
-                showToast(context, '发送指令: chuangsheng');
+              buildCyberSliceButton('车窗升', Icons.keyboard_double_arrow_up, const Color(0xFFFF9100), '7.png', () {
+                showToast(context, '发送指令: 车窗升');
               }),
-              buildCyberButton('车窗降', Icons.keyboard_double_arrow_down, const Color(0xFFFF9100), () {
-                showToast(context, '发送指令: chuangjiang');
+              buildCyberSliceButton('车窗降', Icons.keyboard_double_arrow_down, const Color(0xFFFF9100), '8.png', () {
+                showToast(context, '发送指令: 车窗降');
               }),
-              buildCyberButton('寻车', Icons.cell_tower, const Color(0xFF0088FF), () {
-                showToast(context, '发送指令: xunche');
+              buildCyberSliceButton('寻车', Icons.cell_tower, const Color(0xFF0088FF), '9.png', () {
+                showToast(context, '发送指令: 寻车');
               }),
-              buildCyberButton('后备箱', Icons.minor_crash, const Color(0xFF0088FF), () {
-                showToast(context, '发送指令: houbeixiang');
+              buildCyberSliceButton('后备箱', Icons.minor_crash, const Color(0xFF0088FF), '10.png', () {
+                showToast(context, '发送指令: 打开后备箱');
               }),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  // 带切片背景的赛博按钮组件
+  Widget buildCyberSliceButton(String title, IconData icon, Color mainColor, String sliceName, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF070F1E),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: mainColor.withOpacity(0.8), width: 1.2),
+          boxShadow: [
+            BoxShadow(color: mainColor.withOpacity(0.2), blurRadius: 6, spreadRadius: 0),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: Stack(
+            children: [
+              // 尝试渲染切片图片作为边框/背景
+              Positioned.fill(
+                child: Image.asset(
+                  sliceName,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                ),
+              ),
+              // 前景图标与文本
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: mainColor, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 顶部 5 项小状态组件
+  Widget buildStatusItem(String label, String value, IconData icon) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[400]),
+        const SizedBox(height: 3),
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[400])),
+        const SizedBox(height: 1),
+        Text(value, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+      ],
     );
   }
 
@@ -277,9 +337,9 @@ class _MainPageState extends State<MainPage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isSel ? const Color(0xFF005588) : const Color(0xFF0C1322),
+                    color: isSel ? const Color(0xFF005588) : const Color(0xFF080E1A),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: isSel ? Colors.cyanAccent : const Color(0xFF1B2845)),
+                    border: Border.all(color: isSel ? Colors.cyanAccent : const Color(0xFF1A2A47)),
                   ),
                   child: Text(d, style: TextStyle(color: isSel ? Colors.cyanAccent : Colors.white)),
                 ),
@@ -367,10 +427,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 管理员授权 =================
+  // ================= 子页面组 =================
   Widget buildAdminAuthPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('管理员授权'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('管理员授权'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -381,18 +441,11 @@ class _MainPageState extends State<MainPage> {
             const SizedBox(height: 20),
             const TextField(
               obscureText: true,
-              decoration: InputDecoration(
-                labelText: '管理员密码',
-                hintText: '请输入管理员密码',
-                border: OutlineInputBorder(),
-              ),
+              decoration: InputDecoration(labelText: '管理员密码', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 30),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber[800],
-                minimumSize: const Size(double.infinity, 48),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[800], minimumSize: const Size(double.infinity, 48)),
               onPressed: () {
                 setState(() => isAuthorized = true);
                 Navigator.pop(context);
@@ -406,10 +459,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 修改蓝牙密码 =================
   Widget buildChangeBlePasswordPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('修改蓝牙密码'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('修改蓝牙密码'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -421,10 +473,7 @@ class _MainPageState extends State<MainPage> {
             const TextField(obscureText: true, decoration: InputDecoration(labelText: '确认新密码', border: OutlineInputBorder())),
             const SizedBox(height: 30),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0077FF),
-                minimumSize: const Size(double.infinity, 48),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0077FF), minimumSize: const Size(double.infinity, 48)),
               onPressed: () {
                 Navigator.pop(context);
                 showToast(context, '新蓝牙密码保存成功！');
@@ -437,10 +486,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 恢复默认蓝牙密码 =================
   Widget buildResetBlePasswordPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('恢复默认蓝牙密码'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('恢复默认蓝牙密码'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -451,10 +499,7 @@ class _MainPageState extends State<MainPage> {
             const Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: Colors.white70, fontSize: 16)),
             const SizedBox(height: 40),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                minimumSize: const Size(double.infinity, 48),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: const Size(double.infinity, 48)),
               onPressed: () {
                 Navigator.pop(context);
                 showToast(context, '已恢复默认蓝牙密码');
@@ -467,19 +512,15 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 设备名称 =================
   Widget buildDeviceNamePage(BuildContext context) {
     final controller = TextEditingController(text: '陕A0P92Y');
     return Scaffold(
-      appBar: AppBar(title: const Text('设备名称'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('设备名称'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(labelText: '设备名称', border: OutlineInputBorder()),
-            ),
+            TextField(controller: controller, decoration: const InputDecoration(labelText: '设备名称', border: OutlineInputBorder())),
             const SizedBox(height: 10),
             const Align(
               alignment: Alignment.centerLeft,
@@ -487,10 +528,7 @@ class _MainPageState extends State<MainPage> {
             ),
             const SizedBox(height: 30),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0077FF),
-                minimumSize: const Size(double.infinity, 48),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0077FF), minimumSize: const Size(double.infinity, 48)),
               onPressed: () {
                 Navigator.pop(context);
                 showToast(context, '修改保存成功');
@@ -503,10 +541,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 时间同步设置 =================
   Widget buildTimeSyncPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('时间同步设置'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('时间同步设置'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -517,10 +554,7 @@ class _MainPageState extends State<MainPage> {
             const Text('当前状态：未同步', style: TextStyle(color: Colors.white70, fontSize: 16)),
             const SizedBox(height: 40),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0077FF),
-                minimumSize: const Size(double.infinity, 48),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0077FF), minimumSize: const Size(double.infinity, 48)),
               onPressed: () {
                 Navigator.pop(context);
                 showToast(context, '时间同步成功！');
@@ -533,10 +567,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 自动连接设置 =================
   Widget buildAutoConnectPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('自动连接设置'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('自动连接设置'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -557,10 +590,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 提示音设置 =================
   Widget buildSoundSettingPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('提示音设置'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('提示音设置'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -581,20 +613,18 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ================= 子页面: 关于系统 =================
   Widget buildAboutPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('关于系统'), backgroundColor: const Color(0xFF050811)),
+      appBar: AppBar(title: const Text('关于系统'), backgroundColor: const Color(0xFF03060D)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             const SizedBox(height: 30),
-            // 原生马自达翼型标志图形绘制
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.shield_moon_outlined, size: 70, color: Colors.cyanAccent),
+              children: const [
+                Icon(Icons.shield_moon_outlined, size: 70, color: Colors.cyanAccent),
               ],
             ),
             const SizedBox(height: 10),
@@ -616,45 +646,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // 辅助组件
-  Widget buildStatusItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 10, color: Colors.white70)),
-      ],
-    );
-  }
-
-  Widget buildCyberButton(String title, IconData icon, Color glowColor, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A1120),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: glowColor.withOpacity(0.6), width: 1),
-          boxShadow: [
-            BoxShadow(color: glowColor.withOpacity(0.15), blurRadius: 8, spreadRadius: 1),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: glowColor, size: 20),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
+  // 通用辅助组件
   Widget buildSettingTile(String title, IconData icon, VoidCallback onTap, {String? trailingText}) {
     return ListTile(
       leading: Icon(icon, color: Colors.cyanAccent),
@@ -675,9 +667,9 @@ class _MainPageState extends State<MainPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C1322),
+        color: const Color(0xFF080E1A),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1B2845)),
+        border: Border.all(color: const Color(0xFF1A2A47)),
       ),
       child: child,
     );
