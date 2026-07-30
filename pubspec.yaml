@@ -18,5 +18,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - car.png
-    - logo.png
+    - 1.png
+    - 2.png
+    - 3.png
+    - 4.png
+    - 10.png
+    - 11.png
+    - 12.png
