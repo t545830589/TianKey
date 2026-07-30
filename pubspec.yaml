@@ -1,5 +1,5 @@
-name: tian_key
-description: Tian Key Cyberpunk App
+name: tian_key_app
+description: "Tian Key Smart Car Controller"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,23 +9,16 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
   assets:
-    - "1.png"
-    - "2.png"
-    - "3.png"
-    - "4.png"
-    - "5.png"
-    - "7.png"
-    - "8.png"
-    - "9.png"
-    - "10.png"
-    - "11.png"
-    - "12.png"
+    - 1.png
+    - 2.png
+    - 3.png
