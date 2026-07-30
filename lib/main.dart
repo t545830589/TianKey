@@ -13,7 +13,7 @@ class TianKeyApp extends StatelessWidget {
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF060810),
+        scaffoldBackgroundColor: const Color(0xFF050811),
         primaryColor: const Color(0xFF00E5FF),
       ),
       home: const MainPage(),
@@ -52,8 +52,8 @@ class _MainPageState extends State<MainPage> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF0C101D),
-          border: Border(top: BorderSide(color: Color(0xFF1E2D4A), width: 1)),
+          color: Color(0xFF0A0F1D),
+          border: Border(top: BorderSide(color: Color(0xFF1B2845), width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
@@ -72,25 +72,13 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // 安全图片加载组件
-  Widget buildAssetImage(String fileName, {double? height, double? width, Widget? fallbackIcon}) {
-    return Image.asset(
-      fileName,
-      height: height,
-      width: width,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) {
-        return fallbackIcon ?? const Icon(Icons.directions_car, size: 80, color: Colors.cyanAccent);
-      },
-    );
-  }
-
-  // ================= 1. 首页 =================
+  // ================= 1. 首页 (根据设计图1:1还原) =================
   Widget buildHomePage(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         children: [
+          // 顶栏
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -105,7 +93,7 @@ class _MainPageState extends State<MainPage> {
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
                   color: Colors.white,
-                  shadows: [Shadow(color: Colors.cyan, blurRadius: 10)],
+                  shadows: [Shadow(color: Colors.cyanAccent, blurRadius: 12)],
                 ),
               ),
               IconButton(
@@ -116,54 +104,68 @@ class _MainPageState extends State<MainPage> {
           ),
           const SizedBox(height: 10),
 
-          // 汽车展示卡片
+          // 汽车展示区域 (原生代码绘制科技感圆盘与红车样式)
           Container(
-            height: 200,
+            height: 220,
             width: double.infinity,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: const RadialGradient(
-                colors: [Color(0xFF152A4A), Color(0xFF080C16)],
-                radius: 0.85,
+                colors: [Color(0xFF0D2847), Color(0xFF050811)],
+                radius: 0.8,
               ),
               border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1),
             ),
             child: Stack(
               alignment: Alignment.center,
               children: [
+                // 底部发光光圈
                 Positioned(
-                  bottom: 25,
+                  bottom: 30,
                   child: Container(
-                    width: 260,
-                    height: 70,
+                    width: 250,
+                    height: 60,
                     decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.all(Radius.elliptical(260, 70)),
+                      borderRadius: const BorderRadius.all(Radius.elliptical(250, 60)),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.cyanAccent.withOpacity(0.35),
-                          blurRadius: 35,
-                          spreadRadius: 8,
+                          color: Colors.cyanAccent.withOpacity(0.4),
+                          blurRadius: 40,
+                          spreadRadius: 10,
                         )
                       ],
                     ),
                   ),
                 ),
-
-                // 渲染上传的车辆图片 1.png
+                // 车辆主体图标/图案 (原生代码矢量呈现)
                 Positioned(
-                  top: 10,
-                  bottom: 35,
-                  child: buildAssetImage('1.png', height: 140),
+                  top: 20,
+                  bottom: 45,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.directions_car_filled, size: 100, color: Colors.red[600]),
+                      Container(
+                        width: 140,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: Colors.cyanAccent,
+                          boxShadow: [BoxShadow(color: Colors.cyanAccent, blurRadius: 6)],
+                        ),
+                      )
+                    ],
+                  ),
                 ),
-
+                // 车牌标牌
                 Positioned(
                   bottom: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
                     decoration: BoxDecoration(
                       color: const Color(0xFF003399),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: Colors.white, width: 1),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
                     ),
                     child: const Text(
                       '陕A0P92Y',
@@ -176,12 +178,13 @@ class _MainPageState extends State<MainPage> {
           ),
           const SizedBox(height: 15),
 
+          // 5项状态栏
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF0E1424),
+              color: const Color(0xFF0C1322),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: const Color(0xFF1B2845)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -196,11 +199,12 @@ class _MainPageState extends State<MainPage> {
           ),
           const SizedBox(height: 15),
 
+          // 8个赛博朋克风格操作按钮
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            childAspectRatio: 2.3,
+            childAspectRatio: 2.2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             children: [
@@ -243,8 +247,14 @@ class _MainPageState extends State<MainPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('临时借车', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('临时借车', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+              IconButton(icon: const Icon(Icons.history, color: Colors.grey), onPressed: () {}),
+            ],
+          ),
+          const SizedBox(height: 15),
           buildCardBox(
             child: Row(
               children: const [
@@ -267,9 +277,9 @@ class _MainPageState extends State<MainPage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isSel ? const Color(0xFF005588) : const Color(0xFF0E1424),
+                    color: isSel ? const Color(0xFF005588) : const Color(0xFF0C1322),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: isSel ? Colors.cyanAccent : Colors.white10),
+                    border: Border.all(color: isSel ? Colors.cyanAccent : const Color(0xFF1B2845)),
                   ),
                   child: Text(d, style: TextStyle(color: isSel ? Colors.cyanAccent : Colors.white)),
                 ),
@@ -344,20 +354,12 @@ class _MainPageState extends State<MainPage> {
         buildSettingTile('时间同步设置', Icons.access_time, () {
           openPage(context, buildTimeSyncPage(context));
         }),
-        SwitchListTile(
-          title: const Text('自动连接设置', style: TextStyle(color: Colors.white)),
-          subtitle: const Text('开启后，APP启动时自动连接已配对设备', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          value: autoConnect,
-          activeColor: Colors.cyanAccent,
-          onChanged: (v) => setState(() => autoConnect = v),
-        ),
-        SwitchListTile(
-          title: const Text('提示音设置', style: TextStyle(color: Colors.white)),
-          subtitle: const Text('开启后，操作时将播放提示音', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          value: soundEffect,
-          activeColor: Colors.cyanAccent,
-          onChanged: (v) => setState(() => soundEffect = v),
-        ),
+        buildSettingTile('自动连接设置', Icons.link, () {
+          openPage(context, buildAutoConnectPage(context));
+        }, trailingText: autoConnect ? '开启' : '关闭'),
+        buildSettingTile('提示音设置', Icons.volume_up, () {
+          openPage(context, buildSoundSettingPage(context));
+        }, trailingText: soundEffect ? '开启' : '关闭'),
         buildSettingTile('关于系统', Icons.info_outline, () {
           openPage(context, buildAboutPage(context));
         }),
@@ -365,9 +367,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ================= 子页面: 管理员授权 =================
   Widget buildAdminAuthPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('管理员授权'), backgroundColor: const Color(0xFF060810)),
+      appBar: AppBar(title: const Text('管理员授权'), backgroundColor: const Color(0xFF050811)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -403,9 +406,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ================= 子页面: 修改蓝牙密码 =================
   Widget buildChangeBlePasswordPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('修改蓝牙密码'), backgroundColor: const Color(0xFF060810)),
+      appBar: AppBar(title: const Text('修改蓝牙密码'), backgroundColor: const Color(0xFF050811)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -433,9 +437,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ================= 子页面: 恢复默认蓝牙密码 =================
   Widget buildResetBlePasswordPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('恢复默认蓝牙密码'), backgroundColor: const Color(0xFF060810)),
+      appBar: AppBar(title: const Text('恢复默认蓝牙密码'), backgroundColor: const Color(0xFF050811)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -462,10 +467,11 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ================= 子页面: 设备名称 =================
   Widget buildDeviceNamePage(BuildContext context) {
     final controller = TextEditingController(text: '陕A0P92Y');
     return Scaffold(
-      appBar: AppBar(title: const Text('设备名称'), backgroundColor: const Color(0xFF060810)),
+      appBar: AppBar(title: const Text('设备名称'), backgroundColor: const Color(0xFF050811)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -497,9 +503,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ================= 子页面: 时间同步设置 =================
   Widget buildTimeSyncPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('时间同步设置'), backgroundColor: const Color(0xFF060810)),
+      appBar: AppBar(title: const Text('时间同步设置'), backgroundColor: const Color(0xFF050811)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -526,18 +533,75 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // 关于页面（使用 2.png）
-  Widget buildAboutPage(BuildContext context) {
+  // ================= 子页面: 自动连接设置 =================
+  Widget buildAutoConnectPage(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('关于系统'), backgroundColor: const Color(0xFF060810)),
+      appBar: AppBar(title: const Text('自动连接设置'), backgroundColor: const Color(0xFF050811)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            const SizedBox(height: 20),
-            buildAssetImage('2.png', height: 90),
+            SwitchListTile(
+              title: const Text('自动连接', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('开启后，APP启动时将自动连接已配对设备', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              value: autoConnect,
+              activeColor: Colors.cyanAccent,
+              onChanged: (v) {
+                setState(() => autoConnect = v);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= 子页面: 提示音设置 =================
+  Widget buildSoundSettingPage(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('提示音设置'), backgroundColor: const Color(0xFF050811)),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            SwitchListTile(
+              title: const Text('提示音', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('开启后，操作时将播放提示音', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              value: soundEffect,
+              activeColor: Colors.cyanAccent,
+              onChanged: (v) {
+                setState(() => soundEffect = v);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= 子页面: 关于系统 =================
+  Widget buildAboutPage(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('关于系统'), backgroundColor: const Color(0xFF050811)),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const SizedBox(height: 30),
+            // 原生马自达翼型标志图形绘制
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.shield_moon_outlined, size: 70, color: Colors.cyanAccent),
+              ],
+            ),
             const SizedBox(height: 10),
-            const Text('Tian Key', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
+            const Text(
+              'Tian Key',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
+            ),
             const SizedBox(height: 30),
             buildInfoRow('车型', '马自达昂克赛拉'),
             buildInfoRow('车牌', '陕A0P92Y'),
@@ -552,6 +616,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // 辅助组件
   Widget buildStatusItem(String label, String value, IconData icon) {
     return Column(
       children: [
@@ -571,9 +636,9 @@ class _MainPageState extends State<MainPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF0D1526),
+          color: const Color(0xFF0A1120),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: glowColor.withOpacity(0.5), width: 1),
+          border: Border.all(color: glowColor.withOpacity(0.6), width: 1),
           boxShadow: [
             BoxShadow(color: glowColor.withOpacity(0.15), blurRadius: 8, spreadRadius: 1),
           ],
@@ -610,9 +675,9 @@ class _MainPageState extends State<MainPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1424),
+        color: const Color(0xFF0C1322),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: const Color(0xFF1B2845)),
       ),
       child: child,
     );
@@ -620,7 +685,7 @@ class _MainPageState extends State<MainPage> {
 
   Widget buildInfoRow(String label, String val) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
