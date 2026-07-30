@@ -1,9 +1,28 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 强制 APP 永远竖屏，避免出现横向宽屏。
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   runApp(const TianKeyApp());
 }
+
+const Color bg = Color(0xFF02080D);
+const Color panel = Color(0xFF06121B);
+const Color panel2 = Color(0xFF091923);
+const Color blue = Color(0xFF159DFF);
+const Color cyan = Color(0xFF62D8FF);
+const Color orange = Color(0xFFFF7A1A);
+const Color red = Color(0xFFFF1515);
+const Color line = Color(0xFF234052);
+const Color text = Color(0xFFE7F4FF);
+const Color muted = Color(0xFF88949D);
 
 class TianKeyApp extends StatelessWidget {
   const TianKeyApp({super.key});
@@ -15,201 +34,222 @@ class TianKeyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'sans',
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF02070E),
+        scaffoldBackgroundColor: bg,
+        fontFamily: 'sans',
       ),
-      home: const TianKeyHome(),
+      home: const MainShell(),
     );
   }
 }
 
-class TianKeyHome extends StatefulWidget {
-  const TianKeyHome({super.key});
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
 
   @override
-  State<TianKeyHome> createState() => _TianKeyHomeState();
+  State<MainShell> createState() => _MainShellState();
 }
 
-class _TianKeyHomeState extends State<TianKeyHome> {
-  int _tabIndex = 0;
-
-  final List<Widget> _pages = const [
-    HomePage(),
-    BorrowPage(),
-    SettingsPage(),
-  ];
+class _MainShellState extends State<MainShell> {
+  int tab = 0;
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      HomePage(onTab: (value) => setState(() => tab = value)),
+      const BorrowPage(),
+      const SettingsPage(),
+    ];
+
     return Scaffold(
-      body: SafeArea(
-        child: _pages[_tabIndex],
-      ),
-      bottomNavigationBar: CyberBottomBar(
-        currentIndex: _tabIndex,
-        onChanged: (index) {
-          setState(() => _tabIndex = index);
-        },
+      body: SafeArea(child: pages[tab]),
+      bottomNavigationBar: BottomNav(
+        current: tab,
+        onChanged: (value) => setState(() => tab = value),
       ),
     );
   }
 }
 
-/* =========================
-   基础颜色与工具
-========================= */
-
-const Color kBg = Color(0xFF02070E);
-const Color kPanel = Color(0xFF07111D);
-const Color kPanel2 = Color(0xFF0A1725);
-const Color kBlue = Color(0xFF00B8FF);
-const Color kBlueLight = Color(0xFF39D8FF);
-const Color kOrange = Color(0xFFFF8A27);
-const Color kRed = Color(0xFFFF2E2E);
-const Color kText = Color(0xFFE8F5FF);
-const Color kGrey = Color(0xFF8995A5);
-
-void showCyberMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      backgroundColor: const Color(0xFF0A1725),
-      behavior: SnackBarBehavior.floating,
-      content: Text(
-        message,
-        style: const TextStyle(color: kText),
-      ),
-    ),
-  );
-}
-
-BoxDecoration cyberPanel({Color borderColor = kBlue, double radius = 14}) {
-  return BoxDecoration(
-    color: kPanel,
-    borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: borderColor.withOpacity(.48), width: 1),
-    boxShadow: [
-      BoxShadow(
-        color: borderColor.withOpacity(.10),
-        blurRadius: 20,
-        spreadRadius: 1,
-      ),
-    ],
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        const Color(0xFF0B1825).withOpacity(.95),
-        const Color(0xFF030810).withOpacity(.98),
-      ],
-    ),
-  );
-}
-
-/* =========================
-   首页
-========================= */
-
+/// ================================
+/// 首页
+/// ================================
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  final ValueChanged<int> onTab;
+
+  const HomePage({super.key, required this.onTab});
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
       child: Column(
         children: [
-          const TopHeader(
-            title: 'Tian Key',
-            leftIcon: Icons.settings_outlined,
-            rightIcon: Icons.help_outline_rounded,
-          ),
-          const SizedBox(height: 14),
-
-          // 红色昂克赛拉主图区
-          const CarHeroCard(),
-          const SizedBox(height: 14),
-
-          const StatusRow(),
-          const SizedBox(height: 14),
-
           Row(
             children: [
-              Expanded(
-                child: CyberButton(
-                  label: '连接设备',
-                  icon: Icons.bluetooth_rounded,
-                  color: kBlue,
-                  onTap: () => showCyberMessage(
-                    context,
-                    '尚未连接设备：请先完成设备配对。',
+              RoundIcon(
+                icon: Icons.settings,
+                onTap: () => onTab(2),
+              ),
+              const Expanded(
+                child: Text(
+                  'Tian Key',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: cyan,
+                    fontSize: 28,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    shadows: [Shadow(color: blue, blurRadius: 14)],
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              RoundIcon(
+                icon: Icons.question_mark_rounded,
+                onTap: () => openPage(context, const AboutPage()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 红色昂克赛拉主视觉区。
+          // 当前为纯代码绘制的未来汽车视觉，不会把整张 UI 图塞进页面。
+          const CarHero(),
+          const SizedBox(height: 10),
+
+          const Row(
+            children: [
               Expanded(
-                child: CyberButton(
-                  label: '管理员授权',
-                  icon: Icons.admin_panel_settings_outlined,
-                  color: kOrange,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AdminAuthorizationPage(),
-                      ),
-                    );
-                  },
+                child: StatusBox(
+                  title: '设备状态',
+                  value: '未连接',
+                  icon: Icons.bluetooth_disabled,
+                ),
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: StatusBox(
+                  title: '管理员状态',
+                  value: '未授权',
+                  icon: Icons.shield_outlined,
+                ),
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: StatusBox(
+                  title: '供电状态',
+                  value: '未知',
+                  icon: Icons.bolt_outlined,
+                ),
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: StatusBox(
+                  title: '时间同步',
+                  value: '未同步',
+                  icon: Icons.access_time,
+                ),
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: StatusBox(
+                  title: '临时借车',
+                  value: '无有效密码',
+                  icon: Icons.key_outlined,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 11),
 
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 2.55,
-            physics: const NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
+          Row(
             children: [
-              CyberButton(
-                label: '锁车',
-                icon: Icons.lock_rounded,
-                color: kBlue,
-                onTap: () => showCyberMessage(context, '锁车：设备未连接'),
+              Expanded(
+                child: GlowButton(
+                  label: '连接设备',
+                  icon: Icons.bluetooth,
+                  color: blue,
+                  onTap: () => toast(context, '设备未连接'),
+                ),
               ),
-              CyberButton(
-                label: '解锁',
-                icon: Icons.lock_open_rounded,
-                color: kBlue,
-                onTap: () => showCyberMessage(context, '解锁：设备未连接'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GlowButton(
+                  label: '管理员授权',
+                  icon: Icons.shield_outlined,
+                  color: orange,
+                  onTap: () => openPage(context, const AdminAuthPage()),
+                ),
               ),
-              CyberButton(
-                label: '车窗升',
-                icon: Icons.keyboard_double_arrow_up_rounded,
-                color: kOrange,
-                onTap: () => showCyberMessage(context, '车窗升：设备未连接'),
+            ],
+          ),
+          const SizedBox(height: 9),
+
+          Row(
+            children: [
+              Expanded(
+                child: GlowButton(
+                  label: '锁车',
+                  icon: Icons.lock,
+                  color: blue,
+                  onTap: () => toast(context, '锁车：设备未连接'),
+                ),
               ),
-              CyberButton(
-                label: '车窗降',
-                icon: Icons.keyboard_double_arrow_down_rounded,
-                color: kOrange,
-                onTap: () => showCyberMessage(context, '车窗降：设备未连接'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GlowButton(
+                  label: '解锁',
+                  icon: Icons.lock_open,
+                  color: blue,
+                  onTap: () => toast(context, '解锁：设备未连接'),
+                ),
               ),
-              CyberButton(
-                label: '寻车',
-                icon: Icons.sensors_rounded,
-                color: kBlue,
-                onTap: () => showCyberMessage(context, '寻车：设备未连接'),
+            ],
+          ),
+          const SizedBox(height: 9),
+
+          Row(
+            children: [
+              Expanded(
+                child: GlowButton(
+                  label: '车窗升',
+                  icon: Icons.keyboard_double_arrow_up,
+                  color: orange,
+                  onTap: () => toast(context, '车窗升：设备未连接'),
+                ),
               ),
-              CyberButton(
-                label: '后备箱',
-                icon: Icons.directions_car_filled_outlined,
-                color: kBlue,
-                onTap: () => showCyberMessage(context, '后备箱：设备未连接'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GlowButton(
+                  label: '车窗降',
+                  icon: Icons.keyboard_double_arrow_down,
+                  color: orange,
+                  onTap: () => toast(context, '车窗降：设备未连接'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+
+          Row(
+            children: [
+              Expanded(
+                child: GlowButton(
+                  label: '寻车',
+                  icon: Icons.sensors,
+                  color: blue,
+                  onTap: () => toast(context, '寻车：设备未连接'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GlowButton(
+                  label: '后备箱',
+                  icon: Icons.directions_car_outlined,
+                  color: blue,
+                  onTap: () => toast(context, '后备箱：设备未连接'),
+                ),
               ),
             ],
           ),
@@ -219,120 +259,104 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class TopHeader extends StatelessWidget {
-  final String title;
-  final IconData leftIcon;
-  final IconData rightIcon;
-
-  const TopHeader({
-    super.key,
-    required this.title,
-    required this.leftIcon,
-    required this.rightIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(leftIcon, color: kBlueLight, size: 27),
-        Expanded(
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: kText,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.6,
-              shadows: [
-                Shadow(color: kBlue, blurRadius: 12),
-              ],
-            ),
-          ),
-        ),
-        Icon(rightIcon, color: kBlueLight, size: 27),
-      ],
-    );
-  }
-}
-
-class CarHeroCard extends StatelessWidget {
-  const CarHeroCard({super.key});
+class CarHero extends StatelessWidget {
+  const CarHero({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 238,
+      height: 278,
       width: double.infinity,
-      decoration: cyberPanel(borderColor: kBlue),
+      decoration: cyberBox(blue, radius: 16),
       child: Stack(
         alignment: Alignment.center,
         children: [
           Positioned.fill(
-            child: Opacity(
-              opacity: .28,
-              child: CustomPaint(
-                painter: GridPainter(),
-              ),
+            child: CustomPaint(painter: TechBackgroundPainter()),
+          ),
+          const Positioned(
+            top: 16,
+            child: Icon(
+              Icons.radio_button_checked,
+              size: 70,
+              color: Color(0xFF005DB1),
             ),
           ),
-          Positioned(
-            top: 19,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    kBlue.withOpacity(.46),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
+          const Positioned(
+            top: 33,
+            child: Icon(
+              Icons.circle,
+              size: 35,
+              color: Color(0xFF27BFFF),
             ),
           ),
 
-          // 若你的 1.png 就是红色昂克赛拉图片，会自动显示。
-          // 若不是，把 pubspec.yaml 里的图片路径及此处名称改成正确文件名。
+          // 用 Flutter 图标、渐变和光效组成主视觉。
           Positioned(
-            top: 28,
-            left: 12,
-            right: 12,
-            child: SizedBox(
-              height: 155,
-              child: Image.asset(
-                '1.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.directions_car_filled_rounded,
-                  size: 122,
-                  color: Color(0xFFE52028),
+            bottom: 39,
+            child: Container(
+              width: 310,
+              height: 105,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(65),
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF640000),
+                    Color(0xFFD0000A),
+                    Color(0xFF590000),
+                  ],
                 ),
+                border: Border.all(color: const Color(0xFFFF4A4A), width: 1.4),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x99FF0000), blurRadius: 22),
+                  BoxShadow(color: Color(0x990060FF), blurRadius: 22),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  const Positioned(
+                    left: 21,
+                    top: 44,
+                    child: Icon(
+                      Icons.light_mode,
+                      color: Color(0xFF62D8FF),
+                      size: 25,
+                    ),
+                  ),
+                  const Positioned(
+                    right: 21,
+                    top: 44,
+                    child: Icon(
+                      Icons.light_mode,
+                      color: Color(0xFF62D8FF),
+                      size: 25,
+                    ),
+                  ),
+                  Center(
+                    child: Icon(
+                      Icons.directions_car_filled,
+                      color: Colors.red.shade900,
+                      size: 135,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           Positioned(
             bottom: 18,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF063A80),
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: kBlueLight),
-                boxShadow: [
-                  BoxShadow(
-                    color: kBlue.withOpacity(.60),
-                    blurRadius: 12,
-                  ),
-                ],
+                color: const Color(0xFF154F9A),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: cyan),
               ),
               child: const Text(
-                '陕A0P92Y',
+                '陕A·0P92Y',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -344,82 +368,9 @@ class CarHeroCard extends StatelessWidget {
   }
 }
 
-class GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = kBlue.withOpacity(.28)
-      ..strokeWidth = .5;
-
-    for (double x = 0; x < size.width; x += 22) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 22) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class StatusRow extends StatelessWidget {
-  const StatusRow({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      _StatusData('设备状态', '未连接', Icons.bluetooth_disabled_rounded),
-      _StatusData('管理员状态', '未授权', Icons.shield_outlined),
-      _StatusData('供电状态', '未知', Icons.bolt_outlined),
-      _StatusData('时间同步', '未同步', Icons.schedule_outlined),
-      _StatusData('临时借车', '无有效密码', Icons.key_off_rounded),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-      decoration: cyberPanel(borderColor: const Color(0xFF33475F)),
-      child: Row(
-        children: items
-            .map(
-              (item) => Expanded(
-                child: Column(
-                  children: [
-                    Icon(item.icon, color: kGrey, size: 23),
-                    const SizedBox(height: 5),
-                    Text(
-                      item.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: kGrey, fontSize: 10),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      item.value,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: kGrey, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-}
-
-class _StatusData {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  _StatusData(this.title, this.value, this.icon);
-}
-
-/* =========================
-   临时借车
-========================= */
-
+/// ================================
+/// 临时借车
+/// ================================
 class BorrowPage extends StatefulWidget {
   const BorrowPage({super.key});
 
@@ -428,141 +379,131 @@ class BorrowPage extends StatefulWidget {
 }
 
 class _BorrowPageState extends State<BorrowPage> {
-  String selectedTime = '5分钟';
+  String selected = '5分钟';
 
-  final List<String> times = ['5分钟', '1天', '3天', '7天'];
+  final times = const ['5分钟', '1天', '2天', '3天', '4天', '5天', '6天', '7天'];
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
       child: Column(
         children: [
-          const TopHeader(
-            title: '临时借车',
-            leftIcon: Icons.arrow_back_ios_new_rounded,
-            rightIcon: Icons.list_alt_rounded,
-          ),
-          const SizedBox(height: 18),
+          const PageHeader(title: '临时借车'),
+          const SizedBox(height: 14),
 
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: cyberPanel(borderColor: const Color(0xFF4E6278)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.all(14),
+            decoration: cyberBox(cyan),
+            child: const Row(
               children: [
-                const Text('当前状态', style: TextStyle(color: kGrey, fontSize: 13)),
-                const SizedBox(height: 12),
-                const Row(
+                Icon(Icons.key, color: muted, size: 31),
+                SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.key_off_rounded, color: kGrey, size: 28),
-                    SizedBox(width: 10),
+                    Text('当前状态', style: TextStyle(color: muted, fontSize: 12)),
+                    SizedBox(height: 3),
                     Text(
                       '无有效临时密码',
-                      style: TextStyle(
-                        color: kText,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: TextStyle(color: text, fontSize: 17),
                     ),
                   ],
                 ),
-                const Divider(color: Color(0xFF26394A), height: 30),
-                const Text('选择有效时间', style: TextStyle(color: kGrey, fontSize: 13)),
-                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
 
-                GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 2.8,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: times.map((time) {
-                    final isSelected = time == selectedTime;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(9),
-                      onTap: () => setState(() => selectedTime = time),
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? kBlue.withOpacity(.16)
-                              : const Color(0xFF09131E),
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(
-                            color: isSelected ? kBlueLight : const Color(0xFF33485B),
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: kBlue.withOpacity(.40),
-                                    blurRadius: 12,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          time,
-                          style: TextStyle(
-                            color: isSelected ? kText : kGrey,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('选择有效时间', style: TextStyle(color: text)),
+          ),
+          const SizedBox(height: 8),
+
+          GridView.count(
+            crossAxisCount: 4,
+            childAspectRatio: 1.55,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 9,
+            mainAxisSpacing: 9,
+            children: times.map((value) {
+              final active = selected == value;
+              return InkWell(
+                onTap: () => setState(() => selected = value),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: cyberBox(active ? blue : line, radius: 8),
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: active ? cyan : text,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 18),
-                const Text('临时密码', style: TextStyle(color: kGrey, fontSize: 13)),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 11),
+
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: cyberBox(line),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('临时密码', style: TextStyle(color: muted)),
                 const SizedBox(height: 8),
                 Container(
-                  width: double.infinity,
-                  height: 82,
+                  height: 75,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF030A12),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(9),
                     border: Border.all(
-                      color: const Color(0xFF3B5065),
+                      color: muted.withOpacity(.38),
                       style: BorderStyle.solid,
                     ),
                   ),
                   child: const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.lock_outline_rounded, color: kGrey, size: 27),
-                      SizedBox(height: 5),
-                      Text('尚未生成', style: TextStyle(color: kGrey, fontSize: 15)),
+                      Icon(Icons.lock_outline, color: muted, size: 27),
+                      SizedBox(height: 4),
+                      Text('尚未生成', style: TextStyle(color: muted)),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: line),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: const Text(
+                    '▣   复制密码',
+                    style: TextStyle(color: muted),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          CyberButton(
-            label: '生成临时密码',
-            icon: Icons.vpn_key_rounded,
-            color: kBlue,
-            wide: true,
-            onTap: () => showCyberMessage(
-              context,
-              '尚未连接设备，无法生成临时密码。',
-            ),
-          ),
           const SizedBox(height: 12),
-          CyberButton(
+
+          GlowButton(
+            label: '生成临时密码',
+            color: blue,
+            onTap: () => toast(context, '设备未连接，无法生成临时密码'),
+          ),
+          const SizedBox(height: 9),
+          GlowButton(
             label: '取消借车',
-            icon: Icons.cancel_outlined,
-            color: kRed,
-            wide: true,
-            onTap: () => showCyberMessage(
-              context,
-              '当前没有有效临时借车。',
-            ),
+            color: red,
+            onTap: () => toast(context, '当前没有有效临时借车'),
           ),
         ],
       ),
@@ -570,124 +511,313 @@ class _BorrowPageState extends State<BorrowPage> {
   }
 }
 
-/* =========================
-   设置
-========================= */
-
-class SettingsPage extends StatefulWidget {
+/// ================================
+/// 设置主页
+/// ================================
+class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  bool autoConnect = false;
-  bool sound = false;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
       child: Column(
         children: [
-          const TopHeader(
-            title: '设置',
-            leftIcon: Icons.arrow_back_ios_new_rounded,
-            rightIcon: Icons.settings_rounded,
-          ),
-          const SizedBox(height: 18),
-
+          const PageHeader(title: '设置'),
+          const SizedBox(height: 16),
           Container(
-            decoration: cyberPanel(borderColor: const Color(0xFF4E6278)),
+            decoration: cyberBox(cyan),
             child: Column(
               children: [
-                SettingTile(
-                  icon: Icons.key_rounded,
+                SettingRow(
+                  icon: Icons.bluetooth,
                   title: '修改蓝牙密码',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ChangeBluetoothPage()),
-                  ),
+                  onTap: () => openPage(context, const ChangeBluetoothPage()),
                 ),
-                SettingTile(
-                  icon: Icons.restart_alt_rounded,
+                SettingRow(
+                  icon: Icons.restart_alt,
                   title: '恢复默认蓝牙密码',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RestoreBluetoothPage()),
-                  ),
+                  onTap: () => openPage(context, const RestoreBluetoothPage()),
                 ),
-                SettingTile(
-                  icon: Icons.phone_android_rounded,
+                SettingRow(
+                  icon: Icons.phone_android_outlined,
                   title: '设备名称',
-                  value: '陕A0P92Y',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DeviceNamePage()),
-                  ),
+                  value: '陕A·0P92Y',
+                  onTap: () => openPage(context, const DeviceNamePage()),
                 ),
-                SettingTile(
-                  icon: Icons.schedule_rounded,
+                SettingRow(
+                  icon: Icons.access_time,
                   title: '时间同步设置',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const TimeSyncPage()),
-                  ),
+                  onTap: () => openPage(context, const TimeSyncPage()),
                 ),
-                SettingSwitchTile(
-                  icon: Icons.bluetooth_searching_rounded,
+                SettingRow(
+                  icon: Icons.link,
                   title: '自动连接设置',
-                  value: autoConnect,
-                  onChanged: (value) => setState(() => autoConnect = value),
+                  value: '关闭',
+                  onTap: () => openPage(context, const AutoConnectPage()),
                 ),
-                SettingSwitchTile(
+                SettingRow(
                   icon: Icons.volume_up_outlined,
                   title: '提示音设置',
-                  value: sound,
-                  onChanged: (value) => setState(() => sound = value),
+                  value: '关闭',
+                  onTap: () => openPage(context, const SoundPage()),
                 ),
-                SettingTile(
-                  icon: Icons.info_outline_rounded,
+                SettingRow(
+                  icon: Icons.info_outline,
                   title: '关于系统',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AboutPage()),
-                  ),
+                  onTap: () => openPage(context, const AboutPage()),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          const InitialStateTip(),
         ],
       ),
     );
   }
 }
 
-class InitialStateTip extends StatelessWidget {
-  const InitialStateTip({super.key});
+/// ================================
+/// 管理员授权
+/// ================================
+class AdminAuthPage extends StatelessWidget {
+  const AdminAuthPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF07111D),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF25394E)),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return CyberPage(
+      title: '管理员授权',
+      child: Column(
         children: [
-          Icon(Icons.info_outline_rounded, color: kGrey),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '当前为首次安装初始状态：未连接设备、未授权、未同步时间。',
-              style: TextStyle(color: kGrey, fontSize: 13, height: 1.5),
+          const SizedBox(height: 22),
+          const Icon(
+            Icons.shield_outlined,
+            color: orange,
+            size: 88,
+            shadows: [Shadow(color: orange, blurRadius: 18)],
+          ),
+          const SizedBox(height: 13),
+          const Text(
+            '请输入管理员密码进行授权',
+            style: TextStyle(color: text, fontSize: 15),
+          ),
+          const SizedBox(height: 26),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('管理员密码', style: TextStyle(color: muted)),
+          ),
+          const SizedBox(height: 6),
+          const CyberInput(hint: '请输入管理员密码', obscure: true),
+          const SizedBox(height: 15),
+          GlowButton(
+            label: '确认授权',
+            color: orange,
+            onTap: () => toast(context, '授权信息尚未配置'),
+          ),
+          const SizedBox(height: 9),
+          const Text(
+            '授权后可使用全部管理功能',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 修改蓝牙密码
+/// ================================
+class ChangeBluetoothPage extends StatelessWidget {
+  const ChangeBluetoothPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '修改蓝牙密码',
+      child: Column(
+        children: [
+          const SizedBox(height: 18),
+          const FormTitle(label: '当前蓝牙密码'),
+          const CyberInput(hint: '请输入当前蓝牙密码', obscure: true),
+          const SizedBox(height: 14),
+          const FormTitle(label: '新蓝牙密码'),
+          const CyberInput(hint: '请输入新蓝牙密码', obscure: true),
+          const SizedBox(height: 14),
+          const FormTitle(label: '确认新密码'),
+          const CyberInput(hint: '请再次输入新密码', obscure: true),
+          const SizedBox(height: 20),
+          GlowButton(
+            label: '保存新密码',
+            color: blue,
+            onTap: () => toast(context, '设备未连接，无法保存'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 恢复默认蓝牙密码
+/// ================================
+class RestoreBluetoothPage extends StatelessWidget {
+  const RestoreBluetoothPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '恢复默认蓝牙密码',
+      child: Column(
+        children: [
+          const SizedBox(height: 43),
+          const Icon(
+            Icons.restart_alt,
+            size: 85,
+            color: cyan,
+            shadows: [Shadow(color: blue, blurRadius: 18)],
+          ),
+          const SizedBox(height: 30),
+          const Text(
+            '恢复后蓝牙密码将重置为\n出厂默认值',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: muted, fontSize: 16, height: 1.7),
+          ),
+          const SizedBox(height: 34),
+          GlowButton(
+            label: '恢复默认蓝牙密码',
+            color: red,
+            onTap: () => toast(context, '设备未连接，无法恢复'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 设备名称
+/// ================================
+class DeviceNamePage extends StatelessWidget {
+  const DeviceNamePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '设备名称',
+      child: Column(
+        children: [
+          const SizedBox(height: 25),
+          const Icon(
+            Icons.phone_android_outlined,
+            size: 76,
+            color: text,
+          ),
+          const SizedBox(height: 25),
+          const FormTitle(label: '设备名称'),
+          const CyberInput(hint: '陕A·0P92Y', initial: '陕A·0P92Y'),
+          const SizedBox(height: 7),
+          const Text(
+            '设备名称将用于蓝牙连接和设备识别',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+          const SizedBox(height: 21),
+          GlowButton(
+            label: '保存',
+            color: blue,
+            onTap: () => toast(context, '设备未连接，无法保存'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 时间同步
+/// ================================
+class TimeSyncPage extends StatelessWidget {
+  const TimeSyncPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '时间同步设置',
+      child: Column(
+        children: [
+          const SizedBox(height: 39),
+          const Icon(
+            Icons.access_time,
+            color: text,
+            size: 85,
+          ),
+          const SizedBox(height: 26),
+          const Text('当前状态', style: TextStyle(color: muted)),
+          const SizedBox(height: 5),
+          const Text(
+            '未同步',
+            style: TextStyle(color: text, fontSize: 20),
+          ),
+          const SizedBox(height: 24),
+          GlowButton(
+            label: '立即同步',
+            color: blue,
+            onTap: () => toast(context, '设备未连接，无法同步时间'),
+          ),
+          const SizedBox(height: 13),
+          const Text(
+            '同步后将自动校准设备时间',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 自动连接
+/// ================================
+class AutoConnectPage extends StatefulWidget {
+  const AutoConnectPage({super.key});
+
+  @override
+  State<AutoConnectPage> createState() => _AutoConnectPageState();
+}
+
+class _AutoConnectPageState extends State<AutoConnectPage> {
+  bool enabled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '自动连接设置',
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: cyberBox(cyan),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('自动连接', style: TextStyle(color: text, fontSize: 17)),
+                      SizedBox(height: 8),
+                      Text(
+                        '开启后，APP启动时将自动连接已配对设备',
+                        style: TextStyle(color: muted, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: enabled,
+                  activeColor: cyan,
+                  onChanged: (value) => setState(() => enabled = value),
+                ),
+              ],
             ),
           ),
         ],
@@ -696,15 +826,110 @@ class InitialStateTip extends StatelessWidget {
   }
 }
 
-/* =========================
-   设置子页面
-========================= */
+/// ================================
+/// 提示音
+/// ================================
+class SoundPage extends StatefulWidget {
+  const SoundPage({super.key});
 
-class CyberSubPage extends StatelessWidget {
+  @override
+  State<SoundPage> createState() => _SoundPageState();
+}
+
+class _SoundPageState extends State<SoundPage> {
+  bool enabled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '提示音设置',
+      child: Column(
+        children: [
+          const SizedBox(height: 38),
+          const Icon(
+            Icons.volume_up_outlined,
+            size: 88,
+            color: cyan,
+            shadows: [Shadow(color: blue, blurRadius: 18)],
+          ),
+          const SizedBox(height: 30),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            decoration: cyberBox(cyan),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '提示音',
+                    style: TextStyle(color: text, fontSize: 17),
+                  ),
+                ),
+                Switch(
+                  value: enabled,
+                  activeColor: cyan,
+                  onChanged: (value) => setState(() => enabled = value),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            '开启后，操作时播放提示音',
+            style: TextStyle(color: muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 关于系统
+/// ================================
+class AboutPage extends StatelessWidget {
+  const AboutPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPage(
+      title: '关于系统',
+      child: Column(
+        children: [
+          const SizedBox(height: 45),
+          const Icon(
+            Icons.directions_car_filled_outlined,
+            size: 95,
+            color: cyan,
+            shadows: [Shadow(color: blue, blurRadius: 18)],
+          ),
+          const SizedBox(height: 22),
+          const Text(
+            'Tian Key',
+            style: TextStyle(
+              color: cyan,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 30),
+          const InfoLine(label: '车型', value: '马自达昂克赛拉'),
+          const InfoLine(label: '车牌', value: '陕A0P92Y'),
+          const InfoLine(label: '设备', value: 'ESP32'),
+          const InfoLine(label: '设备状态', value: '未连接设备'),
+        ],
+      ),
+    );
+  }
+}
+
+/// ================================
+/// 通用页面组件
+/// ================================
+class CyberPage extends StatelessWidget {
   final String title;
   final Widget child;
 
-  const CyberSubPage({
+  const CyberPage({
     super.key,
     required this.title,
     required this.child,
@@ -712,313 +937,21 @@ class CyberSubPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: kBlueLight,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: kText,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
-              ),
-              const SizedBox(height: 28),
-              child,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class AdminAuthorizationPage extends StatelessWidget {
-  const AdminAuthorizationPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberSubPage(
-      title: '管理员授权',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: cyberPanel(borderColor: kOrange),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.admin_panel_settings_rounded,
-              size: 82,
-              color: kOrange,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '管理员状态：未授权',
-              style: TextStyle(color: kText, fontSize: 18),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '首次使用需完成管理员身份验证。为保护安全，此界面不展示或保存任何密码内容。',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kGrey, fontSize: 13, height: 1.6),
-            ),
-            const SizedBox(height: 24),
-            const CyberInput(label: '管理员验证信息', hint: '请输入授权信息'),
-            const SizedBox(height: 18),
-            CyberButton(
-              label: '确认授权',
-              icon: Icons.verified_user_outlined,
-              color: kOrange,
-              wide: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ChangeBluetoothPage extends StatelessWidget {
-  const ChangeBluetoothPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberSubPage(
-      title: '修改蓝牙密码',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: cyberPanel(borderColor: kBlue),
-        child: Column(
-          children: [
-            const Icon(Icons.key_rounded, size: 72, color: kBlueLight),
-            const SizedBox(height: 20),
-            const Text(
-              '设备未连接',
-              style: TextStyle(color: kText, fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '连接设备并完成管理员授权后，才可修改蓝牙密码。',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kGrey, fontSize: 13),
-            ),
-            const SizedBox(height: 22),
-            const CyberInput(label: '当前蓝牙密码', hint: '请输入当前蓝牙密码'),
-            const SizedBox(height: 12),
-            const CyberInput(label: '新蓝牙密码', hint: '请输入新蓝牙密码'),
-            const SizedBox(height: 12),
-            const CyberInput(label: '确认新密码', hint: '请再次输入新密码'),
-            const SizedBox(height: 18),
-            CyberButton(
-              label: '保存新密码',
-              icon: Icons.save_outlined,
-              color: kBlue,
-              wide: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class RestoreBluetoothPage extends StatelessWidget {
-  const RestoreBluetoothPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberSubPage(
-      title: '恢复默认蓝牙密码',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: cyberPanel(borderColor: kRed),
-        child: Column(
-          children: [
-            const Icon(Icons.restart_alt_rounded, color: kBlueLight, size: 82),
-            const SizedBox(height: 20),
-            const Text(
-              '恢复后蓝牙密码将重置为出厂默认值',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kText, fontSize: 17),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '为了安全，默认密码内容不会在 APP 内显示。',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kGrey, fontSize: 13),
-            ),
-            const SizedBox(height: 28),
-            CyberButton(
-              label: '恢复默认蓝牙密码',
-              icon: Icons.restart_alt_rounded,
-              color: kRed,
-              wide: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class DeviceNamePage extends StatelessWidget {
-  const DeviceNamePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberSubPage(
-      title: '设备名称',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: cyberPanel(borderColor: kBlue),
-        child: Column(
-          children: [
-            const Icon(Icons.phone_android_rounded, size: 78, color: kBlueLight),
-            const SizedBox(height: 20),
-            const Text(
-              '设备名称',
-              style: TextStyle(color: kGrey, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '陕A0P92Y',
-              style: TextStyle(
-                color: kText,
-                fontSize: 25,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 22),
-            const CyberInput(label: '新设备名称', hint: '陕A0P92Y'),
-            const SizedBox(height: 18),
-            CyberButton(
-              label: '保存',
-              icon: Icons.save_outlined,
-              color: kBlue,
-              wide: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class TimeSyncPage extends StatelessWidget {
-  const TimeSyncPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberSubPage(
-      title: '时间同步设置',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: cyberPanel(borderColor: kBlue),
-        child: Column(
-          children: [
-            const Icon(Icons.schedule_rounded, color: kBlueLight, size: 84),
-            const SizedBox(height: 18),
-            const Text('当前状态：未同步', style: TextStyle(color: kText, fontSize: 18)),
-            const SizedBox(height: 10),
-            const Text(
-              '连接设备后可同步手机当前时间。',
-              style: TextStyle(color: kGrey, fontSize: 13),
-            ),
-            const SizedBox(height: 25),
-            CyberButton(
-              label: '立即同步',
-              icon: Icons.sync_rounded,
-              color: kBlue,
-              wide: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CyberSubPage(
-      title: '关于系统',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: cyberPanel(borderColor: kBlue),
-        child: const Column(
-          children: [
-            Icon(Icons.directions_car_filled_rounded, size: 80, color: kBlueLight),
-            SizedBox(height: 18),
-            Text(
-              'Tian Key',
-              style: TextStyle(
-                color: kText,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
-              ),
-            ),
-            SizedBox(height: 28),
-            AboutLine('车型', '马自达昂克赛拉'),
-            AboutLine('车牌', '陕A0P92Y'),
-            AboutLine('设备', 'ESP32'),
-            AboutLine('设备状态', '未连接设备'),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AboutLine extends StatelessWidget {
-  final String left;
-  final String right;
-
-  const AboutLine(this.left, this.right, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 11),
-      child: Row(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
+      child: Column(
         children: [
-          Text(left, style: const TextStyle(color: kGrey, fontSize: 15)),
-          const Spacer(),
-          Text(
-            right,
-            style: const TextStyle(color: kText, fontSize: 15),
+          PageHeader(
+            title: title,
+            showBack: true,
+            onBack: () => Navigator.pop(context),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(15),
+            decoration: cyberBox(cyan),
+            child: child,
           ),
         ],
       ),
@@ -1026,126 +959,171 @@ class AboutLine extends StatelessWidget {
   }
 }
 
-/* =========================
-   通用组件
-========================= */
+class PageHeader extends StatelessWidget {
+  final String title;
+  final bool showBack;
+  final VoidCallback? onBack;
 
-class CyberButton extends StatelessWidget {
-  final String label;
+  const PageHeader({
+    super.key,
+    required this.title,
+    this.showBack = false,
+    this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 42,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (showBack)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back_ios_new, color: text),
+              ),
+            ),
+          Text(
+            title,
+            style: const TextStyle(
+              color: text,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class StatusBox extends StatelessWidget {
+  final String title;
+  final String value;
   final IconData icon;
+
+  const StatusBox({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 91,
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 3),
+      decoration: cyberBox(line, radius: 7),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: text, fontSize: 11),
+          ),
+          Icon(icon, color: muted, size: 27),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: muted, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class GlowButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
   final Color color;
   final VoidCallback onTap;
-  final bool wide;
 
-  const CyberButton({
+  const GlowButton({
     super.key,
     required this.label,
-    required this.icon,
+    this.icon,
     required this.color,
     required this.onTap,
-    this.wide = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Ink(
-          width: wide ? double.infinity : null,
-          height: 58,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color, width: 1.2),
-            gradient: LinearGradient(
-              colors: [
-                color.withOpacity(.29),
-                const Color(0xFF07101B),
-                color.withOpacity(.13),
-              ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        height: 54,
+        decoration: cyberBox(color, radius: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: color == orange ? orange : cyan, size: 29),
+              const SizedBox(width: 13),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: text,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                shadows: [Shadow(color: color, blurRadius: 10)],
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(.35),
-                blurRadius: 13,
-                spreadRadius: .2,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 26),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  color: kText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  shadows: [
-                    Shadow(color: color.withOpacity(.8), blurRadius: 8),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class CyberInput extends StatelessWidget {
-  final String label;
-  final String hint;
+class RoundIcon extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
 
-  const CyberInput({
+  const RoundIcon({
     super.key,
-    required this.label,
-    required this.hint,
+    required this.icon,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      obscureText: true,
-      style: const TextStyle(color: kText),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF5B6979)),
-        labelStyle: const TextStyle(color: kGrey),
-        suffixIcon: const Icon(Icons.visibility_off_outlined, color: kGrey),
-        filled: true,
-        fillColor: const Color(0xFF040B13),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(9),
-          borderSide: const BorderSide(color: Color(0xFF30485C)),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(30),
+      child: Container(
+        width: 43,
+        height: 43,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black,
+          border: Border.all(color: muted.withOpacity(.65)),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(9),
-          borderSide: const BorderSide(color: kBlueLight),
-        ),
+        child: Icon(icon, color: text, size: 27),
       ),
     );
   }
 }
 
-class SettingTile extends StatelessWidget {
+class SettingRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? value;
   final VoidCallback onTap;
 
-  const SettingTile({
+  const SettingRow({
     super.key,
     required this.icon,
     required this.title,
-    required this.onTap,
     this.value,
+    required this.onTap,
   });
 
   @override
@@ -1153,26 +1131,25 @@ class SettingTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
+        height: 57,
+        padding: const EdgeInsets.symmetric(horizontal: 13),
         decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: Color(0xFF1E3243)),
-          ),
+          border: Border(bottom: BorderSide(color: line)),
         ),
         child: Row(
           children: [
-            Icon(icon, color: kBlueLight, size: 23),
+            Icon(icon, color: cyan, size: 24),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(color: kText, fontSize: 16),
+                style: const TextStyle(color: text, fontSize: 16),
               ),
             ),
             if (value != null)
-              Text(value!, style: const TextStyle(color: kGrey, fontSize: 13)),
-            const SizedBox(width: 5),
-            const Icon(Icons.chevron_right_rounded, color: kGrey),
+              Text(value!, style: const TextStyle(color: muted, fontSize: 13)),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right, color: muted),
           ],
         ),
       ),
@@ -1180,80 +1157,119 @@ class SettingTile extends StatelessWidget {
   }
 }
 
-class SettingSwitchTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool value;
-  final ValueChanged<bool> onChanged;
+class CyberInput extends StatelessWidget {
+  final String hint;
+  final String? initial;
+  final bool obscure;
 
-  const SettingSwitchTile({
+  const CyberInput({
     super.key,
-    required this.icon,
-    required this.title,
+    required this.hint,
+    this.initial,
+    this.obscure = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      obscureText: obscure,
+      controller: initial == null ? null : TextEditingController(text: initial),
+      style: const TextStyle(color: text),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: muted, fontSize: 13),
+        suffixIcon: obscure
+            ? const Icon(Icons.visibility_outlined, color: muted, size: 19)
+            : null,
+        filled: true,
+        fillColor: const Color(0xFF030B11),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: line),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: blue),
+          borderRadius: BorderRadius.circular(7),
+        ),
+      ),
+    );
+  }
+}
+
+class FormTitle extends StatelessWidget {
+  final String label;
+
+  const FormTitle({super.key, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(label, style: const TextStyle(color: muted, fontSize: 13)),
+      ),
+    );
+  }
+}
+
+class InfoLine extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const InfoLine({
+    super.key,
+    required this.label,
     required this.value,
-    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 13),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF1E3243))),
+        border: Border(bottom: BorderSide(color: line)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: kBlueLight, size: 23),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(color: kText, fontSize: 16),
-            ),
-          ),
-          Text(
-            value ? '开启' : '关闭',
-            style: const TextStyle(color: kGrey, fontSize: 12),
-          ),
-          Switch(
-            value: value,
-            activeColor: kBlueLight,
-            onChanged: onChanged,
-          ),
+          Text(label, style: const TextStyle(color: muted, fontSize: 15)),
+          const Spacer(),
+          Text(value, style: const TextStyle(color: text, fontSize: 15)),
         ],
       ),
     );
   }
 }
 
-class CyberBottomBar extends StatelessWidget {
-  final int currentIndex;
+class BottomNav extends StatelessWidget {
+  final int current;
   final ValueChanged<int> onChanged;
 
-  const CyberBottomBar({
+  const BottomNav({
     super.key,
-    required this.currentIndex,
+    required this.current,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      _BottomItem(Icons.home_filled, '首页'),
-      _BottomItem(Icons.group_outlined, '临时借车'),
-      _BottomItem(Icons.settings_rounded, '设置'),
+    const labels = ['首页', '临时借车', '设置'];
+    const icons = [
+      Icons.home,
+      Icons.people_outline,
+      Icons.settings,
     ];
 
     return Container(
-      height: 78,
+      height: 68,
       decoration: const BoxDecoration(
-        color: Color(0xFF07101B),
-        border: Border(top: BorderSide(color: Color(0xFF1A3D58))),
+        color: Color(0xFF030B11),
+        border: Border(top: BorderSide(color: line)),
       ),
       child: Row(
-        children: List.generate(items.length, (index) {
-          final item = items[index];
-          final selected = currentIndex == index;
+        children: List.generate(3, (index) {
+          final active = current == index;
           return Expanded(
             child: InkWell(
               onTap: () => onChanged(index),
@@ -1261,17 +1277,17 @@ class CyberBottomBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    item.icon,
-                    color: selected ? kBlueLight : kGrey,
-                    size: 27,
+                    icons[index],
+                    size: 28,
+                    color: active ? blue : muted,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
-                    item.label,
+                    labels[index],
                     style: TextStyle(
-                      color: selected ? kBlueLight : kGrey,
+                      color: active ? blue : muted,
                       fontSize: 12,
-                      fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: active ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -1284,9 +1300,75 @@ class CyberBottomBar extends StatelessWidget {
   }
 }
 
-class _BottomItem {
-  final IconData icon;
-  final String label;
+BoxDecoration cyberBox(Color color, {double radius = 10}) {
+  return BoxDecoration(
+    color: panel,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: color.withOpacity(.72), width: 1),
+    boxShadow: [
+      BoxShadow(
+        color: color.withOpacity(.27),
+        blurRadius: 12,
+        spreadRadius: 0.5,
+      ),
+    ],
+    gradient: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [panel2, Color(0xFF03090F)],
+    ),
+  );
+}
 
-  _BottomItem(this.icon, this.label);
+void openPage(BuildContext context, Widget page) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => page),
+  );
+}
+
+void toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: const Color(0xFF0B1B26),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
+class TechBackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFF1A82D1).withOpacity(.25);
+
+    for (double x = 0; x < size.width; x += 28) {
+      canvas.drawLine(Offset(x, 0), Offset(x - 80, size.height), paint);
+    }
+
+    final circlePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = const Color(0xFF007AFF).withOpacity(.42);
+
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2 - 25),
+      90,
+      circlePaint,
+    );
+
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2 - 25),
+      58,
+      circlePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
