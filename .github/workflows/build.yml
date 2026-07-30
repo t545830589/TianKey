@@ -27,7 +27,7 @@ jobs:
           channel: 'stable'
 
       - name: Re-generate Android Project
-        run: flutter create --platforms=android .
+        run: flutter create --platforms=android --project-name tiankey .
 
       - name: Install dependencies
         run: flutter pub get
