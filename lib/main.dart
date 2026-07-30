@@ -5,7 +5,7 @@ void main() {
 }
 
 class TianKeyApp extends StatelessWidget {
-  const TianKeyApp({Super.key});
+  const TianKeyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +13,7 @@ class TianKeyApp extends StatelessWidget {
       title: 'Tian Key',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF03070D), // 深邃科技黑
+        scaffoldBackgroundColor: const Color(0xFF03070D),
         primaryColor: const Color(0xFF00F0FF),
       ),
       home: const MainShellScreen(),
@@ -23,7 +23,7 @@ class TianKeyApp extends StatelessWidget {
 
 // 主外壳（包含底部导航与页面切换）
 class MainShellScreen extends StatefulWidget {
-  const MainShellScreen({Super.key});
+  const MainShellScreen({super.key});
 
   @override
   State<MainShellScreen> createState() => _MainShellScreenState();
@@ -74,7 +74,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
 // 【页面 1】首页
 // -----------------------------------------------------------------------------
 class HomePage extends StatelessWidget {
-  const HomePage({Super.key});
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +197,7 @@ class HomePage extends StatelessWidget {
   Widget _buildStatusBox(String title, IconData icon, String val, Color color) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.horizontal(2),
+        margin: const EdgeInsets.symmetric(horizontal: 2),
         padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: const Color(0xFF09121F),
@@ -253,7 +253,7 @@ class HomePage extends StatelessWidget {
 // 【页面 2】临时借车
 // -----------------------------------------------------------------------------
 class TempKeyPage extends StatelessWidget {
-  const TempKeyPage({Super.key});
+  const TempKeyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +261,7 @@ class TempKeyPage extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Center(
               child: Text('临时借车', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
@@ -350,7 +350,7 @@ class TempKeyPage extends StatelessWidget {
 // 【页面 3】设置页面（聚合剩下 8 个子功能页面）
 // -----------------------------------------------------------------------------
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({Super.key});
+  const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -409,9 +409,8 @@ class SettingsPage extends StatelessWidget {
 // 【页面 4 ~ 11】子功能弹窗与设置页面
 // -----------------------------------------------------------------------------
 
-// 【页面 4】管理员授权（使用 2.png 盾牌）
 class AdminAuthPage extends StatelessWidget {
-  const AdminAuthPage({Super.key});
+  const AdminAuthPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -434,9 +433,8 @@ class AdminAuthPage extends StatelessWidget {
   }
 }
 
-// 【页面 5】修改蓝牙密码
 class ModifyBtPwdPage extends StatelessWidget {
-  const ModifyBtPwdPage({Super.key});
+  const ModifyBtPwdPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -444,7 +442,7 @@ class ModifyBtPwdPage extends StatelessWidget {
       context,
       '修改蓝牙密码',
       Column(
-        crossAxisAlignment: CrossAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('当前蓝牙密码', style: TextStyle(color: Colors.white54, fontSize: 11)),
           const SizedBox(height: 6),
@@ -465,9 +463,8 @@ class ModifyBtPwdPage extends StatelessWidget {
   }
 }
 
-// 【页面 6】恢复默认蓝牙密码
 class RestoreBtPwdPage extends StatelessWidget {
-  const RestoreBtPwdPage({Super.key});
+  const RestoreBtPwdPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -488,9 +485,8 @@ class RestoreBtPwdPage extends StatelessWidget {
   }
 }
 
-// 【页面 7】设备名称
 class DeviceNamePage extends StatelessWidget {
-  const DeviceNamePage({Super.key});
+  const DeviceNamePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -513,9 +509,8 @@ class DeviceNamePage extends StatelessWidget {
   }
 }
 
-// 【页面 8】时间同步设置
 class TimeSyncPage extends StatelessWidget {
-  const TimeSyncPage({Super.key});
+  const TimeSyncPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -538,9 +533,8 @@ class TimeSyncPage extends StatelessWidget {
   }
 }
 
-// 【页面 9】提示音设置
 class SoundSettingPage extends StatelessWidget {
-  const SoundSettingPage({Super.key});
+  const SoundSettingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -569,9 +563,8 @@ class SoundSettingPage extends StatelessWidget {
   }
 }
 
-// 【页面 10】自动连接设置
 class AutoConnectPage extends StatelessWidget {
-  const AutoConnectPage({Super.key});
+  const AutoConnectPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -598,9 +591,8 @@ class AutoConnectPage extends StatelessWidget {
   }
 }
 
-// 【页面 11】关于系统（使用 3.png 翅膀 Logo）
 class AboutSystemPage extends StatelessWidget {
-  const AboutSystemPage({Super.key});
+  const AboutSystemPage({super.key});
 
   @override
   Widget build(BuildContext context) {
