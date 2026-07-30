@@ -1,5 +1,5 @@
-name: tian_key_app
-description: "Tian Key Smart Car Controller"
+name: tian_key
+description: A car control app.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -18,7 +18,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - 1.png
-    - 2.png
-    - 3.png
