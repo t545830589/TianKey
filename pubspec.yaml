@@ -20,5 +20,3 @@ flutter:
   assets:
     - car.png
     - logo.png
-    - assets/car.png
-    - assets/logo.png
