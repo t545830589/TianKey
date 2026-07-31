@@ -1,7 +1,8 @@
 name: tian_key
-description: "Tian Key V11 终极冻结版汽车钥匙控制APP"
+description: "Tian Key V11 Mazda Axela BLE Controller App"
 publish_to: 'none'
-version: 1.1.0+11
+
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -9,8 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_blue_plus: ^1.32.2
-  shared_preferences: ^2.2.2
+  cupertino_icons: ^1.0.6
+  flutter_blue_plus: ^1.31.0   # 蓝牙 BLE 搜索与通信
+  vibration: ^2.0.0            # 赛博按键轻微震动反馈
+  shared_preferences: ^2.2.2   # 管理员密码与设置本地存储
 
 dev_dependencies:
   flutter_test:
@@ -19,5 +22,17 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
-    - assets/images/
+    - assets/borrow_page_bg.png
+    - assets/home_car_bg.png
+    - assets/home_controls_bg.png
+    - assets/logo_footer_bg.png
+    - assets/popup_admin_auth.png
+    - assets/popup_device_name.png
+    - assets/popup_edit_pwd.png
+    - assets/popup_reset_pwd.png
+    - assets/popup_sound.png
+    - assets/popup_time_sync.png
+    - assets/settings_auto_connect.png
+    - assets/settings_page_bg.png
