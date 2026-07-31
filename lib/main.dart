@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 强制锁定竖屏
+  // 强制锁定竖屏，防止在模拟器上拉伸变形
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -247,7 +247,7 @@ class BorrowPage extends StatelessWidget {
   }
 }
 
-// ================= 3. 设置页面 + 弹窗 =================
+// ================= 3. 设置页面 + 弹窗 (修复语法通配符错误) =================
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -295,18 +295,18 @@ class SettingsPage extends StatelessWidget {
                       Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)), child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '新密码', hintStyle: TextStyle(color: Colors.white38)))),
                       Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)), child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '确认新密码', hintStyle: TextStyle(color: Colors.white38)))),
                       Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('保存新密码', style: TextStyle(color: Colors.white))),
-                    ]),
+                    ])
                   );
                 }),
                 const Divider(color: Colors.white10, height: 1),
                 ListTile(leading: const Icon(Icons.autorenew, color: Colors.white70), title: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
                   _showPanelDialog(context, const AssetImage('assets/popup_reset_pwd.png'),
                     Column(children: [
-                      Spacer(), // ⚠️修复：去掉了 const
+                      Spacer(),
                       const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center)),
-                      Spacer(), // ⚠️修复：去掉了 const
+                      Spacer(),
                       Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)), child: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white))),
-                    ],);
+                    ])
                   );
                 }),
               ],
@@ -316,34 +316,34 @@ class SettingsPage extends StatelessWidget {
               children: [
                 ListTile(leading: const Icon(Icons.sim_card, color: Colors.white70), title: const Text('设备名称', style: TextStyle(color: Colors.white)), trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('陕A0P92Y', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]), onTap: () {
                   _showPanelDialog(context, const AssetImage('assets/popup_device_name.png'), Column(children: [
-                    Spacer(), // ⚠️修复：去掉了 const
+                    Spacer(),
                     const Padding(padding: EdgeInsets.all(8), child: Text('陕A0P92Y', style: TextStyle(color: Colors.white))),
-                    Spacer(), // ⚠️修复：去掉了 const
+                    Spacer(),
                     Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('保存', style: TextStyle(color: Colors.white))),
-                  ],);
+                  ]));
                 }),
                 const Divider(color: Colors.white10, height: 1),
                 ListTile(leading: const Icon(Icons.access_time, color: Colors.white70), title: const Text('时间同步设置', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
                   _showPanelDialog(context, const AssetImage('assets/popup_time_sync.png'), Column(children: [
-                    Spacer(), // ⚠️修复：去掉了 const
+                    Spacer(),
                     Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('立即同步', style: TextStyle(color: Colors.white))),
-                  ],);
+                  ]));
                 }),
                 const Divider(color: Colors.white10, height: 1),
                 ListTile(leading: const Icon(Icons.link, color: Colors.white70), title: const Text('自动连接设置', style: TextStyle(color: Colors.white)), trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('关闭', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]), onTap: () {
                   _showPanelDialog(context, const AssetImage('assets/settings_auto_connect.png'), Column(children: [
-                    Spacer(), // ⚠️修复：去掉了 const
+                    Spacer(),
                     Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: true, onChanged: (v){}, activeColor: Colors.white)]),
-                    Spacer(), // ⚠️修复：去掉了 const
-                  ],);
+                    Spacer(),
+                  ]));
                 }),
                 const Divider(color: Colors.white10, height: 1),
                 ListTile(leading: const Icon(Icons.volume_up, color: Colors.white70), title: const Text('提示音设置', style: TextStyle(color: Colors.white)), trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('关闭', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]), onTap: () {
                   _showPanelDialog(context, const AssetImage('assets/popup_sound.png'), Column(children: [
-                    Spacer(), // ⚠️修复：去掉了 const
+                    Spacer(),
                     Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: false, onChanged: (v){}, activeColor: Colors.white)]),
-                    Spacer(), // ⚠️修复：去掉了 const
-                  ],);
+                    Spacer(),
+                  ]));
                 }),
                 const Divider(color: Colors.white10, height: 1),
                 ListTile(leading: const Icon(Icons.info, color: Colors.white70), title: const Text('关于系统', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
