@@ -115,14 +115,12 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // ⚠️ 核心修复：强制点击穿透组件
+  // 核心修复：强制点击穿透组件
   Widget _forceClickableBtn(String txt) {
     return GestureDetector(
-      // 这一行代码是关键，强制让这个区域必须响应点击
       behavior: HitTestBehavior.opaque, 
       onTap: () {
         print('执行指令: $txt');
-        // 你可以在这里加入 toast 提醒
       },
       child: Container(
         width: 120,
@@ -197,22 +195,19 @@ class BorrowPage extends StatelessWidget {
                   SizedBox(height: 8),
                   Text('尚未生成', style: TextStyle(color: Colors.white60)),
                   SizedBox(height: 16),
-                  // 仅留按钮，不显示任何密码
                   SizedBox(width: 150, height: 30, child: Center(child: Text('复制密码', style: TextStyle(color: Colors.white38, fontSize: 13))))
                 ],
               ),
             ),
             const SizedBox(height: 30),
-            // 生成按钮
             SizedBox(width: double.infinity, height: 48,
               child: ElevatedButton(
-                onPressed: () {}, // 这里未来接入生成密码逻辑
+                onPressed: () {},
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0B4BDB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
                 child: const Text('生成临时密码', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 16),
-            // 取消按钮
             SizedBox(width: double.infinity, height: 48,
               child: ElevatedButton(
                 onPressed: () {},
@@ -232,7 +227,6 @@ class BorrowPage extends StatelessWidget {
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  // 弹窗统一框架
   void _showPanelDialog(BuildContext context, ImageProvider bgImage, Widget content) {
     showDialog(
       context: context,
@@ -268,7 +262,6 @@ class SettingsPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           children: [
-            // 设置组1
             Container(
               decoration: BoxDecoration(color: const Color(0xFF151A2E), borderRadius: BorderRadius.circular(12)),
               child: Column(
@@ -309,7 +302,6 @@ class SettingsPage extends StatelessWidget {
                         Column(
                           children: [
                             const Spacer(),
-                            // ⚠️ 按要求隐藏密码，只留提示语
                             const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 20),
                               child: Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
@@ -326,7 +318,6 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            // 设置组2
             Container(
               decoration: BoxDecoration(color: const Color(0xFF151A2E), borderRadius: BorderRadius.circular(12)),
               child: Column(
@@ -385,7 +376,6 @@ class SettingsPage extends StatelessWidget {
                     title: const Text('关于系统', style: TextStyle(color: Colors.white)),
                     trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
                     onTap: () {
-                      // 点击关于系统，给出统一的信息
                       showDialog(
                         context: context,
                         barrierDismissible: true,
