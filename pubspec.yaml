@@ -11,9 +11,9 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  flutter_blue_plus: ^1.31.0   # 蓝牙 BLE 搜索与通信
-  vibration: ^2.0.0            # 赛博按键轻微震动反馈
-  shared_preferences: ^2.2.2   # 管理员密码与设置本地存储
+  flutter_blue_plus: ^1.20.0   # 稳定兼容版 BLE 蓝牙插件
+  vibration: ^1.8.4            # 稳定版触觉震动反馈
+  shared_preferences: ^2.2.2   # 本地数据与密码存储
 
 dev_dependencies:
   flutter_test:
