@@ -25,7 +25,7 @@ jobs:
           channel: 'stable'
 
       - name: Create Android project structure
-        run: flutter create . --platforms=android --org com.tian.key
+        run: flutter create . --platforms=android --org com.tian --project-name tian_key
 
       - name: Install dependencies
         run: flutter pub get
