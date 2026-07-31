@@ -1,15 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  // 强制锁定竖屏，防止在模拟器上拉伸变形
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]).then((_) {
-    runApp(const TianKeyApp());
-  });
+  runApp(const TianKeyApp());
 }
 
 class TianKeyApp extends StatelessWidget {
@@ -18,228 +10,402 @@ class TianKeyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Tian Key V11',
       debugShowCheckedModeBanner: false,
-      title: 'Tian Key',
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0B0E1E),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF030712),
+        primaryColor: const Color(0xFF007ACC),
+        colorScheme: const ColorScheme.dark(
+          surface: Color(0xFF0B132B),
+          primary: Color(0xFF007ACC),
+          secondary: Color(0xFFFF6600),
+        ),
+        fontFamily: 'sans-serif',
       ),
-      home: const MainScreen(),
+      home: const MainHomeScreen(),
     );
   }
 }
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+class MainHomeScreen extends StatefulWidget {
+  const MainHomeScreen({super.key});
+
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<MainHomeScreen> createState() => _MainHomeScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainHomeScreenState extends State<MainHomeScreen> {
   int _currentIndex = 0;
-  final List<Widget> _pages = [
-    const HomePage(),
-    const BorrowPage(),
-    const SettingsPage(),
-  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        backgroundColor: const Color(0xFF151A2E),
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.white54,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '首页'),
-          BottomNavigationBarItem(icon: Icon(Icons.vpn_key), label: '临时借车'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '设置'),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: const [
+          HomeTabPage(),
+          TempKeyTabPage(),
+          SettingsTabPage(),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF050B14),
+          border: Border(top: BorderSide(color: Colors.blue.withOpacity(0.3), width: 1)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          backgroundColor: Colors.transparent,
+          selectedItemColor: Colors.blueAccent,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: '首页',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.group),
+              label: '临时借车',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings),
+              label: '设置',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 1. 首页 (Home Tab)
+class HomeTabPage extends StatelessWidget {
+  const HomeTabPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.settings, color: Colors.white70),
+                  onPressed: () {},
+                ),
+                const Text(
+                  'Tian Key',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.cyanAccent,
+                    shadows: [Shadow(color: Colors.cyan, blurRadius: 10)],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.help_outline, color: Colors.white70),
+                  onPressed: () {},
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue.withOpacity(0.5), width: 1.5),
+                color: const Color(0xFF081225),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(Icons.directions_car, size: 80, color: Colors.blueAccent),
+                  Positioned(
+                    bottom: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[900],
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.cyanAccent),
+                      ),
+                      child: const Text(
+                        '陕A·0P92Y',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: const [
+                StatusBox(icon: Icons.bluetooth_disabled, label: '设备状态', value: '未连接'),
+                StatusBox(icon: Icons.security, label: '管理员状态', value: '未授权'),
+                StatusBox(icon: Icons.bolt, label: '供电状态', value: '未知'),
+                StatusBox(icon: Icons.access_time, label: '时间同步', value: '未同步'),
+                StatusBox(icon: Icons.vpn_key, label: '临时借车', value: '无有效密码'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildNeonButton(context, '连接设备', Icons.bluetooth, Colors.blue, () {}),
+            const SizedBox(height: 10),
+            _buildNeonButton(context, '管理员授权', Icons.admin_panel_settings, Colors.orange, () {
+              _showAdminAuthDialog(context);
+            }),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildNeonButton(context, '锁车', Icons.lock, Colors.blue, () {})),
+                const SizedBox(width: 10),
+                Expanded(child: _buildNeonButton(context, '解锁', Icons.lock_open, Colors.blue, () {})),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildNeonButton(context, '车窗升', Icons.keyboard_arrow_up, Colors.orange, () {})),
+                const SizedBox(width: 10),
+                Expanded(child: _buildNeonButton(context, '车窗降', Icons.keyboard_arrow_down, Colors.orange, () {})),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildNeonButton(context, '寻车', Icons.notifications_active, Colors.blue, () {})),
+                const SizedBox(width: 10),
+                Expanded(child: _buildNeonButton(context, '后备箱', Icons.car_rental, Colors.blue, () {})),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNeonButton(BuildContext context, String title, IconData icon, Color borderColor, VoidCallback onPressed) {
+    return Container(
+      width: double.infinity,
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 1.5),
+        gradient: LinearGradient(
+          colors: [Colors.blue.withOpacity(0.1), Colors.black54],
+        ),
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        onPressed: onPressed,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: borderColor, size: 20),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAdminAuthDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0B132B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Colors.orange, width: 1.5),
+        ),
+        title: const Text('管理员授权', style: TextStyle(color: Colors.white, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.security, color: Colors.orange, size: 48),
+            const SizedBox(height: 12),
+            const Text('请输入管理员密码进行授权', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 16),
+            TextField(
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: '请输入管理员密码',
+                hintStyle: const TextStyle(color: Colors.white30),
+                filled: true,
+                fillColor: Colors.black26,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                suffixIcon: const Icon(Icons.visibility_off, color: Colors.white54),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            height: 45,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange, width: 1.5),
+            ),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('确认授权', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ),
+          )
         ],
       ),
     );
   }
 }
 
-// ================= 1. 首页界面 =================
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class StatusBox extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const StatusBox({super.key, required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    final screenH = MediaQuery.of(context).size.height;
-    final screenW = MediaQuery.of(context).size.width;
-
-    return Stack(
-      children: [
-        Positioned.fill(child: Image.asset('assets/home_car_bg.png', fit: BoxFit.fill)),
-        Positioned(
-          bottom: 0, left: 0, right: 0,
-          height: screenH * 0.45,
-          child: Image.asset('assets/home_controls_bg.png', fit: BoxFit.fill),
-        ),
-        SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(top: 10, left: screenW * 0.05, right: screenW * 0.05),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Tian Key', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                    Row(children: [Icon(Icons.settings, color: Colors.white70), SizedBox(width: 15), Icon(Icons.help, color: Colors.white70)])
-                  ],
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.only(top: screenH * 0.12, left: 10, right: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: const [
-                    _StatusItem(label: '设备状态', sub: '未连接', icon: Icons.bluetooth),
-                    _StatusItem(label: '管理员状态', sub: '未授权', icon: Icons.security),
-                    _StatusItem(label: '供电状态', sub: '未知', icon: Icons.flash_on),
-                    _StatusItem(label: '时间同步', sub: '未同步', icon: Icons.access_time),
-                    _StatusItem(label: '临时借车', sub: '无有效密码', icon: Icons.vpn_key),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              SizedBox(
-                height: screenH * 0.42,
-                child: Stack(
-                  children: [
-                    _buildBtn('连接设备', screenW * 0.09, 35),
-                    _buildBtn('管理员授权', screenW * 0.57, 35),
-                    _buildBtn('锁车', screenW * 0.09, 145),
-                    _buildBtn('解锁', screenW * 0.57, 145),
-                    _buildBtn('车窗升', screenW * 0.09, 255),
-                    _buildBtn('车窗降', screenW * 0.57, 255),
-                    _buildBtn('寻车', screenW * 0.09, 365),
-                    _buildBtn('后备箱', screenW * 0.57, 365),
-                  ],
-                ),
-              ),
-              SizedBox(height: screenH * 0.02),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBtn(String label, double left, double top) {
-    return Positioned(
-      left: left,
-      top: top,
-      width: 160,
-      height: 60,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          print("执行点击命令: $label");
-        },
-        onLongPress: () {
-          if (label == '车窗升' || label == '车窗降' || label == '后备箱') {
-            print("执行长按指令(车窗/后备箱持续执行): $label");
-          }
-        },
-        child: Container(
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-        ),
+    return Container(
+      width: 68,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B132B),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70), overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Icon(icon, size: 18, color: Colors.blueAccent),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 9, color: Colors.white54), overflow: TextOverflow.ellipsis),
+        ],
       ),
     );
   }
 }
 
-class _StatusItem extends StatelessWidget {
-  final String label;
-  final String sub;
-  final IconData icon;
-  const _StatusItem({required this.label, required this.sub, required this.icon});
+// 2. 临时借车 (Temporary Key Tab)
+class TempKeyTabPage extends StatefulWidget {
+  const TempKeyTabPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, size: 22, color: Colors.white38),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
-        Text(sub, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
+  State<TempKeyTabPage> createState() => _TempKeyTabPageState();
 }
 
-// ================= 2. 临时借车界面 =================
-class BorrowPage extends StatelessWidget {
-  const BorrowPage({super.key});
+class _TempKeyTabPageState extends State<TempKeyTabPage> {
+  int selectedDurationIndex = 0;
+  final List<String> durations = ['5分钟', '1天', '2天', '3天', '4天', '5天', '6天', '7天'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E1E),
       appBar: AppBar(
-        backgroundColor: Colors.transparent, elevation: 0,
-        leading: const BackButton(color: Colors.white),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: const Text('临时借车', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {}),
+        actions: [IconButton(icon: const Icon(Icons.receipt_long), onPressed: () {})],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('当前状态', style: TextStyle(color: Colors.white60, fontSize: 13)),
+            const Text('当前状态', style: TextStyle(color: Colors.white70, fontSize: 14)),
             const SizedBox(height: 8),
-            Row(children: const [
-              Icon(Icons.vpn_key, color: Colors.white70, size: 18),
-              SizedBox(width: 8),
-              Text('无有效临时密码', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))
-            ]),
-            const SizedBox(height: 30),
-            const Text('选择有效时间', style: TextStyle(color: Colors.white60, fontSize: 13)),
-            const SizedBox(height: 16),
+            Row(
+              children: const [
+                Icon(Icons.vpn_key, color: Colors.white54, size: 20),
+                SizedBox(width: 8),
+                Text('无有效临时密码', style: TextStyle(color: Colors.white, fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text('选择有效时间', style: TextStyle(color: Colors.white70, fontSize: 14)),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 12, runSpacing: 12,
-              children: ['5分钟','1天','2天','3天','4天','5天','6天','7天'].map((e) {
-                return Container(
-                  width: 70, padding: const EdgeInsets.symmetric(vertical: 12), alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: e == '5分钟' ? Colors.blue : const Color(0xFF1A203B),
-                    borderRadius: BorderRadius.circular(8),
-                    border: e == '5分钟' ? null : Border.all(color: Colors.white12),
+              spacing: 8,
+              runSpacing: 8,
+              children: List.generate(durations.length, (index) {
+                bool isSelected = selectedDurationIndex == index;
+                return ChoiceChip(
+                  label: Text(durations[index]),
+                  selected: isSelected,
+                  onSelected: (selected) => setState(() => selectedDurationIndex = index),
+                  selectedColor: Colors.blue[800],
+                  backgroundColor: const Color(0xFF0B132B),
+                  labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.white70),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    side: BorderSide(color: isSelected ? Colors.cyanAccent : Colors.blue.withOpacity(0.3)),
                   ),
-                  child: Text(e, style: TextStyle(color: e == '5分钟' ? Colors.white : Colors.white70, fontSize: 13)),
                 );
-              }).toList(),
+              }),
             ),
             const SizedBox(height: 30),
             Container(
-              width: double.infinity, height: 140,
-              decoration: BoxDecoration(color: const Color(0xFF1A203B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.lock, color: Colors.white30, size: 40),
+              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B132B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: const [
+                  Icon(Icons.lock_outline, color: Colors.white30, size: 36),
                   SizedBox(height: 8),
-                  Text('尚未生成', style: TextStyle(color: Colors.white60)),
-                  SizedBox(height: 16),
-                  SizedBox(width: 150, height: 30, child: Center(child: Text('复制密码', style: TextStyle(color: Colors.white38, fontSize: 13))))
+                  Text('尚未生成', style: TextStyle(color: Colors.white30, fontSize: 14)),
                 ],
               ),
             ),
-            const SizedBox(height: 30),
-            SizedBox(width: double.infinity, height: 48, child: ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0B4BDB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), child: const Text('生成临时密码', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)))),
-            const SizedBox(height: 16),
-            SizedBox(width: double.infinity, height: 48, child: ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB71C1C), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), child: const Text('取消借车', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)))),
-            const SizedBox(height: 60),
+            const Spacer(),
+            Container(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blueAccent, width: 1.5),
+              ),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+                onPressed: () {},
+                child: const Text('生成临时密码', style: TextStyle(color: Colors.white, fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.redAccent, width: 1.5),
+              ),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+                onPressed: () {},
+                child: const Text('取消借车', style: TextStyle(color: Colors.white, fontSize: 16)),
+              ),
+            ),
           ],
         ),
       ),
@@ -247,134 +413,217 @@ class BorrowPage extends StatelessWidget {
   }
 }
 
-// ================= 3. 设置页面 + 弹窗 (修复语法通配符错误) =================
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
-
-  void _showPanelDialog(BuildContext context, ImageProvider bgImage, Widget content) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.7),
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned.fill(child: Image(image: bgImage, fit: BoxFit.contain)),
-              Padding(padding: const EdgeInsets.all(20.0), child: content),
-            ],
-          ),
-        );
-      }
-    );
-  }
+// 3. 设置 (Settings Tab)
+class SettingsTabPage extends StatelessWidget {
+  const SettingsTabPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E1E),
       appBar: AppBar(
-        backgroundColor: Colors.transparent, elevation: 0,
-        leading: const BackButton(color: Colors.white),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: const Text('设置', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {}),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          _buildSettingItem(context, Icons.bluetooth, '修改蓝牙密码', '', () => _showEditPwdDialog(context)),
+          _buildSettingItem(context, Icons.refresh, '恢复默认蓝牙密码', '', () => _showResetPwdDialog(context)),
+          _buildSettingItem(context, Icons.devices, '设备名称', '陕A·0P92Y', () => _showDeviceNameDialog(context)),
+          _buildSettingItem(context, Icons.access_time, '时间同步设置', '', () => _showTimeSyncDialog(context)),
+          _buildSettingItem(context, Icons.link, '自动连接设置', '关闭', () {}),
+          _buildSettingItem(context, Icons.volume_up, '提示音设置', '关闭', () => _showSoundDialog(context)),
+          _buildSettingItem(context, Icons.info_outline, '关于系统', '', () {}),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingItem(BuildContext context, IconData icon, String title, String trailingText, VoidCallback onTap) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B132B),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.blueAccent),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(decoration: BoxDecoration(color: const Color(0xFF151A2E), borderRadius: BorderRadius.circular(12)), child: Column(
-              children: [
-                ListTile(leading: const Icon(Icons.bluetooth, color: Colors.white70), title: const Text('修改蓝牙密码', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
-                  _showPanelDialog(context, const AssetImage('assets/popup_edit_pwd.png'),
-                    Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)), child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '当前密码', hintStyle: TextStyle(color: Colors.white38)))),
-                      Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)), child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '新密码', hintStyle: TextStyle(color: Colors.white38)))),
-                      Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)), child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '确认新密码', hintStyle: TextStyle(color: Colors.white38)))),
-                      Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('保存新密码', style: TextStyle(color: Colors.white))),
-                    ])
-                  );
-                }),
-                const Divider(color: Colors.white10, height: 1),
-                ListTile(leading: const Icon(Icons.autorenew, color: Colors.white70), title: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
-                  _showPanelDialog(context, const AssetImage('assets/popup_reset_pwd.png'),
-                    Column(children: [
-                      Spacer(),
-                      const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center)),
-                      Spacer(),
-                      Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)), child: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white))),
-                    ])
-                  );
-                }),
-              ],
-            )),
-            const SizedBox(height: 16),
-            Container(decoration: BoxDecoration(color: const Color(0xFF151A2E), borderRadius: BorderRadius.circular(12)), child: Column(
-              children: [
-                ListTile(leading: const Icon(Icons.sim_card, color: Colors.white70), title: const Text('设备名称', style: TextStyle(color: Colors.white)), trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('陕A0P92Y', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]), onTap: () {
-                  _showPanelDialog(context, const AssetImage('assets/popup_device_name.png'), Column(children: [
-                    Spacer(),
-                    const Padding(padding: EdgeInsets.all(8), child: Text('陕A0P92Y', style: TextStyle(color: Colors.white))),
-                    Spacer(),
-                    Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('保存', style: TextStyle(color: Colors.white))),
-                  ]));
-                }),
-                const Divider(color: Colors.white10, height: 1),
-                ListTile(leading: const Icon(Icons.access_time, color: Colors.white70), title: const Text('时间同步设置', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
-                  _showPanelDialog(context, const AssetImage('assets/popup_time_sync.png'), Column(children: [
-                    Spacer(),
-                    Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('立即同步', style: TextStyle(color: Colors.white))),
-                  ]));
-                }),
-                const Divider(color: Colors.white10, height: 1),
-                ListTile(leading: const Icon(Icons.link, color: Colors.white70), title: const Text('自动连接设置', style: TextStyle(color: Colors.white)), trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('关闭', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]), onTap: () {
-                  _showPanelDialog(context, const AssetImage('assets/settings_auto_connect.png'), Column(children: [
-                    Spacer(),
-                    Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: true, onChanged: (v){}, activeColor: Colors.white)]),
-                    Spacer(),
-                  ]));
-                }),
-                const Divider(color: Colors.white10, height: 1),
-                ListTile(leading: const Icon(Icons.volume_up, color: Colors.white70), title: const Text('提示音设置', style: TextStyle(color: Colors.white)), trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('关闭', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]), onTap: () {
-                  _showPanelDialog(context, const AssetImage('assets/popup_sound.png'), Column(children: [
-                    Spacer(),
-                    Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: false, onChanged: (v){}, activeColor: Colors.white)]),
-                    Spacer(),
-                  ]));
-                }),
-                const Divider(color: Colors.white10, height: 1),
-                ListTile(leading: const Icon(Icons.info, color: Colors.white70), title: const Text('关于系统', style: TextStyle(color: Colors.white)), trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14), onTap: () {
-                  showDialog(
-                    context: context,
-                    barrierDismissible: true,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: const Color(0xFF151A2E),
-                      title: const Center(child: Text('Tian Key', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Text('车型：马自达昂克赛拉', style: TextStyle(color: Colors.white70)),
-                          SizedBox(height: 8),
-                          Text('车牌：陕A0P92Y', style: TextStyle(color: Colors.white70)),
-                          SizedBox(height: 8),
-                          Text('设备：ESP32', style: TextStyle(color: Colors.white70)),
-                          SizedBox(height: 8),
-                          Text('状态：未连接设备', style: TextStyle(color: Colors.white70)),
-                        ],
-                      ),
-                      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭', style: TextStyle(color: Colors.blue)))],
-                    ),
-                  );
-                }),
-              ],
-            )),
-            const SizedBox(height: 40),
-            Container(margin: const EdgeInsets.only(bottom: 20), width: 280, height: 70, child: Image.asset('assets/silver_wings.png', fit: BoxFit.contain)),
+            if (trailingText.isNotEmpty)
+              Text(trailingText, style: const TextStyle(color: Colors.white54, fontSize: 14)),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Colors.white54),
           ],
         ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _showEditPwdDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0B132B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.blue)),
+        title: const Text('修改蓝牙密码', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            TextField(obscureText: true, decoration: InputDecoration(hintText: '请输入当前蓝牙密码', filled: true, fillColor: Colors.black26)),
+            SizedBox(height: 10),
+            TextField(obscureText: true, decoration: InputDecoration(hintText: '请输入新蓝牙密码', filled: true, fillColor: Colors.black26)),
+            SizedBox(height: 10),
+            TextField(obscureText: true, decoration: InputDecoration(hintText: '请再次输入新密码', filled: true, fillColor: Colors.black26)),
+          ],
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            height: 45,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent)),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('保存新密码', style: TextStyle(color: Colors.white)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showResetPwdDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0B132B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.red)),
+        title: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.refresh, color: Colors.blueAccent, size: 48),
+            SizedBox(height: 12),
+            Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          ],
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            height: 45,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.redAccent)),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showDeviceNameDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0B132B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.blue)),
+        title: const Text('设备名称', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.phone_android, color: Colors.blueAccent, size: 48),
+            SizedBox(height: 12),
+            TextField(
+              decoration: InputDecoration(hintText: '陕A·0P92Y', filled: true, fillColor: Colors.black26),
+            ),
+            SizedBox(height: 8),
+            Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          ],
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            height: 45,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent)),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('保存', style: TextStyle(color: Colors.white)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showTimeSyncDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0B132B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.blue)),
+        title: const Text('时间同步设置', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.access_time, color: Colors.blueAccent, size: 48),
+            SizedBox(height: 8),
+            Text('当前状态: 未同步', style: TextStyle(color: Colors.white70)),
+          ],
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            height: 45,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent)),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('立即同步', style: TextStyle(color: Colors.white)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showSoundDialog(BuildContext context) {
+    withContext: context
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0B132B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.blue)),
+        title: const Text('提示音设置', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.volume_up, color: Colors.blueAccent, size: 48),
+            SizedBox(height: 12),
+            Text('开启后, 操作时播放提示音', style: TextStyle(color: Colors.white70)),
+          ],
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            height: 45,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent)),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('确定', style: TextStyle(color: Colors.white)),
+            ),
+          )
+        ],
       ),
     );
   }
