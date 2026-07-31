@@ -9,8 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_blue_plus: ^1.31.6  # 用于 ESP32 蓝牙 BLE 通信
-  shared_preferences: ^2.2.2  # 用于本地安全存储管理员密码与配置
+  flutter_blue_plus: ^1.32.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -19,7 +19,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # 注册赛博机械风 UI 切片与背景图资产
   assets:
     - assets/images/
