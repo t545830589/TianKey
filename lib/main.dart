@@ -597,7 +597,6 @@ class SettingsTabPage extends StatelessWidget {
   }
 
   void _showSoundDialog(BuildContext context) {
-    withContext: context
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -609,7 +608,7 @@ class SettingsTabPage extends StatelessWidget {
           children: const [
             Icon(Icons.volume_up, color: Colors.blueAccent, size: 48),
             SizedBox(height: 12),
-            Text('开启后, 操作时播放提示音', style: TextStyle(color: Colors.white70)),
+            Text('开启后，操作时播放提示音', style: TextStyle(color: Colors.white70)),
           ],
         ),
         actions: [
