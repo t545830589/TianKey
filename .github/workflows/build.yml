@@ -24,6 +24,9 @@ jobs:
           flutter-version: '3.19.6'
           channel: 'stable'
 
+      - name: Generate Android Template
+        run: flutter create . --platforms=android --project-name tian_key
+
       - name: Install dependencies
         run: flutter pub get
 
