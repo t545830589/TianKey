@@ -13,13 +13,14 @@ class TianKeyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Tian Key',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0F1F),
+        scaffoldBackgroundColor: const Color(0xFF0B0E1E),
       ),
       home: const MainScreen(),
     );
   }
 }
 
+// -------- 底部导航 + 总框架 --------
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
   @override
@@ -55,6 +56,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
+// ================= 1. 首页界面 =================
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -65,18 +67,20 @@ class HomePage extends StatelessWidget {
 
     return Stack(
       children: [
+        // 铺满红车背景
         Positioned.fill(child: Image.asset('assets/home_car_bg.png', fit: BoxFit.fill)),
+        // 铺设下方8个按钮的底图
         Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: screenH * 0.45,
+          bottom: 0, left: 0, right: 0,
+          height: screenH * 0.48,
           child: Image.asset('assets/home_controls_bg.png', fit: BoxFit.fill),
         ),
+        // 顶层：强制点击的8个操作区
         SafeArea(
           child: Column(
             children: [
               SizedBox(height: screenH * 0.02),
+              // 顶部的标题和工具
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenW * 0.05),
                 child: Row(
@@ -88,17 +92,18 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              // 8 个带强制点击触发器的按钮（解决了“按不动”的问题）
               Padding(
                 padding: EdgeInsets.only(bottom: screenH * 0.22, left: screenW * 0.06, right: screenW * 0.06),
                 child: Column(
                   children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_btnText('连接设备'), _btnText('管理员授权')]),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_forceClickableBtn('连接设备'), _forceClickableBtn('管理员授权')]),
                     SizedBox(height: screenH * 0.025),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_btnText('锁车'), _btnText('解锁')]),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_forceClickableBtn('锁车'), _forceClickableBtn('解锁')]),
                     SizedBox(height: screenH * 0.025),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_btnText('车窗升'), _btnText('车窗降')]),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_forceClickableBtn('车窗升'), _forceClickableBtn('车窗降')]),
                     SizedBox(height: screenH * 0.025),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_btnText('寻车'), _btnText('后备箱')]),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_forceClickableBtn('寻车'), _forceClickableBtn('后备箱')]),
                   ],
                 ),
               ),
@@ -110,18 +115,26 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _btnText(String txt) {
-    return SizedBox(
-      width: 120,
-      child: Text(
-        txt,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+  // ⚠️ 核心修复：强制点击穿透组件
+  Widget _forceClickableBtn(String txt) {
+    return GestureDetector(
+      // 这一行代码是关键，强制让这个区域必须响应点击
+      behavior: HitTestBehavior.opaque, 
+      onTap: () {
+        print('执行指令: $txt');
+        // 你可以在这里加入 toast 提醒
+      },
+      child: Container(
+        width: 120,
+        height: 45,
+        alignment: Alignment.center,
+        child: Text(txt, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
       ),
     );
   }
 }
 
+// ================= 2. 临时借车界面 =================
 class BorrowPage extends StatelessWidget {
   const BorrowPage({super.key});
 
@@ -143,14 +156,17 @@ class BorrowPage extends StatelessWidget {
           children: [
             const Text('当前状态', style: TextStyle(color: Colors.white60, fontSize: 13)),
             const SizedBox(height: 8),
-            Row(children: const [Icon(Icons.vpn_key, color: Colors.white70, size: 18), SizedBox(width: 8), Text('无有效临时密码', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))]),
+            Row(children: const [
+              Icon(Icons.vpn_key, color: Colors.white70, size: 18),
+              SizedBox(width: 8),
+              Text('无有效临时密码', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))
+            ]),
             const SizedBox(height: 30),
             const Text('选择有效时间', style: TextStyle(color: Colors.white60, fontSize: 13)),
             const SizedBox(height: 16),
             Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: ['5分钟', '1天', '2天', '3天', '4天', '5天', '6天', '7天'].map((e) {
+              spacing: 12, runSpacing: 12,
+              children: ['5分钟','1天','2天','3天','4天','5天','6天','7天'].map((e) {
                 return Container(
                   width: 70,
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -160,14 +176,12 @@ class BorrowPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: e == '5分钟' ? null : Border.all(color: Colors.white12),
                   ),
-                  child: Text(
-                    e,
-                    style: TextStyle(color: e == '5分钟' ? Colors.white : Colors.white70, fontSize: 13),
-                  ),
+                  child: Text(e, style: TextStyle(color: e == '5分钟' ? Colors.white : Colors.white70, fontSize: 13)),
                 );
               }).toList(),
             ),
             const SizedBox(height: 30),
+            // 密码生成区（不显示任何实际密码）
             Container(
               width: double.infinity,
               height: 140,
@@ -176,52 +190,33 @@ class BorrowPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white10),
               ),
-              child: Column(
+              child: const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock, color: Colors.white30, size: 40),
-                  const SizedBox(height: 8),
-                  const Text('尚未生成', style: TextStyle(color: Colors.white60)),
-                  const SizedBox(height: 16),
-                  // ⚠️ 看这里：这就是之前导致你报错崩溃的代码，我完全重写了一遍
-                  Container(
-                    width: 150,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      border: Border.all(color: Colors.white24),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Center(
-                      child: Text('复制密码', style: TextStyle(color: Colors.white60, fontSize: 12)),
-                    ),
-                  ),
+                  Icon(Icons.lock, color: Colors.white30, size: 40),
+                  SizedBox(height: 8),
+                  Text('尚未生成', style: TextStyle(color: Colors.white60)),
+                  SizedBox(height: 16),
+                  // 仅留按钮，不显示任何密码
+                  SizedBox(width: 150, height: 30, child: Center(child: Text('复制密码', style: TextStyle(color: Colors.white38, fontSize: 13))))
                 ],
               ),
             ),
             const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
+            // 生成按钮
+            SizedBox(width: double.infinity, height: 48,
               child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0B4BDB),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
+                onPressed: () {}, // 这里未来接入生成密码逻辑
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0B4BDB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
                 child: const Text('生成临时密码', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
+            // 取消按钮
+            SizedBox(width: double.infinity, height: 48,
               child: ElevatedButton(
                 onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB71C1C),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB71C1C), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
                 child: const Text('取消借车', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -233,9 +228,11 @@ class BorrowPage extends StatelessWidget {
   }
 }
 
+// ================= 3. 设置页面 + 弹窗框架 =================
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
+  // 弹窗统一框架
   void _showPanelDialog(BuildContext context, ImageProvider bgImage, Widget content) {
     showDialog(
       context: context,
@@ -262,8 +259,7 @@ class SettingsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0B0E1E),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Colors.transparent, elevation: 0,
         leading: const BackButton(color: Colors.white),
         title: const Text('设置', style: TextStyle(color: Colors.white)),
         centerTitle: true,
@@ -272,6 +268,7 @@ class SettingsPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           children: [
+            // 设置组1
             Container(
               decoration: BoxDecoration(color: const Color(0xFF151A2E), borderRadius: BorderRadius.circular(12)),
               child: Column(
@@ -287,52 +284,14 @@ class SettingsPage extends StatelessWidget {
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.black26,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              child: const TextField(
-                                style: TextStyle(color: Colors.white),
-                                decoration: InputDecoration(border: InputBorder.none, hintText: '当前密码', hintStyle: TextStyle(color: Colors.white38)),
-                              ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.black26,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              child: const TextField(
-                                style: TextStyle(color: Colors.white),
-                                decoration: InputDecoration(border: InputBorder.none, hintText: '新密码', hintStyle: TextStyle(color: Colors.white38)),
-                              ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.black26,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              child: const TextField(
-                                style: TextStyle(color: Colors.white),
-                                decoration: InputDecoration(border: InputBorder.none, hintText: '确认新密码', hintStyle: TextStyle(color: Colors.white38)),
-                              ),
-                            ),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
-                              child: const Text('保存新密码', style: TextStyle(color: Colors.white)),
-                            ),
+                            Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)),
+                              child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '当前密码', hintStyle: TextStyle(color: Colors.white38)))),
+                            Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)),
+                              child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '新密码', hintStyle: TextStyle(color: Colors.white38)))),
+                            Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white12)),
+                              child: const TextField(style: TextStyle(color: Colors.white), decoration: InputDecoration(border: InputBorder.none, hintText: '确认新密码', hintStyle: TextStyle(color: Colors.white38)))),
+                            Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
+                              child: const Text('保存新密码', style: TextStyle(color: Colors.white))),
                           ],
                         ),
                       );
@@ -350,15 +309,14 @@ class SettingsPage extends StatelessWidget {
                         Column(
                           children: [
                             const Spacer(),
-                            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: true, onChanged: (v){}, activeColor: Colors.white)]),
-                            const Spacer(),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)),
-                              child: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white)),
+                            // ⚠️ 按要求隐藏密码，只留提示语
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20),
+                              child: Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
                             ),
+                            const Spacer(),
+                            Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)),
+                              child: const Text('恢复默认蓝牙密码', style: TextStyle(color: Colors.white))),
                           ],
                         ),
                       );
@@ -368,6 +326,7 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // 设置组2
             Container(
               decoration: BoxDecoration(color: const Color(0xFF151A2E), borderRadius: BorderRadius.circular(12)),
               child: Column(
@@ -375,24 +334,12 @@ class SettingsPage extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Icons.sim_card, color: Colors.white70),
                     title: const Text('设备名称', style: TextStyle(color: Colors.white)),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('皖A·0P92Y', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('陕A0P92Y', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]),
                     onTap: () {
-                      _showPanelDialog(
-                        context,
-                        const AssetImage('assets/popup_device_name.png'),
+                      _showPanelDialog(context, const AssetImage('assets/popup_device_name.png'),
                         Column(
-                          children: [
-                            const Spacer(),
-                            const Padding(padding: EdgeInsets.all(8), child: Text('皖A·0P92Y', style: TextStyle(color: Colors.white))),
-                            const Spacer(),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
-                              child: const Text('保存', style: TextStyle(color: Colors.white)),
-                            ),
-                          ],
+                          children: [const Spacer(), const Padding(padding: EdgeInsets.all(8), child: Text('陕A0P92Y', style: TextStyle(color: Colors.white))), const Spacer(),
+                            Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('保存', style: TextStyle(color: Colors.white)))],
                         ),
                       );
                     },
@@ -403,20 +350,9 @@ class SettingsPage extends StatelessWidget {
                     title: const Text('时间同步设置', style: TextStyle(color: Colors.white)),
                     trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
                     onTap: () {
-                      _showPanelDialog(
-                        context,
-                        const AssetImage('assets/popup_time_sync.png'),
-                        Column(
-                          children: [
-                            const Spacer(),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
-                              child: const Text('立即同步', style: TextStyle(color: Colors.white)),
-                            ),
-                          ],
+                      _showPanelDialog(context, const AssetImage('assets/popup_time_sync.png'),
+                        Column(children: [const Spacer(),
+                          Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10), alignment: Alignment.center, decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)), child: const Text('立即同步', style: TextStyle(color: Colors.white)))],
                         ),
                       );
                     },
@@ -427,16 +363,8 @@ class SettingsPage extends StatelessWidget {
                     title: const Text('自动连接设置', style: TextStyle(color: Colors.white)),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('关闭', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]),
                     onTap: () {
-                      _showPanelDialog(
-                        context,
-                        const AssetImage('assets/settings_auto_connect.png'),
-                        Column(
-                          children: [
-                            const Spacer(),
-                            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: true, onChanged: (v){}, activeColor: Colors.white)]),
-                            const Spacer(),
-                          ],
-                        ),
+                      _showPanelDialog(context, const AssetImage('assets/settings_auto_connect.png'),
+                        Column(children: [const Spacer(), Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: true, onChanged: (v){}, activeColor: Colors.white)]), const Spacer()]),
                       );
                     },
                   ),
@@ -446,15 +374,37 @@ class SettingsPage extends StatelessWidget {
                     title: const Text('提示音设置', style: TextStyle(color: Colors.white)),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: const [Text('关闭', style: TextStyle(color: Colors.white38)), SizedBox(width: 8), Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14)]),
                     onTap: () {
-                      _showPanelDialog(
-                        context,
-                        const AssetImage('assets/popup_sound.png'),
-                        Column(
-                          children: [
-                            const Spacer(),
-                            Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: false, onChanged: (v){}, activeColor: Colors.white)]),
-                            const Spacer(),
-                          ],
+                      _showPanelDialog(context, const AssetImage('assets/popup_sound.png'),
+                        Column(children: [const Spacer(), Row(mainAxisAlignment: MainAxisAlignment.end, children: [Switch(value: false, onChanged: (v){}, activeColor: Colors.white)]), const Spacer()]),
+                      );
+                    },
+                  ),
+                  const Divider(color: Colors.white10, height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.info, color: Colors.white70),
+                    title: const Text('关于系统', style: TextStyle(color: Colors.white)),
+                    trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+                    onTap: () {
+                      // 点击关于系统，给出统一的信息
+                      showDialog(
+                        context: context,
+                        barrierDismissible: true,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: const Color(0xFF151A2E),
+                          title: const Center(child: Text('Tian Key', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Text('车型：马自达昂克赛拉', style: TextStyle(color: Colors.white70)),
+                              SizedBox(height: 8),
+                              Text('车牌：陕A0P92Y', style: TextStyle(color: Colors.white70)),
+                              SizedBox(height: 8),
+                              Text('设备：ESP32', style: TextStyle(color: Colors.white70)),
+                              SizedBox(height: 8),
+                              Text('状态：未连接设备', style: TextStyle(color: Colors.white70)),
+                            ],
+                          ),
+                          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭', style: TextStyle(color: Colors.blue)))],
                         ),
                       );
                     },
