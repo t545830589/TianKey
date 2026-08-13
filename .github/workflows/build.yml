@@ -2,39 +2,40 @@ name: Build APK
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
 
-      # 1. 配置 Java 17 环境
-      - name: Set up Java 17
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      # 2. 配置最新的稳定版 Flutter 环境
-      - name: Set up Flutter
+
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
-          channel: 'stable'
+          flutter-version: 3.22.0
+          channel: stable
 
-      # 3. 自动补全现代 Android 项目配置文件（解决 compileSdkVersion 报错的核心）
-      - name: Regenerate Android Project Files
-        run: flutter create . --platforms=android --project-name=tiankey
 
-      # 4. 安装项目依赖
-      - name: Install Dependencies
+      - name: Flutter Doctor
+        run: flutter doctor
+
+
+      - name: Get Packages
         run: flutter pub get
 
-      # 5. 打包生成 APK
+
       - name: Build APK
         run: flutter build apk --release
