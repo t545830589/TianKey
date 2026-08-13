@@ -1,114 +1,59 @@
 name: Build APK
 
-
-
-on:
-
-  push:
-
-    branches: [ "main" ]
-
-  pull_request:
-
-    branches: [ "main" ]
-
-
-
-jobs:
-
-  build:
-
-    runs-on: ubuntu-latest
-
-
-
-    steps:
-
-      - uses: actions/checkout@v4
-
-
-
-      # 1. 配置 Java 17 环境
-
-      - name: Set up Java 17
-
-        uses: actions/setup-java@v4
-
-        with:
-
-          distribution: 'temurin'
-
-          java-version: '17'
-
-
-
-      # 2. 配置最新的稳定版 Flutter 环境
-
-      - name: Set up Flutter
-
-        uses: subosito/flutter-action@v2
-
-        with:
-
-          flutter-version: '3.22.0'
-
-          channel: 'stable'
-
-
-
-      name: Build APK
-
 on:
   push:
     branches:
       - main
 
+  pull_request:
+    branches:
+      - main
+
+
 jobs:
   build:
+
     runs-on: ubuntu-latest
+
 
     steps:
 
-      - name: Checkout
+      # 拉取代码
+      - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      - name: Setup Java
+
+      # Java环境
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
 
+
+      # Flutter环境
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.22.0
+          flutter-version: "3.22.0"
           channel: stable
 
 
+
+      # 检查Flutter
       - name: Flutter Doctor
         run: flutter doctor
 
 
-      - name: Get Packages
-        run: flutter pub get
 
-
-      - name: Build APK
-        run: flutter build apk --release
-
-
-      # 4. 安装项目依赖
-
-      - name: Install Dependencies
-
+      # 获取依赖
+      - name: Flutter Pub Get
         run: flutter pub get
 
 
 
-      # 5. 打包生成 APK
-
-      - name: Build APK
-
+      # 编译APK
+      - name: Build Release APK
         run: flutter build apk --release
