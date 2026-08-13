@@ -1,40 +1,38 @@
-name: Build APK
+name: tian_key
+description: "Tian Key V11 Mazda Axela BLE Controller App"
+publish_to: 'none'
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+version: 1.0.0+1
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+environment:
+  sdk: '>=3.0.0 <4.0.0'
 
-    steps:
-      - uses: actions/checkout@v4
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  flutter_blue_plus: ^1.34.5    # 升级到兼容现代 Android 编译的版本，解决报错
+  vibration: ^1.8.4             # 稳定版触觉震动反馈
+  shared_preferences: ^2.2.2    # 本地数据与密码存储
 
-      # 1. 配置 Java 17 环境
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
-      # 2. 配置最新的稳定版 Flutter 环境
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.0'
-          channel: 'stable'
+flutter:
+  uses-material-design: true
 
-      # 3. 使用你的项目名称 tian_key 自动补全现代 Android 配置文件
-      - name: Regenerate Android Project Files
-        run: flutter create . --platforms=android --project-name=tian_key
-
-      # 4. 安装项目依赖（会完美读取你写好的所有依赖和资源）
-      - name: Install Dependencies
-        run: flutter pub get
-
-      # 5. 打包生成 APK
-      - name: Build APK
-        run: flutter build apk --release
+  assets:
+    - assets/borrow_page_bg.png
+    - assets/home_car_bg.png
+    - assets/home_controls_bg.png
+    - assets/logo_footer_bg.png
+    - assets/popup_admin_auth.png
+    - assets/popup_device_name.png
+    - assets/popup_edit_pwd.png
+    - assets/popup_reset_pwd.png
+    - assets/popup_sound.png
+    - assets/popup_time_sync.png
+    - assets/settings_auto_connect.png
+    - assets/settings_page_bg.png
