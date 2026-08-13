@@ -26,81 +26,23 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      # 重新生成基础安卓配置
       - name: Regenerate Android Project Files
         run: flutter create . --platforms=android --project-name=tiankey
 
-      # 【核心修复】：直接把安卓底层配置文件替换成兼容蓝牙库的正确版本
-      - name: Fix Android Gradle Configuration
+      # 【终极防错修复】：直接把导致报错的错误代码替换掉，并升级相关版本
+      - name: Fix Android Configurations
         run: |
-          cat > android/app/build.gradle << 'EOF'
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader ->
-                  localProperties.load(reader)
-              }
-          }
-          def flutterRoot = localProperties.getProperty('flutter.sdk')
-          if (flutterRoot == null) {
-              throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
-          }
-          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-          if (flutterVersionCode == null) {
-              flutterVersionCode = '1'
-          }
-          def flutterVersionName = localProperties.getProperty('flutter.versionName')
-          if (flutterVersionName == null) {
-              flutterVersionName = '1.0'
-          }
-          apply plugin: 'com.android.application'
-          apply plugin: 'kotlin-android'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-
-          android {
-              compileSdkVersion 34
-              ndkVersion flutter.ndkVersion
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-
-              kotlinOptions {
-                  jvmTarget = '1.8'
-              }
-
-              sourceSets {
-                  main.java.srcDirs += 'src/main/kotlin'
-              }
-
-              defaultConfig {
-                  applicationId "com.example.tiankey"
-                  minSdkVersion 21
-                  targetSdkVersion 34
-                  versionCode flutterVersionCode.toInteger()
-                  versionName flutterVersionName
-              }
-
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-
-          flutter {
-              source '../..'
-          }
-
-          dependencies {
-              implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-          }
-          EOF
+          # 1. 精准替换触发报错的 kotlin 引用（直接写死版本号，避免变量未定义）
+          sed -i 's/implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"/implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.0"/' android/app/build.gradle
+          # 2. 升级最低安卓版本支持，否则蓝牙库无法编译
+          sed -i 's/minSdkVersion 19/minSdkVersion 21/g' android/app/build.gradle
+          # 3. 升级编译 SDK 版本为 34
+          sed -i 's/compileSdkVersion 33/compileSdkVersion 34/g' android/app/build.gradle
 
       - name: Build APK Release
         run: flutter build apk --release
 
-      # 上传APK到 GitHub 下载区
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
