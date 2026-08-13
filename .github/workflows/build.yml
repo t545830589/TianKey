@@ -29,7 +29,7 @@ jobs:
 
       # 3. 自动补全现代 Android 项目配置文件（解决 compileSdkVersion 报错的核心）
       - name: Regenerate Android Project Files
-        run: flutter create . --platforms=android
+        run: flutter create . --platforms=android --project-name=tiankey
 
       # 4. 安装项目依赖
       - name: Install Dependencies
