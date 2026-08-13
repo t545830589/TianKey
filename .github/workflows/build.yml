@@ -5,55 +5,32 @@ on:
     branches:
       - main
 
-  pull_request:
-    branches:
-      - main
-
-
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
-
     steps:
-
-      # 拉取代码
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-
-
-      # Java环境
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-
-
-      # Flutter环境
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.0"
+          flutter-version: 3.22.0
           channel: stable
 
+      # 核心修复：自动生成 Android 配置文件，解决报错
+      - name: Create Android Platform
+        run: flutter create . --platforms=android --project-name=tiankey
 
-
-      # 检查Flutter
-      - name: Flutter Doctor
-        run: flutter doctor
-
-
-
-      # 获取依赖
-      - name: Flutter Pub Get
+      - name: Get Packages
         run: flutter pub get
 
-
-
-      # 编译APK
-      - name: Build Release APK
+      - name: Build APK
         run: flutter build apk --release
