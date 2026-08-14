@@ -1,67 +1,86 @@
 name: Build APK
 
+
 on:
+
   push:
+
     branches:
+
       - main
 
-  pull_request:
-    branches:
-      - main
+
+  workflow_dispatch:
+
+
 
 jobs:
+
+
   build:
+
+
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
+
 
     steps:
-      - name: Checkout repository
+
+
+      - name: Checkout
+
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+
+
+      - name: Setup Java
+
         uses: actions/setup-java@v4
+
         with:
+
           distribution: temurin
-          java-version: "17"
+
+          java-version: 17
+
+
 
       - name: Setup Flutter
+
         uses: subosito/flutter-action@v2
+
         with:
-          flutter-version: "3.44.6"
+
+          flutter-version: "3.22.0"
+
           channel: stable
-          cache: true
 
-      - name: Show Flutter version
-        run: |
-          flutter --version
-          dart --version
 
-      - name: Create Android project when missing
-        shell: bash
-        run: |
-          if [ ! -d "android" ]; then
-            echo "android/ 不存在，现在只创建一次 Android 工程"
-            flutter create . \
-              --platforms=android \
-              --project-name=tiankey
-          else
-            echo "android/ 已存在，不重新创建，避免覆盖已有 Android 配置"
-          fi
 
-      - name: Flutter clean
-        run: flutter clean
+      - name: Flutter Doctor
 
-      - name: Flutter Pub Get
+        run: flutter doctor -v
+
+
+
+      - name: Get Packages
+
         run: flutter pub get
 
-      - name: Build Release APK
+
+
+      - name: Build APK
+
         run: flutter build apk --release
 
+
+
       - name: Upload APK
+
         uses: actions/upload-artifact@v4
+
         with:
-          name: Tian-Key-V11-APK
+
+          name: TianKey-V11-APK
+
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
