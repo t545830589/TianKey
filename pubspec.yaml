@@ -4,47 +4,34 @@ description: "Tian Key V11 Mazda Axela BLE Controller App"
 
 publish_to: "none"
 
-
 version: 1.0.0+1
-
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
 
-
 dependencies:
-
   flutter:
     sdk: flutter
 
-
   cupertino_icons: ^1.0.6
 
+  # BLE蓝牙，固定版本，避免自动漂移
+  flutter_blue_plus: 1.36.8
 
-  flutter_blue_plus: ^1.35.3
+  # 手机震动反馈
+  vibration: 1.8.4
 
-
-  vibration: ^1.8.4
-
-
-  shared_preferences: ^2.2.2
-
-
+  # APP本地数据保存
+  shared_preferences: 2.2.2
 
 dev_dependencies:
-
   flutter_test:
     sdk: flutter
 
-
-  flutter_lints: ^3.0.0
-
-
+  flutter_lints: 3.0.0
 
 flutter:
-
   uses-material-design: true
-
 
   assets:
     - assets/
