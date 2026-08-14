@@ -2,44 +2,47 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
+
   build:
+
     runs-on: ubuntu-latest
+
+
     steps:
-      - uses: actions/checkout@v4
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '12'
+          distribution: temurin
+          java-version: 17
+
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
-          channel: 'stable'
+          flutter-version: "3.22.0"
+          channel: stable
 
-      - name: Install Dependencies
+
+      # 如果没有Android目录，自动创建
+      - name: Create Android Project
+        run: |
+          if [ ! -d "android" ]; then
+            flutter create . --platforms=android --project-name=tiankey
+          fi
+
+
+      - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Regenerate Android Project Files
-        run: flutter create . --platforms=android --project-name=tiankey
 
-      # 【终极无损修复】：使用纯 Bash 多行指令修补 Android 文件，不包含任何 YAML 特殊符号
-      - name: Fix Android Configurations
-        run: |
-          sed -i 's/minSdkVersion 19/minSdkVersion 21/g' android/app/build.gradle
-          sed -i 's/compileSdkVersion 33/compileSdkVersion 34/g' android/app/build.gradle
-
-      - name: Build APK Release
+      - name: Build APK
         run: flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
