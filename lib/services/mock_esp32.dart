@@ -25,7 +25,8 @@ class MockESP32 {
 
   DateTime? temporaryEnd;
 
-  bool autoLockOnAbnormalDisconnect = true;
+  bool autoLockOnAbnormalDisconnect =
+      true;
 
   String? _deviceId;
 
@@ -57,7 +58,8 @@ class MockESP32 {
       'tiankey_saved_temp_end';
 
   String get deviceId {
-    return _deviceId ?? defaultDeviceId;
+    return _deviceId ??
+        defaultDeviceId;
   }
 
   String? get adminOwnerDeviceId {
@@ -65,19 +67,65 @@ class MockESP32 {
   }
 
   bool get isCurrentDeviceAdmin {
-    return _adminOwnerDeviceId == deviceId &&
+    return _adminOwnerDeviceId ==
+            deviceId &&
         sessionRole == 'admin';
   }
 
-  Future<void> loadSavedAuthorization() async {
+  bool get temporaryAuthorizationConfigured {
+    return temporaryPassword != null &&
+        temporaryStart != null &&
+        temporaryEnd != null;
+  }
+
+  bool get temporaryAuthorizationValid {
+    if (!temporaryAuthorizationConfigured) {
+      return false;
+    }
+
+    final now = DateTime.now();
+
+    return !now.isBefore(
+          temporaryStart!,
+        ) &&
+        now.isBefore(
+          temporaryEnd!,
+        );
+  }
+
+  String get temporaryAuthorizationStatus {
+    if (!temporaryAuthorizationConfigured) {
+      return '未设置';
+    }
+
+    final now = DateTime.now();
+
+    if (now.isBefore(temporaryStart!)) {
+      return '尚未开始';
+    }
+
+    if (!now.isBefore(temporaryEnd!)) {
+      return '已过期';
+    }
+
+    return '有效';
+  }
+
+  Future<void>
+      loadSavedAuthorization() async {
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     _deviceId =
-        prefs.getString(_deviceIdKey);
+        prefs.getString(
+      _deviceIdKey,
+    );
 
     _originalDeviceId =
-        prefs.getString(_originalDeviceIdKey);
+        prefs.getString(
+      _originalDeviceIdKey,
+    );
 
     _adminOwnerDeviceId =
         prefs.getString(
@@ -97,7 +145,8 @@ class MockESP32 {
 
     if (_originalDeviceId == null ||
         _originalDeviceId!.isEmpty) {
-      _originalDeviceId = _deviceId;
+      _originalDeviceId =
+          _deviceId;
 
       await prefs.setString(
         _originalDeviceIdKey,
@@ -106,7 +155,9 @@ class MockESP32 {
     }
 
     final savedRole =
-        prefs.getString(_savedRoleKey);
+        prefs.getString(
+      _savedRoleKey,
+    );
 
     final savedTempPassword =
         prefs.getString(
@@ -163,7 +214,8 @@ class MockESP32 {
 
     if (savedRole == 'temporary') {
       if (temporaryAuthorizationValid) {
-        sessionRole = 'temporary';
+        sessionRole =
+            'temporary';
       } else {
         sessionRole = 'none';
 
@@ -179,11 +231,15 @@ class MockESP32 {
   }
 
   String _generateDeviceId() {
-    final random = Random.secure();
+    final random =
+        Random.secure();
 
-    final value = List.generate(
+    final value =
+        List.generate(
       8,
-      (_) => random.nextInt(16).toRadixString(16),
+      (_) => random
+          .nextInt(16)
+          .toRadixString(16),
     ).join();
 
     return 'TianKey-$value';
@@ -193,7 +249,8 @@ class MockESP32 {
     String role,
   ) async {
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     await prefs.setString(
       _savedRoleKey,
@@ -201,21 +258,14 @@ class MockESP32 {
     );
   }
 
-  Future<void> _saveDeviceId() async {
+  Future<void>
+      _saveAdminOwner() async {
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
-    await prefs.setString(
-      _deviceIdKey,
-      deviceId,
-    );
-  }
-
-  Future<void> _saveAdminOwner() async {
-    final prefs =
-        await SharedPreferences.getInstance();
-
-    if (_adminOwnerDeviceId == null) {
+    if (_adminOwnerDeviceId ==
+        null) {
       await prefs.remove(
         _adminOwnerDeviceIdKey,
       );
@@ -227,9 +277,11 @@ class MockESP32 {
     }
   }
 
-  Future<void> clearSavedAuthorization() async {
+  Future<void>
+      clearSavedAuthorization() async {
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     await prefs.remove(
       _savedRoleKey,
@@ -243,7 +295,8 @@ class MockESP32 {
   Future<void>
       clearTemporaryAuthorization() async {
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     temporaryPassword = null;
 
@@ -266,7 +319,15 @@ class MockESP32 {
     if (sessionRole ==
         'temporary') {
       sessionRole = 'none';
+
+      await prefs.remove(
+        _savedRoleKey,
+      );
     }
+
+    addLog(
+      '临时借车授权已撤销',
+    );
   }
 
   void addLog(
@@ -295,7 +356,9 @@ class MockESP32 {
         final match =
             RegExp(
           r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
-        ).firstMatch(log);
+        ).firstMatch(
+          log,
+        );
 
         if (match == null) {
           return false;
@@ -331,7 +394,8 @@ class MockESP32 {
     return true;
   }
 
-  Future<bool> autoReconnect() async {
+  Future<bool>
+      autoReconnect() async {
     if (sessionRole ==
         'admin') {
       if (_adminOwnerDeviceId !=
@@ -376,6 +440,23 @@ class MockESP32 {
       );
 
       return true;
+    }
+
+    if (sessionRole ==
+            'temporary' &&
+        !temporaryAuthorizationValid) {
+      sessionRole =
+          'none';
+
+      connected = false;
+
+      addLog(
+        '临时授权已失效，自动连接拒绝',
+      );
+
+      await clearSavedAuthorization();
+
+      return false;
     }
 
     return false;
@@ -485,11 +566,15 @@ class MockESP32 {
 
   Future<String>
       generateTemporaryPassword({
-    Duration validity =
-        const Duration(
-      hours: 24,
-    ),
+    required DateTime start,
+    required DateTime end,
   }) async {
+    if (!end.isAfter(start)) {
+      throw ArgumentError(
+        '结束时间必须晚于开始时间',
+      );
+    }
+
     final random =
         Random.secure();
 
@@ -499,13 +584,9 @@ class MockESP32 {
       (_) => random.nextInt(10),
     ).join();
 
-    temporaryStart =
-        DateTime.now();
+    temporaryStart = start;
 
-    temporaryEnd =
-        temporaryStart!.add(
-      validity,
-    );
+    temporaryEnd = end;
 
     final prefs =
         await SharedPreferences
@@ -532,6 +613,14 @@ class MockESP32 {
       '生成临时借车密码：$temporaryPassword',
     );
 
+    addLog(
+      '临时授权开始：$temporaryStart',
+    );
+
+    addLog(
+      '临时授权结束：$temporaryEnd',
+    );
+
     return temporaryPassword!;
   }
 
@@ -547,14 +636,9 @@ class MockESP32 {
       return false;
     }
 
-    if (temporaryPassword ==
-            null ||
-        temporaryStart ==
-            null ||
-        temporaryEnd ==
-            null) {
+    if (!temporaryAuthorizationConfigured) {
       addLog(
-        '临时借车认证失败：没有有效临时授权',
+        '临时借车认证失败：没有设置临时授权',
       );
 
       return false;
@@ -573,7 +657,7 @@ class MockESP32 {
       return false;
     }
 
-    if (now.isAfter(
+    if (!now.isBefore(
       temporaryEnd!,
     )) {
       addLog(
@@ -608,25 +692,59 @@ class MockESP32 {
     return true;
   }
 
-  bool get temporaryAuthorizationValid {
-    if (temporaryPassword ==
-            null ||
-        temporaryStart ==
-            null ||
-        temporaryEnd ==
-            null) {
-      return false;
+  Future<void>
+      simulateTemporaryExpired() async {
+    if (!temporaryAuthorizationConfigured) {
+      addLog(
+        '无法模拟过期：没有临时授权',
+      );
+
+      return;
     }
 
-    final now =
-        DateTime.now();
+    temporaryEnd = DateTime.now()
+        .subtract(
+      const Duration(
+        minutes: 1,
+      ),
+    );
 
-    return !now.isBefore(
-          temporaryStart!,
-        ) &&
-        !now.isAfter(
-          temporaryEnd!,
-        );
+    final prefs =
+        await SharedPreferences
+            .getInstance();
+
+    await prefs.setString(
+      _savedTempEndKey,
+      temporaryEnd!
+          .toIso8601String(),
+    );
+
+    if (sessionRole ==
+        'temporary') {
+      sessionRole =
+          'none';
+
+      connected = false;
+
+      await prefs.remove(
+        _savedRoleKey,
+      );
+    }
+
+    addLog(
+      '测试：临时授权已强制设置为过期',
+    );
+  }
+
+  String getTemporaryAuthorizationInfo() {
+    if (!temporaryAuthorizationConfigured) {
+      return '暂无临时借车授权';
+    }
+
+    return '密码：$temporaryPassword\n'
+        '开始：$temporaryStart\n'
+        '结束：$temporaryEnd\n'
+        '状态：$temporaryAuthorizationStatus';
   }
 
   Future<void>
