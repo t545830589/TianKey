@@ -1,391 +1,229 @@
+import 'dart:math';
 
 class MockESP32 {
+  final String deviceName = '陕A0P92Y';
+  final String deviceId = 'TianKey-V11-001';
 
-  // 设备信息
-  final String deviceName = "陕A0P92Y";
+  final String adminPassword = '13092991951';
 
-  final String deviceId = "TianKey-V11-001";
-
-
-  // 连接状态
   bool connected = false;
-
-
-  // 管理员状态
   bool adminAuthorized = false;
 
+  String sessionRole = 'none';
 
-  // 时间同步
   DateTime? deviceTime;
 
-
-
-  // 管理员密码
-  String adminPassword = "13092991951";
-
-
-
-  // 临时借车信息
-
   String? temporaryPassword;
-
   DateTime? temporaryStart;
-
   DateTime? temporaryEnd;
 
+  bool autoLockOnAbnormalDisconnect = true;
 
+  final List<String> logs = [];
 
-  // 日志
-
-  List<String> logs = [];
-
-
-
-  // 添加日志
-
-  void addLog(String message){
+  void addLog(String message) {
+    final now = DateTime.now();
 
     logs.add(
-      "${DateTime.now()} : $message"
+      '${now.toString()} : $message',
     );
 
-
-    //最多保存200条
-
-    if(logs.length > 200){
-
-      logs.removeAt(0);
-
-    }
-
+    _cleanupLogs();
   }
 
+  void _cleanupLogs() {
+    final sevenDaysAgo = DateTime.now().subtract(
+      const Duration(days: 7),
+    );
 
+    logs.removeWhere((log) {
+      final match = RegExp(
+        r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
+      ).firstMatch(log);
 
+      if (match == null) {
+        return false;
+      }
 
+      final time = DateTime.tryParse(match.group(1)!);
 
-  // 模拟BLE连接
+      if (time == null) {
+        return false;
+      }
 
-  bool connect(){
+      return time.isBefore(sevenDaysAgo);
+    });
 
+    while (logs.length > 200) {
+      logs.removeAt(0);
+    }
+  }
+
+  bool connect() {
     connected = true;
 
-    addLog(
-      "BLE连接成功"
-    );
-
+    addLog('BLE连接成功');
 
     return true;
-
   }
 
-
-
-
-
-  // 管理员验证
-
-  bool verifyAdmin(String password){
-
-
-    if(password == adminPassword){
-
-
-      adminAuthorized = true;
-
-
-      syncTime();
-
-
-      addLog(
-        "管理员认证成功"
-      );
-
-
-      return true;
-
+  void disconnect({bool abnormal = false}) {
+    if (!connected) {
+      return;
     }
 
+    if (abnormal && autoLockOnAbnormalDisconnect) {
+      addLog('BLE异常断开保护启动');
+      addLog('自动落锁 GPIO12');
+    } else {
+      addLog('BLE正常断开');
+    }
 
+    connected = false;
+    adminAuthorized = false;
+    sessionRole = 'none';
 
-    addLog(
-      "管理员密码错误"
-    );
-
-
-    return false;
-
+    addLog('连接状态清理完成');
   }
 
+  bool verifyAdmin(String password) {
+    if (!connected) {
+      addLog('管理员认证失败：BLE未连接');
+      return false;
+    }
 
+    if (password != adminPassword) {
+      addLog('管理员密码错误');
+      return false;
+    }
 
+    adminAuthorized = true;
+    sessionRole = 'admin';
 
+    syncTime();
 
+    addLog('管理员认证成功');
 
+    return true;
+  }
 
-  // 时间同步
-
-  void syncTime(){
-
-
+  void syncTime() {
     deviceTime = DateTime.now();
 
-
-    addLog(
-      "时间同步完成"
-    );
-
-
+    addLog('手机时间已同步到ESP32');
   }
 
+  String generateTemporaryPassword({
+    Duration validity = const Duration(hours: 24),
+  }) {
+    final random = Random.secure();
 
+    temporaryPassword = List.generate(
+      6,
+      (_) => random.nextInt(10),
+    ).join();
 
-
-
-
-
-  // 创建临时密码
-
-  void createTemporaryPassword(
-
-      String password,
-
-      DateTime start,
-
-      DateTime end
-
-      ){
-
-
-
-    temporaryPassword = password;
-
-
-    temporaryStart = start;
-
-
-    temporaryEnd = end;
-
-
+    temporaryStart = DateTime.now();
+    temporaryEnd = temporaryStart!.add(validity);
 
     addLog(
-      "生成临时借车密码"
+      '生成临时借车密码：$temporaryPassword',
     );
 
-
-
+    return temporaryPassword!;
   }
 
-
-
-
-
-
-
-  // 临时用户验证
-
-  bool verifyTemporaryUser(
-
-      String password
-
-      ){
-
-
-
-    if(temporaryPassword == null){
-
-      addLog(
-        "没有临时授权"
-      );
-
-
+  bool verifyTemporaryUser(String password) {
+    if (!connected) {
+      addLog('临时借车认证失败：BLE未连接');
       return false;
-
     }
 
-
-
-
-    DateTime now = DateTime.now();
-
-
-
-    if(
-
-    password == temporaryPassword &&
-
-    now.isAfter(temporaryStart!) &&
-
-    now.isBefore(temporaryEnd!)
-
-    ){
-
-
-      syncTime();
-
-
-      addLog(
-        "临时借车认证成功"
-      );
-
-
-      return true;
-
-
+    if (temporaryPassword == null ||
+        temporaryStart == null ||
+        temporaryEnd == null) {
+      addLog('临时借车认证失败：没有有效临时授权');
+      return false;
     }
 
+    final now = DateTime.now();
 
+    if (now.isBefore(temporaryStart!)) {
+      addLog('临时借车认证失败：授权尚未开始');
+      return false;
+    }
 
-    addLog(
-      "临时借车认证失败"
-    );
+    if (now.isAfter(temporaryEnd!)) {
+      addLog('临时借车认证失败：临时授权已过期');
+      return false;
+    }
 
+    if (password != temporaryPassword) {
+      addLog('临时借车密码错误');
+      return false;
+    }
 
+    sessionRole = 'temporary';
 
-    return false;
+    syncTime();
 
+    addLog('临时借车认证成功');
 
+    return true;
   }
 
-
-
-
-
-
-
-
-
-  // 六个车辆动作模拟
-
-
-  String executeCommand(String command){
-
-
-
-    if(!adminAuthorized && temporaryPassword == null){
-
-
-      return "无权限";
-
-
+  bool get temporaryAuthorizationValid {
+    if (temporaryPassword == null ||
+        temporaryStart == null ||
+        temporaryEnd == null) {
+      return false;
     }
 
-
-
-
-
-    switch(command){
-
-
-
-      case "suoche":
-
-
-        addLog(
-          "锁车 GPIO12 执行"
-        );
-
-
-        return "锁车成功";
-
-
-
-
-
-      case "jiesuo":
-
-
-        addLog(
-          "解锁 GPIO13 执行"
-        );
-
-
-        return "解锁成功";
-
-
-
-
-
-
-
-      case "xunche":
-
-
-        addLog(
-          "寻车 GPIO12 双脉冲"
-        );
-
-
-        return "寻车成功";
-
-
-
-
-
-
-
-      case "chuangsheng":
-
-
-        addLog(
-          "升窗 GPIO12 7秒"
-        );
-
-
-        return "升窗成功";
-
-
-
-
-
-
-
-
-      case "chuangjiang":
-
-
-        addLog(
-          "降窗 GPIO13 7秒"
-        );
-
-
-        return "降窗成功";
-
-
-
-
-
-
-
-
-      case "houbeixiang":
-
-
-        addLog(
-          "后备箱 GPIO14 7秒"
-        );
-
-
-        return "后备箱成功";
-
-
-
-
-
-
+    final now = DateTime.now();
+
+    return !now.isBefore(temporaryStart!) &&
+        !now.isAfter(temporaryEnd!);
+  }
+
+  String executeCommand(String command) {
+    if (!connected) {
+      addLog('车辆指令拒绝：BLE未连接');
+      return '未连接';
+    }
+
+    if (sessionRole != 'admin' && sessionRole != 'temporary') {
+      addLog('车辆指令拒绝：未授权');
+      return '无权限';
+    }
+
+    switch (command) {
+      case 'suoche':
+        addLog('锁车 GPIO12 短脉冲执行');
+        return '锁车成功';
+
+      case 'jiesuo':
+        addLog('解锁 GPIO13 短脉冲执行');
+        return '解锁成功';
+
+      case 'xunche':
+        addLog('寻车 GPIO12 连续双脉冲执行');
+        return '寻车成功';
+
+      case 'chuangsheng':
+        addLog('升窗 GPIO12 保持7秒执行');
+        return '升窗成功';
+
+      case 'chuangjiang':
+        addLog('降窗 GPIO13 保持7秒执行');
+        return '降窗成功';
+
+      case 'houbeixiang':
+        addLog('后备箱 GPIO14 保持7秒执行');
+        return '后备箱成功';
 
       default:
-
-
-        return "未知指令";
-
-
+        addLog('未知车辆指令：$command');
+        return '未知指令';
     }
-
-
-
   }
-
-
-
 }
