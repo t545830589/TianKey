@@ -1,48 +1,69 @@
 class MockESP32 {
+
   bool _connected = false;
 
+
   bool _adminAuthorized = false;
+
   bool _temporaryAuthorized = false;
 
+
   String _currentUser = "无";
+
+
+  String _sessionRole = "无";
+
+
+  String _temporaryPassword = "888888";
+
+
+  DateTime? _temporaryStart;
+
+  DateTime? _temporaryEnd;
+
+
+  String _deviceId = "ESP32-TIANKEY-001";
+
 
   final List<String> logs = [];
 
 
+
   // =========================
-  // BLE连接模拟
+  // BLE连接
   // =========================
 
   bool connectBLE() {
+
     _connected = true;
 
     logs.add("BLE连接成功");
 
     return true;
+
   }
 
 
+
   // =========================
-  // BLE断开模拟
+  // BLE断开
   // 注意：
-  // 只断开通信
   // 不删除权限
   // =========================
 
-  bool disconnectBLE() {
+  bool disconnectBLE(){
+
     _connected = false;
 
     logs.add("BLE连接断开");
 
     return true;
+
   }
 
 
-  // =========================
-  // 获取连接状态
-  // =========================
 
-  bool isConnected() {
+  bool isConnected(){
 
     return _connected;
 
@@ -50,21 +71,56 @@ class MockESP32 {
 
 
 
+
   // =========================
-  // 管理员认证
+  // 自动重新连接模拟
   // =========================
 
-  bool adminLogin(String password) {
+  bool autoReconnect(){
+
+    if(!_connected){
+
+      _connected = true;
+
+      logs.add("BLE自动重新连接成功");
+
+      return true;
+
+    }
 
 
-    if(password == "123456") {
+    logs.add("BLE已经连接");
+
+    return true;
+
+  }
+
+
+
+
+
+  // =========================
+  // 管理员登录
+  // =========================
+
+  bool adminLogin(String password){
+
+
+    if(password == "123456"){
+
 
       _adminAuthorized = true;
+
       _temporaryAuthorized = false;
+
 
       _currentUser = "管理员";
 
+      _sessionRole = "admin";
+
+
       logs.add("管理员认证成功");
+
 
       return true;
 
@@ -73,6 +129,7 @@ class MockESP32 {
 
     logs.add("管理员密码错误");
 
+
     return false;
 
   }
@@ -80,27 +137,42 @@ class MockESP32 {
 
 
 
+
+
+
   // =========================
-  // 临时借车认证
+  // 临时借车
   // =========================
 
-  bool temporaryLogin(String password) {
+  bool temporaryLogin(String password){
 
 
-    if(password == "888888") {
+    if(password == _temporaryPassword){
 
 
       _temporaryAuthorized = true;
+
       _adminAuthorized = false;
 
 
       _currentUser = "临时借车";
+
+      _sessionRole = "temporary";
+
+
+      _temporaryStart = DateTime.now();
+
+
+      _temporaryEnd = DateTime.now()
+          .add(const Duration(hours:8));
+
 
 
       logs.add("临时借车认证成功");
 
 
       return true;
+
 
     }
 
@@ -118,8 +190,9 @@ class MockESP32 {
 
 
 
+
   // =========================
-  // 获取当前身份
+  // 当前身份
   // =========================
 
   String getCurrentUser(){
@@ -130,12 +203,20 @@ class MockESP32 {
 
 
 
+  String get sessionRole{
+
+    return _sessionRole;
+
+  }
+
+
+
 
   // =========================
   // 权限状态
   // =========================
 
-  bool get adminAuthorized {
+  bool get adminAuthorized{
 
     return _adminAuthorized;
 
@@ -143,7 +224,8 @@ class MockESP32 {
 
 
 
-  bool get temporaryAuthorized {
+
+  bool get temporaryAuthorized{
 
     return _temporaryAuthorized;
 
@@ -151,26 +233,116 @@ class MockESP32 {
 
 
 
+  String get temporaryAuthorizationStatus{
+
+
+    if(_temporaryAuthorized){
+
+      return "临时授权有效";
+
+    }
+
+
+    return "无临时授权";
+
+
+  }
+
+
+
+
+
+  String get temporaryPassword{
+
+    return _temporaryPassword;
+
+  }
+
+
+
+
+
+  DateTime? get temporaryStart{
+
+    return _temporaryStart;
+
+  }
+
+
+
+  DateTime? get temporaryEnd{
+
+    return _temporaryEnd;
+
+  }
+
+
+
+
 
   // =========================
-  // 模拟车辆动作
+  // 设备ID
   // =========================
+
+  String get deviceId{
+
+    return _deviceId;
+
+  }
+
+
+
+  void _saveDeviceId(String id){
+
+    _deviceId = id;
+
+    logs.add("保存设备ID:$id");
+
+  }
+
+
+
+
+
+
+  // =========================
+  // 车辆控制
+  // =========================
+
 
   String controlCar(String action){
 
 
+    return executeCommand(action);
+
+
+  }
+
+
+
+
+
+  String executeCommand(String command){
+
+
+
     if(!_connected){
 
+
+      logs.add("设备未连接");
+
+
       return "设备未连接";
+
 
     }
 
 
 
-    logs.add("执行车辆动作:$action");
+    logs.add("执行车辆动作:$command");
 
 
-    return "$action执行成功";
+    return "$command执行成功";
 
 
   }
@@ -180,15 +352,15 @@ class MockESP32 {
 
 
   // =========================
-  // 获取日志
+  // 日志
   // =========================
+
 
   List<String> getLogs(){
 
     return logs;
 
   }
-
 
 
 }
