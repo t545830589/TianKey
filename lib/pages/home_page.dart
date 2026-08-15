@@ -17,182 +17,106 @@ class _HomePageState
   final MockESP32 _esp32 =
       MockESP32();
 
-  bool _isScanning =
-      false;
+  bool _isScanning = false;
+  bool _vehicleFound = false;
+  bool _connecting = false;
+  bool _loadingAuthorization = true;
 
-  bool _vehicleFound =
-      false;
+  String _deviceStatus = '未连接';
+  String _adminStatus = '未授权';
+  String _timeStatus = '未同步';
 
-  bool _connecting =
-      false;
-
-  bool _loadingAuthorization =
-      true;
-
-  String _deviceStatus =
-      '未连接';
-
-  String _adminStatus =
-      '未授权';
-
-  String _timeStatus =
-      '未同步';
-
-  bool _canControl =
-      false;
+  bool _canControl = false;
 
   @override
   void initState() {
     super.initState();
-
     _restoreAuthorization();
   }
 
-  Future<void>
-      _restoreAuthorization() async {
-    await _esp32
-        .loadSavedAuthorization();
+  Future<void> _restoreAuthorization() async {
+    await _esp32.loadSavedAuthorization();
 
-    if (_esp32.sessionRole ==
-        'admin') {
+    if (_esp32.sessionRole == 'admin') {
       final success =
-          await _esp32
-              .autoReconnect();
+          await _esp32.autoReconnect();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       if (success) {
         setState(() {
-          _deviceStatus =
-              '已连接';
-
-          _adminStatus =
-              '已授权';
-
-          _timeStatus =
-              '已同步';
-
-          _canControl =
-              true;
-
-          _vehicleFound =
-              true;
-
-          _loadingAuthorization =
-              false;
+          _deviceStatus = '已连接';
+          _adminStatus = '已授权';
+          _timeStatus = '已同步';
+          _canControl = true;
+          _vehicleFound = true;
+          _loadingAuthorization = false;
         });
       } else {
         setState(() {
-          _deviceStatus =
-              '未连接';
-
-          _adminStatus =
-              '授权失效';
-
-          _timeStatus =
-              '未同步';
-
-          _canControl =
-              false;
-
-          _loadingAuthorization =
-              false;
+          _deviceStatus = '未连接';
+          _adminStatus = '授权失效';
+          _timeStatus = '未同步';
+          _canControl = false;
+          _loadingAuthorization = false;
         });
       }
 
       return;
     }
 
-    if (_esp32.sessionRole ==
-            'temporary' &&
-        _esp32
-            .temporaryAuthorizationValid) {
+    if (_esp32.sessionRole == 'temporary') {
       final success =
-          await _esp32
-              .autoReconnect();
+          await _esp32.autoReconnect();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       if (success) {
         setState(() {
-          _deviceStatus =
-              '已连接';
-
-          _adminStatus =
-              '临时授权';
-
-          _timeStatus =
-              '已同步';
-
-          _canControl =
-              true;
-
-          _vehicleFound =
-              true;
-
-          _loadingAuthorization =
-              false;
+          _deviceStatus = '已连接';
+          _adminStatus = '临时授权';
+          _timeStatus = '已同步';
+          _canControl = true;
+          _vehicleFound = true;
+          _loadingAuthorization = false;
         });
       } else {
         setState(() {
-          _deviceStatus =
-              '未连接';
-
-          _adminStatus =
-              '临时授权失效';
-
-          _timeStatus =
-              '未同步';
-
-          _canControl =
-              false;
-
-          _loadingAuthorization =
-              false;
+          _deviceStatus = '未连接';
+          _adminStatus = '临时授权失效';
+          _timeStatus = '未同步';
+          _canControl = false;
+          _loadingAuthorization = false;
         });
       }
 
       return;
     }
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     setState(() {
-      _loadingAuthorization =
-          false;
+      _loadingAuthorization = false;
     });
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final isAdmin =
-        _esp32.sessionRole ==
-            'admin';
+        _esp32.sessionRole == 'admin';
 
     final isTemporary =
-        _esp32.sessionRole ==
-            'temporary';
+        _esp32.sessionRole == 'temporary';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Tian Key V11',
-        ),
+        title: const Text('Tian Key V11'),
         centerTitle: true,
         actions: [
           if (_esp32.connected)
             IconButton(
               tooltip: '断开蓝牙',
-              onPressed:
-                  _disconnectNormally,
+              onPressed: _disconnectNormally,
               icon: const Icon(
                 Icons.bluetooth_disabled,
               ),
@@ -200,64 +124,47 @@ class _HomePageState
         ],
       ),
       body: Padding(
-        padding:
-            const EdgeInsets.all(
-          20,
-        ),
-        child:
-            SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
+                CrossAxisAlignment.start,
             children: [
               if (_loadingAuthorization)
                 const LinearProgressIndicator(),
 
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
 
               const Text(
                 '车辆信息',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 10,
-              ),
+              const SizedBox(height: 10),
 
               const Text(
                 '陕A0P92Y',
                 style: TextStyle(
                   fontSize: 26,
-                  color:
-                      Colors.cyan,
-                  fontWeight:
-                      FontWeight.bold,
+                  color: Colors.cyan,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
 
               const Text(
                 '当前状态',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 10,
-              ),
+              const SizedBox(height: 10),
 
               _buildStatusRow(
                 '设备',
@@ -283,22 +190,15 @@ class _HomePageState
                         : '未认证',
               ),
 
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
 
               SizedBox(
-                width:
-                    double.infinity,
-                child:
-                    ElevatedButton
-                        .icon(
-                  onPressed:
-                      _isScanning
-                          ? null
-                          : _startBluetoothScan,
-                  icon:
-                      const Icon(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isScanning
+                      ? null
+                      : _startBluetoothScan,
+                  icon: const Icon(
                     Icons.bluetooth,
                   ),
                   label: Text(
@@ -309,63 +209,43 @@ class _HomePageState
                 ),
               ),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
 
               if (_vehicleFound)
                 Card(
-                  child:
-                      Padding(
-                    padding:
-                        const EdgeInsets
-                            .all(
-                      16,
-                    ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
                         const Expanded(
-                          child:
-                              Column(
+                          child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 '发现车辆',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      16,
+                                style: TextStyle(
+                                  fontSize: 16,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
-                              SizedBox(
-                                height:
-                                    6,
-                              ),
+                              SizedBox(height: 6),
                               Text(
                                 '陕A0P92Y',
-                                style:
-                                    TextStyle(
-                                  color:
-                                      Colors.cyan,
-                                  fontSize:
-                                      20,
+                                style: TextStyle(
+                                  color: Colors.cyan,
+                                  fontSize: 20,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         ElevatedButton(
-                          onPressed:
-                              _connecting
-                                  ? null
-                                  : _showConnectionMode,
-                          child:
-                              Text(
+                          onPressed: _connecting
+                              ? null
+                              : _showConnectionMode,
+                          child: Text(
                             _connecting
                                 ? '连接中'
                                 : '连接',
@@ -377,53 +257,35 @@ class _HomePageState
                 ),
 
               if (isAdmin) ...[
-                const SizedBox(
-                  height: 15,
-                ),
+                const SizedBox(height: 15),
 
                 SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      OutlinedButton
-                          .icon(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
                     onPressed:
                         _showTemporaryAuthorization,
-                    icon:
-                        const Icon(
-                      Icons.key,
-                    ),
-                    label:
-                        const Text(
+                    icon: const Icon(Icons.key),
+                    label: const Text(
                       '临时借车管理',
                     ),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 15,
-                ),
+                const SizedBox(height: 15),
 
                 _buildTemporaryAuthorizationCard(),
 
-                const SizedBox(
-                  height: 15,
-                ),
+                const SizedBox(height: 15),
 
                 _buildAdminSeatPanel(),
               ],
 
               if (isTemporary) ...[
-                const SizedBox(
-                  height: 15,
-                ),
-
+                const SizedBox(height: 15),
                 _buildTemporaryUserCard(),
               ],
 
-              const SizedBox(
-                height: 28,
-              ),
+              const SizedBox(height: 28),
 
               Text(
                 _canControl
@@ -434,31 +296,19 @@ class _HomePageState
                   color: _canControl
                       ? Colors.white
                       : Colors.grey,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 15,
-              ),
+              const SizedBox(height: 15),
 
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _buildControlButton(
-                    '锁车',
-                    'suoche',
-                  ),
-                  _buildControlButton(
-                    '解锁',
-                    'jiesuo',
-                  ),
-                  _buildControlButton(
-                    '寻车',
-                    'xunche',
-                  ),
+                  _buildControlButton('锁车', 'suoche'),
+                  _buildControlButton('解锁', 'jiesuo'),
+                  _buildControlButton('寻车', 'xunche'),
                   _buildControlButton(
                     '升窗',
                     'chuangsheng',
@@ -474,75 +324,45 @@ class _HomePageState
                 ],
               ),
 
-              const SizedBox(
-                height: 30,
-              ),
+              const SizedBox(height: 30),
 
               _buildSimulationTestPanel(),
 
-              const SizedBox(
-                height: 30,
-              ),
+              const SizedBox(height: 30),
 
-              if (_esp32.logs
-                  .isNotEmpty)
+              if (_esp32.logs.isNotEmpty)
                 Card(
-                  child:
-                      Padding(
-                    padding:
-                        const EdgeInsets
-                            .all(
-                      16,
-                    ),
-                    child:
-                        Column(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         const Text(
                           '最近系统日志',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                18,
-                            fontWeight:
-                                FontWeight.bold,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-
-                        const SizedBox(
-                          height: 10,
-                        ),
-
-                        ..._esp32
-                            .logs
-                            .reversed
+                        const SizedBox(height: 10),
+                        ..._esp32.logs.reversed
                             .take(12)
                             .map(
-                          (
-                            log,
-                          ) =>
-                              Padding(
-                            padding:
-                                const EdgeInsets
-                                    .only(
-                              bottom:
-                                  6,
-                            ),
-                            child:
-                                Text(
-                              log,
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.grey,
-                                fontSize:
-                                    13,
+                              (log) => Padding(
+                                padding:
+                                    const EdgeInsets.only(
+                                  bottom: 6,
+                                ),
+                                child: Text(
+                                  log,
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -559,32 +379,24 @@ class _HomePageState
     String value,
   ) {
     return Padding(
-      padding:
-          const EdgeInsets
-              .symmetric(
+      padding: const EdgeInsets.symmetric(
         vertical: 4,
       ),
       child: Row(
         children: [
           Text(
             '$label：',
-            style:
-                const TextStyle(
-              color:
-                  Colors.grey,
+            style: const TextStyle(
+              color: Colors.grey,
               fontSize: 16,
             ),
           ),
           Expanded(
-            child:
-                Text(
+            child: Text(
               value,
-              style:
-                  const TextStyle(
-                color:
-                    Colors.white,
-                fontSize:
-                    16,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
               ),
             ),
           ),
@@ -599,119 +411,70 @@ class _HomePageState
   ) {
     return SizedBox(
       width: 150,
-      child:
-          ElevatedButton(
-        onPressed:
-            _canControl
-                ? () =>
-                    _executeVehicleCommand(
-                      command,
-                    )
-                : null,
-        child:
-            Text(text),
+      child: ElevatedButton(
+        onPressed: _canControl
+            ? () => _executeVehicleCommand(command)
+            : null,
+        child: Text(text),
       ),
     );
   }
 
-  Widget
-      _buildTemporaryAuthorizationCard() {
+  Widget _buildTemporaryAuthorizationCard() {
     final configured =
-        _esp32
-            .temporaryAuthorizationConfigured;
+        _esp32.temporaryAuthorizationConfigured;
 
     return Card(
-      child:
-          Padding(
-        padding:
-            const EdgeInsets.all(
-          16,
-        ),
-        child:
-            Column(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+              CrossAxisAlignment.start,
           children: [
             const Text(
               '临时借车授权状态',
-              style:
-                  TextStyle(
-                fontSize:
-                    18,
-                fontWeight:
-                    FontWeight
-                        .bold,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
+            const SizedBox(height: 10),
             Text(
               configured
                   ? '状态：${_esp32.temporaryAuthorizationStatus}'
                   : '状态：未设置',
-              style:
-                  const TextStyle(
-                fontSize:
-                    15,
-              ),
             ),
-
             if (configured) ...[
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
               Text(
                 '密码：${_esp32.temporaryPassword}',
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.cyan,
+                style: const TextStyle(
+                  color: Colors.cyan,
                 ),
               ),
-              const SizedBox(
-                height: 6,
-              ),
+              const SizedBox(height: 6),
               Text(
                 '开始：${_esp32.temporaryStart}',
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.grey,
-                  fontSize:
-                      13,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
                 ),
               ),
-              const SizedBox(
-                height: 6,
-              ),
+              const SizedBox(height: 6),
               Text(
                 '结束：${_esp32.temporaryEnd}',
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.grey,
-                  fontSize:
-                      13,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
                 ),
               ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
+              const SizedBox(height: 12),
               SizedBox(
-                width:
-                    double.infinity,
-                child:
-                    OutlinedButton(
+                width: double.infinity,
+                child: OutlinedButton(
                   onPressed:
                       _revokeTemporaryAuthorization,
-                  child:
-                      const Text(
+                  child: const Text(
                     '撤销临时借车授权',
                   ),
                 ),
@@ -725,67 +488,39 @@ class _HomePageState
 
   Widget _buildTemporaryUserCard() {
     return Card(
-      child:
-          Padding(
-        padding:
-            const EdgeInsets.all(
-          16,
-        ),
-        child:
-            Column(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+              CrossAxisAlignment.start,
           children: [
             const Text(
               '临时借车状态',
-              style:
-                  TextStyle(
-                fontSize:
-                    18,
-                fontWeight:
-                    FontWeight
-                        .bold,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
+            const SizedBox(height: 10),
             Text(
               '授权状态：'
               '${_esp32.temporaryAuthorizationStatus}',
             ),
-
-            const SizedBox(
-              height: 6,
-            ),
-
+            const SizedBox(height: 6),
             Text(
               '有效期至：'
               '${_esp32.temporaryEnd ?? '未知'}',
-              style:
-                  const TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    13,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
               ),
             ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
+            const SizedBox(height: 8),
             const Text(
               '当前身份只有六项车辆控制权限。',
-              style:
-                  TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    13,
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
               ),
             ),
           ],
@@ -796,74 +531,42 @@ class _HomePageState
 
   Widget _buildAdminSeatPanel() {
     return Card(
-      child:
-          Padding(
-        padding:
-            const EdgeInsets.all(
-          16,
-        ),
-        child:
-            Column(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+              CrossAxisAlignment.start,
           children: [
             const Text(
               '管理员设备席位',
-              style:
-                  TextStyle(
-                fontSize:
-                    18,
-                fontWeight:
-                    FontWeight
-                        .bold,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
+            const SizedBox(height: 10),
             Text(
-              '当前设备：\n'
-              '${_esp32.deviceId}',
-              style:
-                  const TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    13,
+              '当前设备：\n${_esp32.deviceId}',
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
               ),
             ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
+            const SizedBox(height: 8),
             Text(
               '当前管理员设备：\n'
               '${_esp32.adminOwnerDeviceId ?? '尚未绑定'}',
-              style:
-                  const TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    13,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
               ),
             ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
+            const SizedBox(height: 8),
             const Text(
               '当前系统只允许一个管理员设备席位。',
-              style:
-                  TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    13,
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
               ),
             ),
           ],
@@ -874,96 +577,57 @@ class _HomePageState
 
   Widget _buildSimulationTestPanel() {
     return Card(
-      child:
-          Padding(
-        padding:
-            const EdgeInsets.all(
-          16,
-        ),
-        child:
-            Column(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+              CrossAxisAlignment.start,
           children: [
             const Text(
               '模拟测试工具',
-              style:
-                  TextStyle(
-                fontSize:
-                    18,
-                fontWeight:
-                    FontWeight
-                        .bold,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-              height: 6,
-            ),
-
+            const SizedBox(height: 6),
             const Text(
-              '这些按钮只用于开发阶段测试最终场景。',
-              style:
-                  TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    13,
+              '仅用于开发阶段测试最终场景。',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
               ),
             ),
-
-            const SizedBox(
-              height: 12,
-            ),
-
+            const SizedBox(height: 12),
             SizedBox(
-              width:
-                  double.infinity,
-              child:
-                  OutlinedButton(
-                onPressed:
-                    _simulateNewPhone,
-                child:
-                    const Text(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _simulateNewPhone,
+                child: const Text(
                   '模拟切换到新手机',
                 ),
               ),
             ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
+            const SizedBox(height: 8),
             SizedBox(
-              width:
-                  double.infinity,
-              child:
-                  OutlinedButton(
+              width: double.infinity,
+              child: OutlinedButton(
                 onPressed:
                     _simulateOriginalPhone,
-                child:
-                    const Text(
+                child: const Text(
                   '模拟切回原手机并测试自动连接',
                 ),
               ),
             ),
-
             if (_esp32
                 .temporaryAuthorizationConfigured) ...[
-              const SizedBox(
-                height: 8,
-              ),
-
+              const SizedBox(height: 8),
               SizedBox(
-                width:
-                    double.infinity,
-                child:
-                    OutlinedButton(
+                width: double.infinity,
+                child: OutlinedButton(
                   onPressed:
                       _simulateTemporaryExpired,
-                  child:
-                      const Text(
+                  child: const Text(
                     '模拟临时借车立即过期',
                   ),
                 ),
@@ -975,14 +639,10 @@ class _HomePageState
     );
   }
 
-  Future<void>
-      _startBluetoothScan() async {
+  Future<void> _startBluetoothScan() async {
     setState(() {
-      _isScanning =
-          true;
-
-      _vehicleFound =
-          false;
+      _isScanning = true;
+      _vehicleFound = false;
     });
 
     _esp32.addLog(
@@ -990,103 +650,65 @@ class _HomePageState
     );
 
     await Future.delayed(
-      const Duration(
-        seconds: 2,
-      ),
+      const Duration(seconds: 2),
     );
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     _esp32.addLog(
       'APP扫描完成，发现陕A0P92Y',
     );
 
     setState(() {
-      _isScanning =
-          false;
-
-      _vehicleFound =
-          true;
+      _isScanning = false;
+      _vehicleFound = true;
     });
   }
 
-  Future<void>
-      _showConnectionMode() async {
+  Future<void> _showConnectionMode() async {
     final result =
-        await showModalBottomSheet<
-            String>(
+        await showModalBottomSheet<String>(
       context: context,
-      builder:
-          (context) {
+      builder: (context) {
         return SafeArea(
-          child:
-              Padding(
-            padding:
-                const EdgeInsets
-                    .all(
-              20,
-            ),
-            child:
-                Column(
-              mainAxisSize:
-                  MainAxisSize
-                      .min,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   '请选择连接方式',
-                  style:
-                      TextStyle(
-                    fontSize:
-                        20,
-                    fontWeight:
-                        FontWeight
-                            .bold,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-
-                const SizedBox(
-                  height: 20,
-                ),
-
+                const SizedBox(height: 20),
                 SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      ElevatedButton(
-                    onPressed:
-                        () {
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
                       Navigator.pop(
                         context,
                         'admin',
                       );
                     },
-                    child:
-                        const Text(
+                    child: const Text(
                       '管理员连接',
                     ),
                   ),
                 ),
-
-                const SizedBox(
-                  height: 10,
-                ),
-
+                const SizedBox(height: 10),
                 SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      ElevatedButton(
-                    onPressed:
-                        () {
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
                       Navigator.pop(
                         context,
                         'temporary',
                       );
                     },
-                    child:
-                        const Text(
+                    child: const Text(
                       '临时借车连接',
                     ),
                   ),
@@ -1098,13 +720,11 @@ class _HomePageState
       },
     );
 
-    if (!mounted ||
-        result == null) {
+    if (!mounted || result == null) {
       return;
     }
 
-    if (result ==
-        'admin') {
+    if (result == 'admin') {
       await _adminLogin();
     } else {
       await _temporaryLogin();
@@ -1116,61 +736,41 @@ class _HomePageState
         TextEditingController();
 
     final password =
-        await showDialog<
-            String>(
+        await showDialog<String>(
       context: context,
-      builder:
-          (context) {
+      builder: (context) {
         return AlertDialog(
-          title:
-              const Text(
+          title: const Text(
             '管理员连接',
           ),
-          content:
-              TextField(
-            controller:
-                controller,
-            autofocus:
-                true,
-            obscureText:
-                true,
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
             keyboardType:
-                TextInputType
-                    .number,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  '管理员密码',
-              hintText:
-                  '请输入管理员密码',
+                TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '管理员密码',
+              hintText: '请输入管理员密码',
             ),
           ),
           actions: [
             TextButton(
-              onPressed:
-                  () {
+              onPressed: () {
                 Navigator.pop(
                   context,
                 );
               },
-              child:
-                  const Text(
-                '取消',
-              ),
+              child: const Text('取消'),
             ),
             ElevatedButton(
-              onPressed:
-                  () {
+              onPressed: () {
                 Navigator.pop(
                   context,
-                  controller
-                      .text,
+                  controller.text,
                 );
               },
-              child:
-                  const Text(
-                '验证',
-              ),
+              child: const Text('验证'),
             ),
           ],
         );
@@ -1179,15 +779,12 @@ class _HomePageState
 
     controller.dispose();
 
-    if (!mounted ||
-        password ==
-            null) {
+    if (!mounted || password == null) {
       return;
     }
 
     setState(() {
-      _connecting =
-          true;
+      _connecting = true;
     });
 
     _esp32.addLog(
@@ -1195,43 +792,24 @@ class _HomePageState
     );
 
     await Future.delayed(
-      const Duration(
-        milliseconds:
-            800,
-      ),
+      const Duration(milliseconds: 800),
     );
 
     _esp32.connect();
 
     final success =
-        await _esp32
-            .verifyAdmin(
-      password,
-    );
+        await _esp32.verifyAdmin(password);
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (success) {
       setState(() {
-        _deviceStatus =
-            '已连接';
-
-        _adminStatus =
-            '已授权';
-
-        _timeStatus =
-            '已同步';
-
-        _canControl =
-            true;
-
-        _connecting =
-            false;
-
-        _vehicleFound =
-            true;
+        _deviceStatus = '已连接';
+        _adminStatus = '已授权';
+        _timeStatus = '已同步';
+        _canControl = true;
+        _connecting = false;
+        _vehicleFound = true;
       });
 
       _showMessage(
@@ -1239,20 +817,11 @@ class _HomePageState
       );
     } else {
       setState(() {
-        _deviceStatus =
-            '已连接';
-
-        _adminStatus =
-            '认证失败';
-
-        _timeStatus =
-            '未同步';
-
-        _canControl =
-            false;
-
-        _connecting =
-            false;
+        _deviceStatus = '已连接';
+        _adminStatus = '认证失败';
+        _timeStatus = '未同步';
+        _canControl = false;
+        _connecting = false;
       });
 
       _showMessage(
@@ -1261,69 +830,47 @@ class _HomePageState
     }
   }
 
-  Future<void>
-      _temporaryLogin() async {
+  Future<void> _temporaryLogin() async {
     final controller =
         TextEditingController();
 
     final password =
-        await showDialog<
-            String>(
+        await showDialog<String>(
       context: context,
-      builder:
-          (context) {
+      builder: (context) {
         return AlertDialog(
-          title:
-              const Text(
+          title: const Text(
             '临时借车连接',
           ),
-          content:
-              TextField(
-            controller:
-                controller,
-            autofocus:
-                true,
-            obscureText:
-                true,
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
             keyboardType:
-                TextInputType
-                    .number,
-            maxLength:
-                6,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  '临时借车密码',
-              hintText:
-                  '请输入6位密码',
+                TextInputType.number,
+            maxLength: 6,
+            decoration: const InputDecoration(
+              labelText: '临时借车密码',
+              hintText: '请输入6位密码',
             ),
           ),
           actions: [
             TextButton(
-              onPressed:
-                  () {
+              onPressed: () {
                 Navigator.pop(
                   context,
                 );
               },
-              child:
-                  const Text(
-                '取消',
-              ),
+              child: const Text('取消'),
             ),
             ElevatedButton(
-              onPressed:
-                  () {
+              onPressed: () {
                 Navigator.pop(
                   context,
-                  controller
-                      .text,
+                  controller.text,
                 );
               },
-              child:
-                  const Text(
-                '验证',
-              ),
+              child: const Text('验证'),
             ),
           ],
         );
@@ -1332,15 +879,12 @@ class _HomePageState
 
     controller.dispose();
 
-    if (!mounted ||
-        password ==
-            null) {
+    if (!mounted || password == null) {
       return;
     }
 
     setState(() {
-      _connecting =
-          true;
+      _connecting = true;
     });
 
     _esp32.addLog(
@@ -1348,43 +892,26 @@ class _HomePageState
     );
 
     await Future.delayed(
-      const Duration(
-        milliseconds:
-            800,
-      ),
+      const Duration(milliseconds: 800),
     );
 
     _esp32.connect();
 
     final success =
-        await _esp32
-            .verifyTemporaryUser(
+        await _esp32.verifyTemporaryUser(
       password,
     );
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (success) {
       setState(() {
-        _deviceStatus =
-            '已连接';
-
-        _adminStatus =
-            '临时授权';
-
-        _timeStatus =
-            '已同步';
-
-        _canControl =
-            true;
-
-        _connecting =
-            false;
-
-        _vehicleFound =
-            true;
+        _deviceStatus = '已连接';
+        _adminStatus = '临时授权';
+        _timeStatus = '已同步';
+        _canControl = true;
+        _connecting = false;
+        _vehicleFound = true;
       });
 
       _showMessage(
@@ -1392,20 +919,11 @@ class _HomePageState
       );
     } else {
       setState(() {
-        _deviceStatus =
-            '已连接';
-
-        _adminStatus =
-            '临时授权失败';
-
-        _timeStatus =
-            '未同步';
-
-        _canControl =
-            false;
-
-        _connecting =
-            false;
+        _deviceStatus = '已连接';
+        _adminStatus = '临时授权失败';
+        _timeStatus = '未同步';
+        _canControl = false;
+        _connecting = false;
       });
 
       _showMessage(
@@ -1416,98 +934,69 @@ class _HomePageState
 
   Future<void>
       _showTemporaryAuthorization() async {
-    DateTime start =
-        DateTime.now();
+    DateTime start = DateTime.now();
 
-    DateTime end =
-        start.add(
-      const Duration(
-        hours: 24,
-      ),
+    DateTime end = start.add(
+      const Duration(hours: 24),
     );
 
     final configured =
         await showDialog<
             _TemporaryAuthorizationInput>(
       context: context,
-      builder:
-          (context) {
+      builder: (context) {
         return StatefulBuilder(
-          builder:
-              (
+          builder: (
             context,
             setDialogState,
           ) {
             return AlertDialog(
-              title:
-                  const Text(
+              title: const Text(
                 '设置临时借车授权',
               ),
-              content:
-                  Column(
+              content: Column(
                 mainAxisSize:
-                    MainAxisSize
-                        .min,
+                    MainAxisSize.min,
                 crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
+                    CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    '默认有效期为24小时，也可以修改开始和结束时间。',
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey,
-                      fontSize:
-                          13,
+                    '默认有效期为24小时，可以分别修改开始时间和结束时间。',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 13,
                     ),
                   ),
-
-                  const SizedBox(
-                    height: 15,
-                  ),
-
+                  const SizedBox(height: 15),
                   ListTile(
                     contentPadding:
-                        EdgeInsets
-                            .zero,
-                    leading:
-                        const Icon(
-                      Icons
-                          .play_arrow,
+                        EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.play_arrow,
                     ),
-                    title:
-                        const Text(
+                    title: const Text(
                       '开始时间',
                     ),
-                    subtitle:
-                        Text(
-                      _formatDateTime(
-                        start,
-                      ),
+                    subtitle: Text(
+                      _formatDateTime(start),
                     ),
-                    onTap:
-                        () async {
+                    onTap: () async {
                       final picked =
                           await _pickDateTime(
                         context,
                         start,
                       );
 
-                      if (picked !=
-                          null) {
+                      if (picked != null) {
                         setDialogState(() {
-                          start =
-                              picked;
+                          start = picked;
 
                           if (!end.isAfter(
                             start,
                           )) {
-                            end =
-                                start.add(
+                            end = start.add(
                               const Duration(
-                                hours:
-                                    24,
+                                hours: 24,
                               ),
                             );
                           }
@@ -1515,81 +1004,65 @@ class _HomePageState
                       }
                     },
                   ),
-
                   ListTile(
                     contentPadding:
-                        EdgeInsets
-                            .zero,
-                    leading:
-                        const Icon(
-                      Icons
-                          .stop,
+                        EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.stop,
                     ),
-                    title:
-                        const Text(
+                    title: const Text(
                       '结束时间',
                     ),
-                    subtitle:
-                        Text(
-                      _formatDateTime(
-                        end,
-                      ),
+                    subtitle: Text(
+                      _formatDateTime(end),
                     ),
-                    onTap:
-                        () async {
+                    onTap: () async {
                       final picked =
                           await _pickDateTime(
                         context,
                         end,
                       );
 
-                      if (picked !=
-                          null) {
+                      if (picked != null) {
                         setDialogState(() {
-                          end =
-                              picked;
+                          end = picked;
                         });
                       }
                     },
                   ),
-
-                  const SizedBox(
-                    height: 10,
-                  ),
-
+                  const SizedBox(height: 10),
                   Text(
                     '当前有效时长：'
                     '${end.difference(start).inHours}小时 '
                     '${end.difference(start).inMinutes % 60}分钟',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.grey,
+                    style: const TextStyle(
+                      color: Colors.grey,
                     ),
                   ),
                 ],
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      () {
+                  onPressed: () {
                     Navigator.pop(
                       context,
                     );
                   },
-                  child:
-                      const Text(
+                  child: const Text(
                     '取消',
                   ),
                 ),
                 ElevatedButton(
-                  onPressed:
-                      () {
-                    if (!end.isAfter(
-                      start,
-                    )) {
-                      _showMessage(
-                        '结束时间必须晚于开始时间',
+                  onPressed: () {
+                    if (!end.isAfter(start)) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            '结束时间必须晚于开始时间',
+                          ),
+                        ),
                       );
                       return;
                     }
@@ -1597,15 +1070,12 @@ class _HomePageState
                     Navigator.pop(
                       context,
                       _TemporaryAuthorizationInput(
-                        start:
-                            start,
-                        end:
-                            end,
+                        start: start,
+                        end: end,
                       ),
                     );
                   },
-                  child:
-                      const Text(
+                  child: const Text(
                     '生成密码',
                   ),
                 ),
@@ -1616,75 +1086,52 @@ class _HomePageState
       },
     );
 
-    if (!mounted ||
-        configured ==
-            null) {
+    if (!mounted || configured == null) {
       return;
     }
 
     try {
       final password =
-          await _esp32
-              .generateTemporaryPassword(
-        start:
-            configured.start,
-        end:
-            configured.end,
+          await _esp32.generateTemporaryPassword(
+        start: configured.start,
+        end: configured.end,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       await showDialog<void>(
         context: context,
-        builder:
-            (context) {
+        builder: (context) {
           return AlertDialog(
-            title:
-                const Text(
+            title: const Text(
               '临时借车密码已生成',
             ),
-            content:
-                Column(
+            content: Column(
               mainAxisSize:
-                  MainAxisSize
-                      .min,
+                  MainAxisSize.min,
               crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  CrossAxisAlignment.start,
               children: [
                 const Text(
                   '临时密码',
                 ),
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
                 Text(
                   password,
-                  style:
-                      const TextStyle(
-                    fontSize:
-                        28,
-                    color:
-                        Colors.cyan,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    color: Colors.cyan,
                     fontWeight:
-                        FontWeight
-                            .bold,
-                    letterSpacing:
-                        4,
+                        FontWeight.bold,
+                    letterSpacing: 4,
                   ),
                 ),
-                const SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
                 Text(
                   '开始：\n'
                   '${_formatDateTime(configured.start)}',
                 ),
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
                 Text(
                   '结束：\n'
                   '${_formatDateTime(configured.end)}',
@@ -1693,14 +1140,12 @@ class _HomePageState
             ),
             actions: [
               ElevatedButton(
-                onPressed:
-                    () {
+                onPressed: () {
                   Navigator.pop(
                     context,
                   );
                 },
-                child:
-                    const Text(
+                child: const Text(
                   '完成',
                 ),
               ),
@@ -1710,14 +1155,10 @@ class _HomePageState
       );
 
       if (mounted) {
-        setState(
-          () {},
-        );
+        setState(() {});
       }
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       _showMessage(
         '生成临时授权失败：$e',
@@ -1725,8 +1166,7 @@ class _HomePageState
     }
   }
 
-  Future<DateTime?>
-      _pickDateTime(
+  Future<DateTime?> _pickDateTime(
     BuildContext context,
     DateTime initial,
   ) async {
@@ -1736,30 +1176,22 @@ class _HomePageState
       initialDate: initial,
       firstDate:
           DateTime.now().subtract(
-        const Duration(
-          days: 1,
-        ),
+        const Duration(days: 1),
       ),
       lastDate:
           DateTime.now().add(
-        const Duration(
-          days: 3650,
-        ),
+        const Duration(days: 3650),
       ),
     );
 
-    if (date == null ||
-        !context.mounted) {
+    if (date == null || !context.mounted) {
       return null;
     }
 
-    final time =
-        await showTimePicker(
+    final time = await showTimePicker(
       context: context,
       initialTime:
-          TimeOfDay.fromDateTime(
-        initial,
-      ),
+          TimeOfDay.fromDateTime(initial),
     );
 
     if (time == null) {
@@ -1778,15 +1210,10 @@ class _HomePageState
   String _formatDateTime(
     DateTime value,
   ) {
-    String two(
-      int value,
-    ) {
+    String two(int value) {
       return value
           .toString()
-          .padLeft(
-            2,
-            '0',
-          );
+          .padLeft(2, '0');
     }
 
     return '${value.year}-'
@@ -1801,41 +1228,34 @@ class _HomePageState
     final confirm =
         await showDialog<bool>(
       context: context,
-      builder:
-          (context) {
+      builder: (context) {
         return AlertDialog(
-          title:
-              const Text(
+          title: const Text(
             '撤销临时借车授权',
           ),
-          content:
-              const Text(
+          content: const Text(
             '撤销后，这个临时密码将立即失效。',
           ),
           actions: [
             TextButton(
-              onPressed:
-                  () {
+              onPressed: () {
                 Navigator.pop(
                   context,
                   false,
                 );
               },
-              child:
-                  const Text(
+              child: const Text(
                 '取消',
               ),
             ),
             ElevatedButton(
-              onPressed:
-                  () {
+              onPressed: () {
                 Navigator.pop(
                   context,
                   true,
                 );
               },
-              child:
-                  const Text(
+              child: const Text(
                 '确认撤销',
               ),
             ),
@@ -1851,13 +1271,9 @@ class _HomePageState
     await _esp32
         .clearTemporaryAuthorization();
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
-    setState(
-      () {},
-    );
+    setState(() {});
 
     _showMessage(
       '临时借车授权已撤销',
@@ -1865,71 +1281,55 @@ class _HomePageState
   }
 
   Future<void>
-      _simulateTemporaryExpired()
-          async {
-    await _esp32
-        .simulateTemporaryExpired();
+      _simulateTemporaryExpired() async {
+    await _esp32.simulateTemporaryExpired();
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
-    if (_esp32.sessionRole ==
-        'temporary') {
-      setState(() {
-        _deviceStatus =
-            '未连接';
+    setState(() {
+      _deviceStatus =
+          _esp32.sessionRole == 'temporary'
+              ? '未连接'
+              : _deviceStatus;
 
-        _adminStatus =
-            '临时授权过期';
+      _adminStatus =
+          _esp32.sessionRole == 'temporary'
+              ? '临时授权过期'
+              : _adminStatus;
 
-        _timeStatus =
-            '未同步';
+      _timeStatus =
+          _esp32.sessionRole == 'temporary'
+              ? '未同步'
+              : _timeStatus;
 
-        _canControl =
-            false;
+      _canControl =
+          _esp32.sessionRole == 'temporary'
+              ? false
+              : _canControl;
 
-        _vehicleFound =
-            false;
-      });
-    }
-
-    setState(
-      () {},
-    );
+      _vehicleFound =
+          _esp32.sessionRole == 'temporary'
+              ? false
+              : _vehicleFound;
+    });
 
     _showMessage(
       '已经模拟临时授权过期',
     );
   }
 
-  Future<void>
-      _simulateNewPhone() async {
-    await _esp32
-        .simulateNewPhone();
+  Future<void> _simulateNewPhone() async {
+    await _esp32.simulateNewPhone();
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     setState(() {
-      _deviceStatus =
-          '未连接';
-
-      _adminStatus =
-          '未授权';
-
-      _timeStatus =
-          '未同步';
-
-      _canControl =
-          false;
-
-      _connecting =
-          false;
-
-      _vehicleFound =
-          false;
+      _deviceStatus = '未连接';
+      _adminStatus = '未授权';
+      _timeStatus = '未同步';
+      _canControl = false;
+      _connecting = false;
+      _vehicleFound = false;
     });
 
     _showMessage(
@@ -1938,32 +1338,20 @@ class _HomePageState
   }
 
   Future<void>
-      _simulateOriginalPhone()
-          async {
+      _simulateOriginalPhone() async {
     final success =
         await _esp32
             .simulateOriginalPhoneAndAutoReconnect();
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (success) {
       setState(() {
-        _deviceStatus =
-            '已连接';
-
-        _adminStatus =
-            '已授权';
-
-        _timeStatus =
-            '已同步';
-
-        _canControl =
-            true;
-
-        _vehicleFound =
-            true;
+        _deviceStatus = '已连接';
+        _adminStatus = '已授权';
+        _timeStatus = '已同步';
+        _canControl = true;
+        _vehicleFound = true;
       });
 
       _showMessage(
@@ -1971,20 +1359,11 @@ class _HomePageState
       );
     } else {
       setState(() {
-        _deviceStatus =
-            '未连接';
-
-        _adminStatus =
-            '授权失效';
-
-        _timeStatus =
-            '未同步';
-
-        _canControl =
-            false;
-
-        _vehicleFound =
-            false;
+        _deviceStatus = '未连接';
+        _adminStatus = '授权失效';
+        _timeStatus = '未同步';
+        _canControl = false;
+        _vehicleFound = false;
       });
 
       _showMessage(
@@ -1997,23 +1376,12 @@ class _HomePageState
     _esp32.disconnect();
 
     setState(() {
-      _deviceStatus =
-          '未连接';
-
-      _adminStatus =
-          '未授权';
-
-      _timeStatus =
-          '未同步';
-
-      _canControl =
-          false;
-
-      _connecting =
-          false;
-
-      _vehicleFound =
-          false;
+      _deviceStatus = '未连接';
+      _adminStatus = '未授权';
+      _timeStatus = '未同步';
+      _canControl = false;
+      _connecting = false;
+      _vehicleFound = false;
     });
 
     _showMessage(
@@ -2025,29 +1393,20 @@ class _HomePageState
     String command,
   ) {
     final result =
-        _esp32
-            .executeCommand(
-      command,
-    );
+        _esp32.executeCommand(command);
 
-    _showMessage(
-      result,
-    );
+    _showMessage(result);
 
-    setState(
-      () {},
-    );
+    setState(() {});
   }
 
   void _showMessage(
     String message,
   ) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
-        content:
-            Text(message),
+        content: Text(message),
       ),
     );
   }
@@ -2055,7 +1414,6 @@ class _HomePageState
 
 class _TemporaryAuthorizationInput {
   final DateTime start;
-
   final DateTime end;
 
   const _TemporaryAuthorizationInput({
