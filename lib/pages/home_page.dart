@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
+
 import 'permission_page.dart';
+
+import 'control_page.dart';
 
 
 
@@ -35,6 +38,7 @@ class _HomePageState extends State<HomePage> {
 
 
   bool connected = false;
+
 
 
 
@@ -113,12 +117,46 @@ class _HomePageState extends State<HomePage> {
 
 
 
+  void openControl(){
+
+
+    Navigator.push(
+
+
+      context,
+
+
+      MaterialPageRoute(
+
+
+        builder:(context)=>ControlPage(
+
+          esp32:widget.esp32,
+
+        ),
+
+
+      ),
+
+
+    );
+
+
+  }
+
+
+
+
+
+
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context){
+
 
 
     return Scaffold(
+
 
 
       appBar:AppBar(
@@ -139,7 +177,6 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
       body:Padding(
 
 
@@ -150,7 +187,10 @@ class _HomePageState extends State<HomePage> {
         child:Column(
 
 
-          crossAxisAlignment:CrossAxisAlignment.start,
+          crossAxisAlignment:
+
+          CrossAxisAlignment.start,
+
 
 
           children:[
@@ -197,6 +237,7 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
             const SizedBox(height:30),
 
 
@@ -225,6 +266,7 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
             const SizedBox(height:10),
 
 
@@ -239,16 +281,16 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
             const SizedBox(height:30),
-
 
 
 
 
             ElevatedButton(
 
+
               onPressed:toggleConnection,
+
 
               child:Text(
 
@@ -260,13 +302,14 @@ class _HomePageState extends State<HomePage> {
 
               ),
 
+
             ),
 
 
 
 
-            const SizedBox(height:15),
 
+            const SizedBox(height:15),
 
 
 
@@ -290,58 +333,29 @@ class _HomePageState extends State<HomePage> {
 
 
 
-            const SizedBox(height:30),
-
-
-
-
-
-            const Text(
-
-              "车辆控制",
-
-              style:TextStyle(
-
-                fontSize:18,
-
-                fontWeight:FontWeight.bold,
-
-              ),
-
-            ),
-
-
-
-
-
             const SizedBox(height:15),
 
 
 
 
-            Wrap(
 
-              spacing:10,
-
-              runSpacing:10,
+            ElevatedButton(
 
 
-              children:[
+              onPressed:openControl,
 
 
-                _button("锁车"),
+              child:const Text(
 
-                _button("解锁"),
+                "车辆控制中心",
 
-                _button("寻车"),
-
-                _button("后备箱"),
+              ),
 
 
-              ],
+            ),
 
 
-            )
+
 
 
 
@@ -352,40 +366,6 @@ class _HomePageState extends State<HomePage> {
 
 
       ),
-
-
-    );
-
-
-  }
-
-
-
-
-
-
-
-
-  Widget _button(String text){
-
-
-    return ElevatedButton(
-
-
-      onPressed:(){
-
-
-
-        widget.esp32.executeCommand(text);
-
-
-        setState(() {});
-
-
-      },
-
-
-      child:Text(text),
 
 
     );
