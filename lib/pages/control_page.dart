@@ -32,13 +32,57 @@ class ControlPage extends StatefulWidget {
 class _ControlPageState extends State<ControlPage> {
 
 
-
   String status = "等待操作";
 
 
 
 
   void execute(String command){
+
+
+
+    if(!widget.esp32.isConnected()){
+
+
+      setState(() {
+
+
+        status = "设备未连接";
+
+
+      });
+
+
+      return;
+
+
+    }
+
+
+
+
+    if(!widget.esp32.adminAuthorized &&
+
+       !widget.esp32.temporaryAuthorized){
+
+
+
+      setState(() {
+
+
+        status = "请先完成身份授权";
+
+
+      });
+
+
+      return;
+
+
+    }
+
+
+
 
 
 
@@ -53,11 +97,13 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+
     Future.delayed(
 
       const Duration(seconds:1),
 
       (){
+
 
 
         String result =
@@ -69,16 +115,17 @@ class _ControlPageState extends State<ControlPage> {
         setState(() {
 
 
-          status = result;
+          status=result;
 
 
         });
 
 
+
       },
 
-
     );
+
 
 
   }
@@ -88,8 +135,23 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+
   @override
   Widget build(BuildContext context){
+
+
+
+    bool admin =
+
+    widget.esp32.adminAuthorized;
+
+
+
+    bool temporary =
+
+    widget.esp32.temporaryAuthorized;
+
+
 
 
 
@@ -102,7 +164,7 @@ class _ControlPageState extends State<ControlPage> {
 
         title:const Text(
 
-          "车辆控制",
+          "车辆控制中心",
 
         ),
 
@@ -129,6 +191,8 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+
+
             Text(
 
               "当前身份：${widget.esp32.getCurrentUser()}",
@@ -148,7 +212,9 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+
             const SizedBox(height:10),
+
 
 
 
@@ -157,38 +223,31 @@ class _ControlPageState extends State<ControlPage> {
 
               status,
 
-              style:
-
-              const TextStyle(
-
-                fontSize:18,
-
-              ),
-
             ),
 
 
 
 
 
-            const SizedBox(height:40),
+            const SizedBox(height:30),
 
 
 
 
-            Row(
+            Wrap(
 
 
-              mainAxisAlignment:
+              spacing:15,
 
-              MainAxisAlignment.spaceEvenly,
+              runSpacing:15,
+
 
 
               children:[
 
 
 
-                _controlButton(
+                _button(
 
                   "🔒",
 
@@ -200,7 +259,8 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-                _controlButton(
+
+                _button(
 
                   "🔓",
 
@@ -212,34 +272,8 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-              ],
 
-
-            ),
-
-
-
-
-
-            const SizedBox(height:40),
-
-
-
-
-
-            Row(
-
-
-              mainAxisAlignment:
-
-              MainAxisAlignment.spaceEvenly,
-
-
-              children:[
-
-
-
-                _controlButton(
+                _button(
 
                   "🚗",
 
@@ -251,7 +285,12 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-                _controlButton(
+
+
+
+                if(admin)
+
+                _button(
 
                   "📦",
 
@@ -263,8 +302,37 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+
               ],
 
+
+
+            ),
+
+
+
+
+
+            const SizedBox(height:30),
+
+
+
+
+
+            if(!admin && !temporary)
+
+
+            const Text(
+
+              "无授权，无法控制车辆",
+
+              style:
+
+              TextStyle(
+
+                color:Colors.redAccent,
+
+              ),
 
             ),
 
@@ -293,7 +361,8 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-  Widget _controlButton(
+
+  Widget _button(
 
       String icon,
 
@@ -332,7 +401,6 @@ class _ControlPageState extends State<ControlPage> {
 
 
       ),
-
 
 
 
@@ -385,7 +453,9 @@ class _ControlPageState extends State<ControlPage> {
         ],
 
 
+
       ),
+
 
 
     );
