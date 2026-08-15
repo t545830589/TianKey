@@ -8,10 +8,12 @@ import 'pages/home_page.dart';
 
 void main() {
 
+
   WidgetsFlutterBinding.ensureInitialized();
 
 
   runApp(const TianKeyApp());
+
 
 }
 
@@ -25,7 +27,7 @@ class TianKeyApp extends StatelessWidget {
 
 
 
-  // 全局唯一模拟ESP32车辆
+  // 全APP唯一车辆模拟设备
 
   static final MockESP32 esp32 = MockESP32();
 
@@ -36,11 +38,11 @@ class TianKeyApp extends StatelessWidget {
   Widget build(BuildContext context) {
 
 
+
     return MaterialApp(
 
 
       debugShowCheckedModeBanner:false,
-
 
 
       title:'Tian Key V11',
@@ -63,9 +65,9 @@ class TianKeyApp extends StatelessWidget {
 
 
 
-      home: HomePage(
+      home:HomePage(
 
-        esp32: esp32,
+        esp32:esp32,
 
       ),
 
