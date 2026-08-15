@@ -4,12 +4,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class MockESP32 {
   final String deviceName = '陕A0P92Y';
-  final String deviceId = 'TianKey-V11-001';
 
-  // Tian Key V11 最终确认的初始管理员密码
-  final String adminPassword = '13092991951';
+  static const String defaultDeviceId =
+      'TianKey-V11-001';
+
+  final String adminPassword =
+      '13092991951';
 
   bool connected = false;
+
   bool adminAuthorized = false;
 
   String sessionRole = 'none';
@@ -17,12 +20,29 @@ class MockESP32 {
   DateTime? deviceTime;
 
   String? temporaryPassword;
+
   DateTime? temporaryStart;
+
   DateTime? temporaryEnd;
 
   bool autoLockOnAbnormalDisconnect = true;
 
+  String? _deviceId;
+
+  String? _adminOwnerDeviceId;
+
+  String? _originalDeviceId;
+
   final List<String> logs = [];
+
+  static const String _deviceIdKey =
+      'tiankey_device_id';
+
+  static const String _originalDeviceIdKey =
+      'tiankey_original_device_id';
+
+  static const String _adminOwnerDeviceIdKey =
+      'tiankey_admin_owner_device_id';
 
   static const String _savedRoleKey =
       'tiankey_saved_role';
@@ -36,56 +56,144 @@ class MockESP32 {
   static const String _savedTempEndKey =
       'tiankey_saved_temp_end';
 
-  Future<void> loadSavedAuthorization() async {
-    final prefs = await SharedPreferences.getInstance();
+  String get deviceId {
+    return _deviceId ?? defaultDeviceId;
+  }
 
-    final savedRole = prefs.getString(_savedRoleKey);
+  String? get adminOwnerDeviceId {
+    return _adminOwnerDeviceId;
+  }
+
+  bool get isCurrentDeviceAdmin {
+    return _adminOwnerDeviceId == deviceId &&
+        sessionRole == 'admin';
+  }
+
+  Future<void> loadSavedAuthorization() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    _deviceId =
+        prefs.getString(_deviceIdKey);
+
+    _originalDeviceId =
+        prefs.getString(_originalDeviceIdKey);
+
+    _adminOwnerDeviceId =
+        prefs.getString(
+      _adminOwnerDeviceIdKey,
+    );
+
+    if (_deviceId == null ||
+        _deviceId!.isEmpty) {
+      _deviceId =
+          _generateDeviceId();
+
+      await prefs.setString(
+        _deviceIdKey,
+        _deviceId!,
+      );
+    }
+
+    if (_originalDeviceId == null ||
+        _originalDeviceId!.isEmpty) {
+      _originalDeviceId = _deviceId;
+
+      await prefs.setString(
+        _originalDeviceIdKey,
+        _originalDeviceId!,
+      );
+    }
+
+    final savedRole =
+        prefs.getString(_savedRoleKey);
 
     final savedTempPassword =
-        prefs.getString(_savedTempPasswordKey);
+        prefs.getString(
+      _savedTempPasswordKey,
+    );
 
     final savedTempStart =
-        prefs.getString(_savedTempStartKey);
+        prefs.getString(
+      _savedTempStartKey,
+    );
 
     final savedTempEnd =
-        prefs.getString(_savedTempEndKey);
+        prefs.getString(
+      _savedTempEndKey,
+    );
 
     if (savedTempPassword != null) {
-      temporaryPassword = savedTempPassword;
+      temporaryPassword =
+          savedTempPassword;
     }
 
     if (savedTempStart != null) {
-      temporaryStart = DateTime.tryParse(
+      temporaryStart =
+          DateTime.tryParse(
         savedTempStart,
       );
     }
 
     if (savedTempEnd != null) {
-      temporaryEnd = DateTime.tryParse(
+      temporaryEnd =
+          DateTime.tryParse(
         savedTempEnd,
       );
     }
 
     if (savedRole == 'admin') {
-      sessionRole = 'admin';
-      adminAuthorized = true;
+      if (_adminOwnerDeviceId ==
+          deviceId) {
+        sessionRole = 'admin';
+        adminAuthorized = true;
+      } else {
+        sessionRole = 'none';
+        adminAuthorized = false;
+
+        await prefs.remove(
+          _savedRoleKey,
+        );
+
+        addLog(
+          '自动连接拒绝：当前管理员席位属于其他设备',
+        );
+      }
     }
 
-    if (savedRole == 'temporary' &&
-        temporaryAuthorizationValid) {
-      sessionRole = 'temporary';
-    }
+    if (savedRole == 'temporary') {
+      if (temporaryAuthorizationValid) {
+        sessionRole = 'temporary';
+      } else {
+        sessionRole = 'none';
 
-    // 临时授权已经失效时，不恢复临时身份。
-    if (savedRole == 'temporary' &&
-        !temporaryAuthorizationValid) {
-      await prefs.remove(_savedRoleKey);
-      sessionRole = 'none';
+        await prefs.remove(
+          _savedRoleKey,
+        );
+
+        addLog(
+          '临时授权已过期，自动授权清除',
+        );
+      }
     }
   }
 
-  Future<void> _saveRole(String role) async {
-    final prefs = await SharedPreferences.getInstance();
+  String _generateDeviceId() {
+    final random = Random.secure();
+
+    final value = List.generate(
+      8,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join();
+
+    return 'TianKey-$value';
+  }
+
+  Future<void> _saveRole(
+    String role,
+  ) async {
+    final prefs =
+        await SharedPreferences.getInstance();
 
     await prefs.setString(
       _savedRoleKey,
@@ -93,20 +201,54 @@ class MockESP32 {
     );
   }
 
-  Future<void> clearSavedAuthorization() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _saveDeviceId() async {
+    final prefs =
+        await SharedPreferences.getInstance();
 
-    await prefs.remove(_savedRoleKey);
+    await prefs.setString(
+      _deviceIdKey,
+      deviceId,
+    );
+  }
+
+  Future<void> _saveAdminOwner() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    if (_adminOwnerDeviceId == null) {
+      await prefs.remove(
+        _adminOwnerDeviceIdKey,
+      );
+    } else {
+      await prefs.setString(
+        _adminOwnerDeviceIdKey,
+        _adminOwnerDeviceId!,
+      );
+    }
+  }
+
+  Future<void> clearSavedAuthorization() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.remove(
+      _savedRoleKey,
+    );
 
     sessionRole = 'none';
+
     adminAuthorized = false;
   }
 
-  Future<void> clearTemporaryAuthorization() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void>
+      clearTemporaryAuthorization() async {
+    final prefs =
+        await SharedPreferences.getInstance();
 
     temporaryPassword = null;
+
     temporaryStart = null;
+
     temporaryEnd = null;
 
     await prefs.remove(
@@ -121,13 +263,17 @@ class MockESP32 {
       _savedTempEndKey,
     );
 
-    if (sessionRole == 'temporary') {
+    if (sessionRole ==
+        'temporary') {
       sessionRole = 'none';
     }
   }
 
-  void addLog(String message) {
-    final now = DateTime.now();
+  void addLog(
+    String message,
+  ) {
+    final now =
+        DateTime.now();
 
     logs.add(
       '${now.toString()} : $message',
@@ -139,30 +285,36 @@ class MockESP32 {
   void _cleanupLogs() {
     final sevenDaysAgo =
         DateTime.now().subtract(
-      const Duration(days: 7),
+      const Duration(
+        days: 7,
+      ),
     );
 
-    logs.removeWhere((log) {
-      final match = RegExp(
-        r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
-      ).firstMatch(log);
+    logs.removeWhere(
+      (log) {
+        final match =
+            RegExp(
+          r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
+        ).firstMatch(log);
 
-      if (match == null) {
-        return false;
-      }
+        if (match == null) {
+          return false;
+        }
 
-      final time = DateTime.tryParse(
-        match.group(1)!,
-      );
+        final time =
+            DateTime.tryParse(
+          match.group(1)!,
+        );
 
-      if (time == null) {
-        return false;
-      }
+        if (time == null) {
+          return false;
+        }
 
-      return time.isBefore(
-        sevenDaysAgo,
-      );
-    });
+        return time.isBefore(
+          sevenDaysAgo,
+        );
+      },
+    );
 
     while (logs.length > 200) {
       logs.removeAt(0);
@@ -172,14 +324,35 @@ class MockESP32 {
   bool connect() {
     connected = true;
 
-    addLog('BLE连接成功');
+    addLog(
+      'BLE连接成功',
+    );
 
     return true;
   }
 
-  Future<void> autoReconnect() async {
-    if (sessionRole == 'admin') {
+  Future<bool> autoReconnect() async {
+    if (sessionRole ==
+        'admin') {
+      if (_adminOwnerDeviceId !=
+          deviceId) {
+        connected = false;
+
+        adminAuthorized = false;
+
+        sessionRole = 'none';
+
+        await clearSavedAuthorization();
+
+        addLog(
+          '自动连接拒绝：管理员席位已被其他设备占用',
+        );
+
+        return false;
+      }
+
       connected = true;
+
       adminAuthorized = true;
 
       syncTime();
@@ -188,10 +361,11 @@ class MockESP32 {
         '管理员已有授权，自动连接成功',
       );
 
-      return;
+      return true;
     }
 
-    if (sessionRole == 'temporary' &&
+    if (sessionRole ==
+            'temporary' &&
         temporaryAuthorizationValid) {
       connected = true;
 
@@ -201,8 +375,10 @@ class MockESP32 {
         '临时授权仍有效，自动连接成功',
       );
 
-      return;
+      return true;
     }
+
+    return false;
   }
 
   void disconnect({
@@ -214,17 +390,28 @@ class MockESP32 {
 
     if (abnormal &&
         autoLockOnAbnormalDisconnect) {
-      addLog('BLE异常断开保护启动');
-      addLog('自动落锁 GPIO12');
+      addLog(
+        'BLE异常断开保护启动',
+      );
+
+      addLog(
+        '自动落锁 GPIO12',
+      );
     } else {
-      addLog('BLE正常断开');
+      addLog(
+        'BLE正常断开',
+      );
     }
 
     connected = false;
+
     adminAuthorized = false;
+
     sessionRole = 'none';
 
-    addLog('连接状态清理完成');
+    addLog(
+      '连接状态清理完成',
+    );
   }
 
   Future<bool> verifyAdmin(
@@ -238,37 +425,73 @@ class MockESP32 {
       return false;
     }
 
-    if (password != adminPassword) {
-      addLog('管理员密码错误');
+    if (password !=
+        adminPassword) {
+      addLog(
+        '管理员密码错误',
+      );
 
       return false;
     }
 
+    final oldOwner =
+        _adminOwnerDeviceId;
+
+    _adminOwnerDeviceId =
+        deviceId;
+
+    await _saveAdminOwner();
+
     adminAuthorized = true;
+
     sessionRole = 'admin';
 
-    await _saveRole('admin');
+    await _saveRole(
+      'admin',
+    );
 
     syncTime();
 
-    addLog('管理员认证成功');
+    if (oldOwner == null) {
+      addLog(
+        '首次管理员绑定成功',
+      );
+    } else if (oldOwner !=
+        deviceId) {
+      addLog(
+        '管理员席位已从旧设备迁移到当前设备',
+      );
+    } else {
+      addLog(
+        '当前管理员设备重新认证成功',
+      );
+    }
+
+    addLog(
+      '管理员认证成功',
+    );
 
     return true;
   }
 
   void syncTime() {
-    deviceTime = DateTime.now();
+    deviceTime =
+        DateTime.now();
 
     addLog(
       '手机时间已同步到ESP32',
     );
   }
 
-  Future<String> generateTemporaryPassword({
+  Future<String>
+      generateTemporaryPassword({
     Duration validity =
-        const Duration(hours: 24),
+        const Duration(
+      hours: 24,
+    ),
   }) async {
-    final random = Random.secure();
+    final random =
+        Random.secure();
 
     temporaryPassword =
         List.generate(
@@ -276,7 +499,8 @@ class MockESP32 {
       (_) => random.nextInt(10),
     ).join();
 
-    temporaryStart = DateTime.now();
+    temporaryStart =
+        DateTime.now();
 
     temporaryEnd =
         temporaryStart!.add(
@@ -284,7 +508,8 @@ class MockESP32 {
     );
 
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     await prefs.setString(
       _savedTempPasswordKey,
@@ -293,12 +518,14 @@ class MockESP32 {
 
     await prefs.setString(
       _savedTempStartKey,
-      temporaryStart!.toIso8601String(),
+      temporaryStart!
+          .toIso8601String(),
     );
 
     await prefs.setString(
       _savedTempEndKey,
-      temporaryEnd!.toIso8601String(),
+      temporaryEnd!
+          .toIso8601String(),
     );
 
     addLog(
@@ -308,7 +535,8 @@ class MockESP32 {
     return temporaryPassword!;
   }
 
-  Future<bool> verifyTemporaryUser(
+  Future<bool>
+      verifyTemporaryUser(
     String password,
   ) async {
     if (!connected) {
@@ -319,9 +547,12 @@ class MockESP32 {
       return false;
     }
 
-    if (temporaryPassword == null ||
-        temporaryStart == null ||
-        temporaryEnd == null) {
+    if (temporaryPassword ==
+            null ||
+        temporaryStart ==
+            null ||
+        temporaryEnd ==
+            null) {
       addLog(
         '临时借车认证失败：没有有效临时授权',
       );
@@ -329,9 +560,12 @@ class MockESP32 {
       return false;
     }
 
-    final now = DateTime.now();
+    final now =
+        DateTime.now();
 
-    if (now.isBefore(temporaryStart!)) {
+    if (now.isBefore(
+      temporaryStart!,
+    )) {
       addLog(
         '临时借车认证失败：授权尚未开始',
       );
@@ -339,7 +573,9 @@ class MockESP32 {
       return false;
     }
 
-    if (now.isAfter(temporaryEnd!)) {
+    if (now.isAfter(
+      temporaryEnd!,
+    )) {
       addLog(
         '临时借车认证失败：临时授权已过期',
       );
@@ -347,7 +583,8 @@ class MockESP32 {
       return false;
     }
 
-    if (password != temporaryPassword) {
+    if (password !=
+        temporaryPassword) {
       addLog(
         '临时借车密码错误',
       );
@@ -355,9 +592,12 @@ class MockESP32 {
       return false;
     }
 
-    sessionRole = 'temporary';
+    sessionRole =
+        'temporary';
 
-    await _saveRole('temporary');
+    await _saveRole(
+      'temporary',
+    );
 
     syncTime();
 
@@ -369,13 +609,17 @@ class MockESP32 {
   }
 
   bool get temporaryAuthorizationValid {
-    if (temporaryPassword == null ||
-        temporaryStart == null ||
-        temporaryEnd == null) {
+    if (temporaryPassword ==
+            null ||
+        temporaryStart ==
+            null ||
+        temporaryEnd ==
+            null) {
       return false;
     }
 
-    final now = DateTime.now();
+    final now =
+        DateTime.now();
 
     return !now.isBefore(
           temporaryStart!,
@@ -383,6 +627,66 @@ class MockESP32 {
         !now.isAfter(
           temporaryEnd!,
         );
+  }
+
+  Future<void>
+      simulateNewPhone() async {
+    _originalDeviceId ??=
+        deviceId;
+
+    final newDeviceId =
+        _generateDeviceId();
+
+    _deviceId =
+        newDeviceId;
+
+    connected = false;
+
+    adminAuthorized = false;
+
+    sessionRole = 'none';
+
+    await _saveDeviceId();
+
+    await clearSavedAuthorization();
+
+    addLog(
+      '已模拟切换到新手机：$newDeviceId',
+    );
+  }
+
+  Future<bool>
+      simulateOriginalPhoneAndAutoReconnect()
+          async {
+    if (_originalDeviceId ==
+        null) {
+      addLog(
+        '没有可切回的原手机身份',
+      );
+
+      return false;
+    }
+
+    _deviceId =
+        _originalDeviceId;
+
+    connected = false;
+
+    adminAuthorized = false;
+
+    sessionRole = 'admin';
+
+    await _saveDeviceId();
+
+    await _saveRole(
+      'admin',
+    );
+
+    addLog(
+      '已模拟切回原管理员手机',
+    );
+
+    return autoReconnect();
   }
 
   String executeCommand(
@@ -396,8 +700,10 @@ class MockESP32 {
       return '未连接';
     }
 
-    if (sessionRole != 'admin' &&
-        sessionRole != 'temporary') {
+    if (sessionRole !=
+            'admin' &&
+        sessionRole !=
+            'temporary') {
       addLog(
         '车辆指令拒绝：未授权',
       );
@@ -410,42 +716,49 @@ class MockESP32 {
         addLog(
           '锁车 GPIO12 短脉冲执行',
         );
+
         return '锁车成功';
 
       case 'jiesuo':
         addLog(
           '解锁 GPIO13 短脉冲执行',
         );
+
         return '解锁成功';
 
       case 'xunche':
         addLog(
           '寻车 GPIO12 连续双脉冲执行',
         );
+
         return '寻车成功';
 
       case 'chuangsheng':
         addLog(
           '升窗 GPIO12 保持7秒执行',
         );
+
         return '升窗成功';
 
       case 'chuangjiang':
         addLog(
           '降窗 GPIO13 保持7秒执行',
         );
+
         return '降窗成功';
 
       case 'houbeixiang':
         addLog(
           '后备箱 GPIO14 保持7秒执行',
         );
+
         return '后备箱成功';
 
       default:
         addLog(
           '未知车辆指令：$command',
         );
+
         return '未知指令';
     }
   }
