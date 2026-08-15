@@ -6,6 +6,7 @@ class MockESP32 {
   final String deviceName = '陕A0P92Y';
   final String deviceId = 'TianKey-V11-001';
 
+  // Tian Key V11 最终确认的初始管理员密码
   final String adminPassword = '13092991951';
 
   bool connected = false;
@@ -36,11 +37,9 @@ class MockESP32 {
       'tiankey_saved_temp_end';
 
   Future<void> loadSavedAuthorization() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
-    final savedRole =
-        prefs.getString(_savedRoleKey);
+    final savedRole = prefs.getString(_savedRoleKey);
 
     final savedTempPassword =
         prefs.getString(_savedTempPasswordKey);
@@ -52,18 +51,19 @@ class MockESP32 {
         prefs.getString(_savedTempEndKey);
 
     if (savedTempPassword != null) {
-      temporaryPassword =
-          savedTempPassword;
+      temporaryPassword = savedTempPassword;
     }
 
     if (savedTempStart != null) {
-      temporaryStart =
-          DateTime.tryParse(savedTempStart);
+      temporaryStart = DateTime.tryParse(
+        savedTempStart,
+      );
     }
 
     if (savedTempEnd != null) {
-      temporaryEnd =
-          DateTime.tryParse(savedTempEnd);
+      temporaryEnd = DateTime.tryParse(
+        savedTempEnd,
+      );
     }
 
     if (savedRole == 'admin') {
@@ -75,11 +75,17 @@ class MockESP32 {
         temporaryAuthorizationValid) {
       sessionRole = 'temporary';
     }
+
+    // 临时授权已经失效时，不恢复临时身份。
+    if (savedRole == 'temporary' &&
+        !temporaryAuthorizationValid) {
+      await prefs.remove(_savedRoleKey);
+      sessionRole = 'none';
+    }
   }
 
   Future<void> _saveRole(String role) async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
     await prefs.setString(
       _savedRoleKey,
@@ -88,15 +94,16 @@ class MockESP32 {
   }
 
   Future<void> clearSavedAuthorization() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
     await prefs.remove(_savedRoleKey);
+
+    sessionRole = 'none';
+    adminAuthorized = false;
   }
 
   Future<void> clearTemporaryAuthorization() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
     temporaryPassword = null;
     temporaryStart = null;
@@ -144,14 +151,17 @@ class MockESP32 {
         return false;
       }
 
-      final time =
-          DateTime.tryParse(match.group(1)!);
+      final time = DateTime.tryParse(
+        match.group(1)!,
+      );
 
       if (time == null) {
         return false;
       }
 
-      return time.isBefore(sevenDaysAgo);
+      return time.isBefore(
+        sevenDaysAgo,
+      );
     });
 
     while (logs.length > 200) {
@@ -211,9 +221,7 @@ class MockESP32 {
     }
 
     connected = false;
-
     adminAuthorized = false;
-
     sessionRole = 'none';
 
     addLog('连接状态清理完成');
@@ -237,7 +245,6 @@ class MockESP32 {
     }
 
     adminAuthorized = true;
-
     sessionRole = 'admin';
 
     await _saveRole('admin');
@@ -261,8 +268,7 @@ class MockESP32 {
     Duration validity =
         const Duration(hours: 24),
   }) async {
-    final random =
-        Random.secure();
+    final random = Random.secure();
 
     temporaryPassword =
         List.generate(
@@ -270,8 +276,7 @@ class MockESP32 {
       (_) => random.nextInt(10),
     ).join();
 
-    temporaryStart =
-        DateTime.now();
+    temporaryStart = DateTime.now();
 
     temporaryEnd =
         temporaryStart!.add(
@@ -405,49 +410,42 @@ class MockESP32 {
         addLog(
           '锁车 GPIO12 短脉冲执行',
         );
-
         return '锁车成功';
 
       case 'jiesuo':
         addLog(
           '解锁 GPIO13 短脉冲执行',
         );
-
         return '解锁成功';
 
       case 'xunche':
         addLog(
           '寻车 GPIO12 连续双脉冲执行',
         );
-
         return '寻车成功';
 
       case 'chuangsheng':
         addLog(
           '升窗 GPIO12 保持7秒执行',
         );
-
         return '升窗成功';
 
       case 'chuangjiang':
         addLog(
           '降窗 GPIO13 保持7秒执行',
         );
-
         return '降窗成功';
 
       case 'houbeixiang':
         addLog(
           '后备箱 GPIO14 保持7秒执行',
         );
-
         return '后备箱成功';
 
       default:
         addLog(
           '未知车辆指令：$command',
         );
-
         return '未知指令';
     }
   }
