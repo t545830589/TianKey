@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
+import '../services/mock_vehicle.dart';
 
 import 'permission_page.dart';
-
 import 'control_page.dart';
+import 'log_page.dart';
 
 
 
@@ -33,11 +34,15 @@ class HomePage extends StatefulWidget {
 
 
 
+
 class _HomePageState extends State<HomePage> {
 
 
 
   bool connected = false;
+
+
+  final MockVehicle vehicle = MockVehicle();
 
 
 
@@ -79,33 +84,29 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
   void openPermission(){
 
 
     Navigator.push(
 
-
       context,
-
 
       MaterialPageRoute(
 
+        builder:(context)=>
 
-        builder:(context)=>PermissionPage(
+        PermissionPage(
 
           esp32:widget.esp32,
 
         ),
 
-
       ),
-
 
     ).then((value){
 
-
       setState(() {});
-
 
     });
 
@@ -117,27 +118,56 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
+
   void openControl(){
 
 
     Navigator.push(
 
-
       context,
-
 
       MaterialPageRoute(
 
+        builder:(context)=>
 
-        builder:(context)=>ControlPage(
+        ControlPage(
 
           esp32:widget.esp32,
 
         ),
 
-
       ),
 
+    );
+
+
+  }
+
+
+
+
+
+
+
+  void openLog(){
+
+
+    Navigator.push(
+
+      context,
+
+      MaterialPageRoute(
+
+        builder:(context)=>
+
+        LogPage(
+
+          esp32:widget.esp32,
+
+        ),
+
+      ),
 
     );
 
@@ -161,16 +191,13 @@ class _HomePageState extends State<HomePage> {
 
       appBar:AppBar(
 
-
         title:const Text(
 
           "Tian Key V11",
 
         ),
 
-
         centerTitle:true,
-
 
       ),
 
@@ -197,7 +224,6 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
             const Text(
 
               "车辆信息",
@@ -215,7 +241,9 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
             const SizedBox(height:10),
+
 
 
 
@@ -238,7 +266,55 @@ class _HomePageState extends State<HomePage> {
 
 
 
-            const SizedBox(height:30),
+            const SizedBox(height:25),
+
+
+
+
+
+            Text(
+
+              "🔋 电量：${vehicle.getBattery()}",
+
+            ),
+
+
+
+
+
+            Text(
+
+              "🚪 车门：${vehicle.getDoorStatus()}",
+
+            ),
+
+
+
+
+
+            Text(
+
+              "🔒 车锁：${vehicle.getLockStatus()}",
+
+            ),
+
+
+
+
+
+            Text(
+
+              "🌡 温度：${vehicle.getTemperature()}",
+
+            ),
+
+
+
+
+
+            const SizedBox(height:25),
+
+
 
 
 
@@ -249,10 +325,6 @@ class _HomePageState extends State<HomePage> {
 
             ),
 
-
-
-
-            const SizedBox(height:10),
 
 
 
@@ -267,11 +339,6 @@ class _HomePageState extends State<HomePage> {
 
 
 
-            const SizedBox(height:10),
-
-
-
-
             Text(
 
               "设备ID：${widget.esp32.deviceId}",
@@ -281,16 +348,17 @@ class _HomePageState extends State<HomePage> {
 
 
 
-            const SizedBox(height:30),
+
+
+            const SizedBox(height:25),
+
 
 
 
 
             ElevatedButton(
 
-
               onPressed:toggleConnection,
-
 
               child:Text(
 
@@ -302,38 +370,34 @@ class _HomePageState extends State<HomePage> {
 
               ),
 
-
             ),
 
 
 
 
 
-            const SizedBox(height:15),
+
+            const SizedBox(height:10),
+
+
 
 
 
 
             ElevatedButton(
 
-
               onPressed:openPermission,
 
+              child:
 
-              child:const Text(
+              const Text(
 
                 "权限管理",
 
               ),
 
-
             ),
 
-
-
-
-
-            const SizedBox(height:15),
 
 
 
@@ -341,19 +405,36 @@ class _HomePageState extends State<HomePage> {
 
             ElevatedButton(
 
-
               onPressed:openControl,
 
+              child:
 
-              child:const Text(
+              const Text(
 
                 "车辆控制中心",
 
               ),
 
-
             ),
 
+
+
+
+
+
+            ElevatedButton(
+
+              onPressed:openLog,
+
+              child:
+
+              const Text(
+
+                "车辆日志",
+
+              ),
+
+            ),
 
 
 
@@ -362,10 +443,13 @@ class _HomePageState extends State<HomePage> {
           ],
 
 
+
         ),
 
 
+
       ),
+
 
 
     );
