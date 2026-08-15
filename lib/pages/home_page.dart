@@ -122,7 +122,6 @@ class _HomePageState extends State<HomePage> {
 
   void openControl(){
 
-
     Navigator.push(
 
       context,
@@ -135,14 +134,15 @@ class _HomePageState extends State<HomePage> {
 
           esp32:widget.esp32,
 
+          vehicle:vehicle,
+
         ),
 
       ),
 
     );
 
-
-  }
+}
 
 
 
