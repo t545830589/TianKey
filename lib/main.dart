@@ -1,83 +1,51 @@
 import 'package:flutter/material.dart';
-
-import 'services/mock_esp32.dart';
-
-import 'pages/home_page.dart';
+import 'pages/main_page.dart';
 
 
-
-void main() {
-
+void main(){
 
   WidgetsFlutterBinding.ensureInitialized();
 
-
   runApp(const TianKeyApp());
-
 
 }
 
 
 
-
-class TianKeyApp extends StatelessWidget {
-
+class TianKeyApp extends StatelessWidget{
 
   const TianKeyApp({super.key});
 
 
-
-  // 全APP唯一车辆模拟设备
-
-  static final MockESP32 esp32 = MockESP32();
-
-
-
-
   @override
-  Widget build(BuildContext context) {
-
-
+  Widget build(BuildContext context){
 
     return MaterialApp(
 
-
       debugShowCheckedModeBanner:false,
 
-
-      title:'Tian Key V11',
-
-
+      title:"Tian Key",
 
       theme:ThemeData(
 
-
         brightness:Brightness.dark,
-
 
         scaffoldBackgroundColor:Colors.black,
 
+        colorScheme:ColorScheme.dark(
 
-        fontFamily:'Arial',
+          primary:Colors.blueAccent,
 
-
-      ),
-
-
-
-      home:HomePage(
-
-        esp32:esp32,
+        ),
 
       ),
 
 
+      home:const MainPage(),
 
     );
 
-
   }
-
 
 
 }
