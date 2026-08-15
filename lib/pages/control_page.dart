@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
+import '../services/mock_vehicle.dart';
 
 
 
@@ -10,11 +11,16 @@ class ControlPage extends StatefulWidget {
   final MockESP32 esp32;
 
 
+  final MockVehicle vehicle;
+
+
   const ControlPage({
 
     super.key,
 
     required this.esp32,
+
+    required this.vehicle,
 
   });
 
@@ -25,6 +31,7 @@ class ControlPage extends StatefulWidget {
 
 
 }
+
 
 
 
@@ -40,92 +47,50 @@ class _ControlPageState extends State<ControlPage> {
   void execute(String command){
 
 
-
-    if(!widget.esp32.isConnected()){
-
-
-      setState(() {
-
-
-        status = "设备未连接";
-
-
-      });
-
-
-      return;
-
-
-    }
-
-
-
-
-    if(!widget.esp32.adminAuthorized &&
-
-       !widget.esp32.temporaryAuthorized){
-
-
-
-      setState(() {
-
-
-        status = "请先完成身份授权";
-
-
-      });
-
-
-      return;
-
-
-    }
-
-
-
-
-
-
     setState(() {
 
 
-      status = "正在执行：$command";
+
+      if(command=="锁车"){
+
+
+        widget.vehicle.lockCar();
+
+
+      }
+
+
+
+
+      if(command=="解锁"){
+
+
+        widget.vehicle.unlockCar();
+
+
+      }
+
+
+
+
+      if(command=="后备箱"){
+
+
+        widget.vehicle.openDoor();
+
+
+      }
+
+
+
+
+      status =
+
+      widget.esp32.executeCommand(command);
+
 
 
     });
-
-
-
-
-
-    Future.delayed(
-
-      const Duration(seconds:1),
-
-      (){
-
-
-
-        String result =
-
-        widget.esp32.executeCommand(command);
-
-
-
-        setState(() {
-
-
-          status=result;
-
-
-        });
-
-
-
-      },
-
-    );
-
 
 
   }
@@ -141,80 +106,40 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-    bool admin =
-
-    widget.esp32.adminAuthorized;
-
-
-
-    bool temporary =
-
-    widget.esp32.temporaryAuthorized;
-
-
-
-
-
     return Scaffold(
 
 
 
       appBar:AppBar(
 
+        title:
 
-        title:const Text(
+        const Text(
 
-          "车辆控制中心",
+          "车辆控制",
 
         ),
-
-
-        centerTitle:true,
-
 
       ),
 
 
 
 
-      body:Padding(
-
-
-        padding:const EdgeInsets.all(20),
+      body:Center(
 
 
 
         child:Column(
 
 
+
+          mainAxisAlignment:
+
+          MainAxisAlignment.center,
+
+
+
           children:[
-
-
-
-
-
-            Text(
-
-              "当前身份：${widget.esp32.getCurrentUser()}",
-
-              style:
-
-              const TextStyle(
-
-                color:Colors.cyan,
-
-                fontSize:18,
-
-              ),
-
-            ),
-
-
-
-
-
-            const SizedBox(height:10),
-
 
 
 
@@ -223,114 +148,13 @@ class _ControlPageState extends State<ControlPage> {
 
               status,
 
-            ),
-
-
-
-
-
-            const SizedBox(height:30),
-
-
-
-
-            Wrap(
-
-
-              spacing:15,
-
-              runSpacing:15,
-
-
-
-              children:[
-
-
-
-                _button(
-
-                  "🔒",
-
-                  "锁车",
-
-                  "锁车",
-
-                ),
-
-
-
-
-                _button(
-
-                  "🔓",
-
-                  "解锁",
-
-                  "解锁",
-
-                ),
-
-
-
-
-                _button(
-
-                  "🚗",
-
-                  "寻车",
-
-                  "寻车",
-
-                ),
-
-
-
-
-
-
-                if(admin)
-
-                _button(
-
-                  "📦",
-
-                  "后备箱",
-
-                  "后备箱",
-
-                ),
-
-
-
-
-              ],
-
-
-
-            ),
-
-
-
-
-
-            const SizedBox(height:30),
-
-
-
-
-
-            if(!admin && !temporary)
-
-
-            const Text(
-
-              "无授权，无法控制车辆",
-
               style:
 
-              TextStyle(
+              const TextStyle(
 
-                color:Colors.redAccent,
+                color:Colors.cyan,
+
+                fontSize:20,
 
               ),
 
@@ -338,119 +162,106 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-          ],
 
 
+            const SizedBox(height:40),
 
-        ),
 
 
 
-      ),
 
 
+            ElevatedButton(
 
-    );
+              onPressed:(){
 
+                execute("锁车");
 
-  }
+              },
 
+              child:
 
+              const Text(
 
+                "🔒 锁车",
 
-
-
-
-
-  Widget _button(
-
-      String icon,
-
-      String title,
-
-      String command,
-
-      ){
-
-
-
-    return ElevatedButton(
-
-
-
-      style:
-
-      ElevatedButton.styleFrom(
-
-
-        minimumSize:
-
-        const Size(130,130),
-
-
-
-        shape:
-
-        RoundedRectangleBorder(
-
-          borderRadius:
-
-          BorderRadius.circular(30),
-
-        ),
-
-
-      ),
-
-
-
-      onPressed:(){
-
-
-        execute(command);
-
-
-      },
-
-
-
-      child:Column(
-
-
-        mainAxisAlignment:
-
-        MainAxisAlignment.center,
-
-
-        children:[
-
-
-
-          Text(
-
-            icon,
-
-            style:
-
-            const TextStyle(
-
-              fontSize:40,
+              ),
 
             ),
 
-          ),
 
 
 
-          const SizedBox(height:10),
+
+            ElevatedButton(
+
+              onPressed:(){
+
+                execute("解锁");
+
+              },
+
+              child:
+
+              const Text(
+
+                "🔓 解锁",
+
+              ),
+
+            ),
 
 
 
-          Text(title),
+
+
+            ElevatedButton(
+
+              onPressed:(){
+
+                execute("寻车");
+
+              },
+
+              child:
+
+              const Text(
+
+                "🚗 寻车",
+
+              ),
+
+            ),
 
 
 
-        ],
+
+
+            ElevatedButton(
+
+              onPressed:(){
+
+                execute("后备箱");
+
+              },
+
+              child:
+
+              const Text(
+
+                "📦 后备箱",
+
+              ),
+
+            ),
+
+
+
+
+          ],
+
+
+        ),
 
 
 
