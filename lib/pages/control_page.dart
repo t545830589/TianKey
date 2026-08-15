@@ -1,38 +1,55 @@
-
 import 'package:flutter/material.dart';
+
 import '../services/mock_esp32.dart';
+
 
 
 class ControlPage extends StatefulWidget {
 
-  const ControlPage({super.key});
+
+  final MockESP32 esp32;
+
+
+  const ControlPage({
+
+    super.key,
+
+    required this.esp32,
+
+  });
+
 
 
   @override
   State<ControlPage> createState() => _ControlPageState();
 
+
 }
+
 
 
 
 class _ControlPageState extends State<ControlPage> {
 
 
-  final MockESP32 esp32 = MockESP32();
-
 
   String status = "等待操作";
 
 
 
-  void execute(String command) {
+
+  void execute(String command){
+
 
 
     setState(() {
 
+
       status = "正在执行：$command";
 
+
     });
+
 
 
 
@@ -40,11 +57,12 @@ class _ControlPageState extends State<ControlPage> {
 
       const Duration(seconds:1),
 
-      () {
+      (){
 
 
         String result =
-            esp32.executeCommand(command);
+
+        widget.esp32.executeCommand(command);
 
 
 
@@ -57,8 +75,8 @@ class _ControlPageState extends State<ControlPage> {
         });
 
 
-
       },
+
 
     );
 
@@ -71,33 +89,36 @@ class _ControlPageState extends State<ControlPage> {
 
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context){
+
 
 
     return Scaffold(
 
 
-      appBar: AppBar(
 
-        title: const Text(
+      appBar:AppBar(
+
+
+        title:const Text(
 
           "车辆控制",
 
         ),
 
+
         centerTitle:true,
+
 
       ),
 
 
 
 
-      body: Padding(
+      body:Padding(
 
 
-        padding:
-
-        const EdgeInsets.all(20),
+        padding:const EdgeInsets.all(20),
 
 
 
@@ -108,8 +129,26 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+            Text(
 
-            const SizedBox(height:20),
+              "当前身份：${widget.esp32.getCurrentUser()}",
+
+              style:
+
+              const TextStyle(
+
+                color:Colors.cyan,
+
+                fontSize:18,
+
+              ),
+
+            ),
+
+
+
+
+            const SizedBox(height:10),
 
 
 
@@ -124,11 +163,10 @@ class _ControlPageState extends State<ControlPage> {
 
                 fontSize:18,
 
-                color:Colors.cyan,
-
               ),
 
             ),
+
 
 
 
@@ -138,9 +176,8 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-
-
             Row(
+
 
               mainAxisAlignment:
 
@@ -157,11 +194,7 @@ class _ControlPageState extends State<ControlPage> {
 
                   "锁车",
 
-                  (){
-
-                    execute("锁车");
-
-                  },
+                  "锁车",
 
                 ),
 
@@ -173,17 +206,14 @@ class _ControlPageState extends State<ControlPage> {
 
                   "解锁",
 
-                  (){
-
-                    execute("解锁");
-
-                  },
+                  "解锁",
 
                 ),
 
 
 
               ],
+
 
             ),
 
@@ -196,7 +226,9 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
+
             Row(
+
 
               mainAxisAlignment:
 
@@ -213,14 +245,9 @@ class _ControlPageState extends State<ControlPage> {
 
                   "寻车",
 
-                  (){
-
-                    execute("寻车");
-
-                  },
+                  "寻车",
 
                 ),
-
 
 
 
@@ -230,20 +257,14 @@ class _ControlPageState extends State<ControlPage> {
 
                   "后备箱",
 
-                  (){
-
-
-                    _confirmTrunk();
-
-
-                  },
+                  "后备箱",
 
                 ),
 
 
 
-
               ],
+
 
             ),
 
@@ -251,9 +272,15 @@ class _ControlPageState extends State<ControlPage> {
 
           ],
 
+
+
         ),
 
+
+
       ),
+
+
 
     );
 
@@ -272,13 +299,14 @@ class _ControlPageState extends State<ControlPage> {
 
       String title,
 
-      VoidCallback action,
+      String command,
 
       ){
 
 
 
     return ElevatedButton(
+
 
 
       style:
@@ -307,19 +335,23 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-      onPressed: action,
+
+      onPressed:(){
+
+
+        execute(command);
+
+
+      },
 
 
 
-      child:
-
-      Column(
+      child:Column(
 
 
         mainAxisAlignment:
 
         MainAxisAlignment.center,
-
 
 
         children:[
@@ -346,114 +378,18 @@ class _ControlPageState extends State<ControlPage> {
 
 
 
-          Text(
-
-            title,
-
-          ),
+          Text(title),
 
 
 
         ],
+
 
       ),
 
 
     );
 
-  }
-
-
-
-
-
-
-
-  void _confirmTrunk(){
-
-
-
-    showDialog(
-
-
-      context:context,
-
-
-      builder:(context){
-
-
-        return AlertDialog(
-
-
-
-          title:
-
-          const Text(
-
-            "确认打开后备箱？",
-
-          ),
-
-
-
-          actions:[
-
-
-
-            TextButton(
-
-              onPressed:(){
-
-                Navigator.pop(context);
-
-              },
-
-              child:
-
-              const Text(
-
-                "取消",
-
-              ),
-
-            ),
-
-
-
-            TextButton(
-
-              onPressed:(){
-
-
-                Navigator.pop(context);
-
-
-                execute("后备箱");
-
-
-              },
-
-              child:
-
-              const Text(
-
-                "确定",
-
-              ),
-
-            ),
-
-
-
-          ],
-
-        );
-
-
-      },
-
-
-    );
 
   }
 
