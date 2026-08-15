@@ -1,11 +1,19 @@
-
 import 'package:flutter/material.dart';
 import '../services/mock_esp32.dart';
 
 
 class PermissionPage extends StatefulWidget {
 
-  const PermissionPage({super.key});
+  final MockESP32 esp32;
+
+
+  const PermissionPage({
+
+    super.key,
+
+    required this.esp32,
+
+  });
 
 
   @override
@@ -15,10 +23,105 @@ class PermissionPage extends StatefulWidget {
 
 
 
+
+
 class _PermissionPageState extends State<PermissionPage> {
 
 
-  final MockESP32 esp32 = MockESP32();
+  String role = "请选择身份";
+
+
+  final TextEditingController passwordController =
+      TextEditingController();
+
+
+
+  String result = "";
+
+
+
+
+  void adminLogin(){
+
+
+    bool success = widget.esp32.adminLogin(
+
+      passwordController.text,
+
+    );
+
+
+
+    setState(() {
+
+
+      role = "管理员";
+
+
+      if(success){
+
+
+        result = "管理员授权成功";
+
+
+      }else{
+
+
+        result = "管理员密码错误";
+
+
+      }
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+  void temporaryLogin(){
+
+
+    bool success = widget.esp32.temporaryLogin(
+
+      passwordController.text,
+
+    );
+
+
+
+    setState(() {
+
+
+      role = "临时借车";
+
+
+      if(success){
+
+
+        result = "临时借车授权成功\n有效时间8小时";
+
+
+      }else{
+
+
+        result = "临时密码错误";
+
+
+      }
+
+
+    });
+
+
+  }
+
+
+
 
 
 
@@ -28,122 +131,72 @@ class _PermissionPageState extends State<PermissionPage> {
 
     return Scaffold(
 
+
+      backgroundColor: Colors.black,
+
+
+
       appBar: AppBar(
 
+
+        backgroundColor: Colors.black,
+
+
         title: const Text(
-          '权限管理',
+
+          "权限授权",
+
         ),
 
+
         centerTitle:true,
+
 
       ),
 
 
 
+
+
       body: Padding(
 
-        padding: const EdgeInsets.all(20),
 
+        padding:
 
-        child: Column(
-
-          crossAxisAlignment: CrossAxisAlignment.start,
-
-
-          children: [
+        const EdgeInsets.all(20),
 
 
 
-            const Text(
+        child:Column(
 
-              '当前身份',
 
-              style:TextStyle(
+          crossAxisAlignment:
 
-                fontSize:18,
-
-                fontWeight:FontWeight.bold,
-
-              ),
-
-            ),
+          CrossAxisAlignment.start,
 
 
 
-            const SizedBox(height:10),
-
-
-
-            _infoCard(
-
-              '身份',
-
-              esp32.getCurrentUser(),
-
-            ),
-
-
-
-            _infoCard(
-
-              '权限等级',
-
-              esp32.sessionRole == "admin"
-
-                  ? "最高权限"
-
-                  : "临时控制",
-
-            ),
-
-
-
-
-            const SizedBox(height:20),
+          children:[
 
 
 
             const Text(
 
-              '授权状态',
+              "请选择连接身份",
 
-              style:TextStyle(
+              style:
 
-                fontSize:18,
+              TextStyle(
 
-                fontWeight:FontWeight.bold,
+                color:Colors.white,
+
+                fontSize:20,
+
+                fontWeight:
+
+                FontWeight.bold,
 
               ),
-
-            ),
-
-
-
-            const SizedBox(height:10),
-
-
-
-
-            _infoCard(
-
-              '管理员授权',
-
-              esp32.adminAuthorized
-
-                  ? "已授权"
-
-                  : "未授权",
-
-            ),
-
-
-
-
-            _infoCard(
-
-              '临时授权',
-
-              esp32.temporaryAuthorizationStatus,
 
             ),
 
@@ -155,58 +208,106 @@ class _PermissionPageState extends State<PermissionPage> {
 
 
 
-            const Text(
 
-              '临时借车信息',
 
-              style:TextStyle(
+            Row(
 
-                fontSize:18,
 
-                fontWeight:FontWeight.bold,
+              children:[
 
-              ),
+
+
+                Expanded(
+
+
+                  child:
+
+                  ElevatedButton(
+
+
+                    onPressed:(){
+
+
+                      setState(() {
+
+
+                        role="管理员";
+
+
+                      });
+
+
+                    },
+
+
+                    child:
+
+                    const Text(
+
+                      "管理员",
+
+                    ),
+
+
+                  ),
+
+
+                ),
+
+
+
+
+                const SizedBox(width:15),
+
+
+
+
+
+                Expanded(
+
+
+                  child:
+
+                  ElevatedButton(
+
+
+                    onPressed:(){
+
+
+                      setState(() {
+
+
+                        role="临时借车";
+
+
+                      });
+
+
+                    },
+
+
+                    child:
+
+                    const Text(
+
+                      "临时借车",
+
+                    ),
+
+
+                  ),
+
+
+                ),
+
+
+
+              ],
+
 
             ),
 
 
-
-
-            const SizedBox(height:10),
-
-
-
-            _infoCard(
-
-              '临时密码',
-
-              esp32.temporaryPassword,
-
-            ),
-
-
-
-            _infoCard(
-
-              '开始时间',
-
-              esp32.temporaryStart?.toString()
-
-              ?? "无",
-
-            ),
-
-
-
-            _infoCard(
-
-              '结束时间',
-
-              esp32.temporaryEnd?.toString()
-
-              ?? "无",
-
-            ),
 
 
 
@@ -216,91 +317,215 @@ class _PermissionPageState extends State<PermissionPage> {
 
 
 
-            ElevatedButton(
 
-              onPressed:(){
-
-
-                setState((){});
+            Text(
 
 
-              },
+              "当前选择：$role",
 
 
-              child: const Text(
+              style:
 
-                '刷新权限状态',
+              const TextStyle(
+
+                color:Colors.cyan,
+
+                fontSize:18,
 
               ),
 
-            ),
-
-
-
-          ],
-
-        ),
-
-      ),
-
-    );
-
-  }
-
-
-
-
-
-
-  Widget _infoCard(String title,String value){
-
-
-    return Padding(
-
-      padding:
-
-      const EdgeInsets.symmetric(vertical:5),
-
-
-      child:Row(
-
-        children:[
-
-
-          Text(
-
-            '$title：',
-
-            style:const TextStyle(
-
-              color:Colors.grey,
 
             ),
 
-          ),
 
 
 
-          Expanded(
 
-            child:Text(
 
-              value,
+            const SizedBox(height:20),
 
-              style:const TextStyle(
+
+
+
+
+
+            TextField(
+
+
+              controller:
+
+              passwordController,
+
+
+
+              obscureText:true,
+
+
+
+              style:
+
+              const TextStyle(
 
                 color:Colors.white,
 
               ),
 
+
+
+              decoration:
+
+              const InputDecoration(
+
+
+                labelText:"请输入密码",
+
+
+                labelStyle:
+
+                TextStyle(
+
+                  color:Colors.grey,
+
+                ),
+
+
+                enabledBorder:
+
+                UnderlineInputBorder(
+
+
+                  borderSide:
+
+                  BorderSide(
+
+                    color:Colors.grey,
+
+                  ),
+
+                ),
+
+              ),
+
+
+
             ),
 
-          ),
 
 
-        ],
+
+
+
+
+            const SizedBox(height:30),
+
+
+
+
+
+            SizedBox(
+
+
+              width:
+
+              double.infinity,
+
+
+
+              child:
+
+              ElevatedButton(
+
+
+                onPressed:(){
+
+
+
+                  if(role=="管理员"){
+
+
+
+                    adminLogin();
+
+
+
+                  }else if(role=="临时借车"){
+
+
+
+                    temporaryLogin();
+
+
+
+                  }
+
+
+
+                },
+
+
+
+                child:
+
+                const Text(
+
+                  "确认授权",
+
+                ),
+
+
+
+              ),
+
+
+
+            ),
+
+
+
+
+
+
+            const SizedBox(height:30),
+
+
+
+
+
+
+            Text(
+
+
+              result,
+
+
+              style:
+
+              const TextStyle(
+
+                color:Colors.greenAccent,
+
+                fontSize:18,
+
+              ),
+
+
+
+            ),
+
+
+
+
+          ],
+
+
+
+        ),
+
+
 
       ),
+
+
 
     );
 
