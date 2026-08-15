@@ -3,44 +3,84 @@ import '../services/mock_esp32.dart';
 
 
 class HomePage extends StatefulWidget {
+
   const HomePage({super.key});
 
 
   @override
   State<HomePage> createState() => _HomePageState();
+
 }
 
 
 
 class _HomePageState extends State<HomePage> {
 
+
   final MockESP32 esp32 = MockESP32();
 
 
-  bool connected = false;
+  String message = "设备未连接";
 
 
-  void toggleConnection(){
+
+  void connectDevice(){
+
 
     setState(() {
 
-      if(connected){
 
-        esp32.disconnectBLE();
+      esp32.connectBLE();
 
-        connected = false;
 
-      }else{
+      message = "BLE连接成功";
 
-        esp32.connectBLE();
-
-        connected = true;
-
-      }
 
     });
 
+
   }
+
+
+
+
+
+  void disconnectDevice(){
+
+
+    setState(() {
+
+
+      esp32.disconnectBLE();
+
+
+      message = "BLE已断开";
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+  void control(String action){
+
+
+    setState(() {
+
+
+      message = esp32.executeCommand(action);
+
+
+    });
+
+
+  }
+
 
 
 
@@ -51,53 +91,94 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
 
+
+      backgroundColor: Colors.black,
+
+
       appBar: AppBar(
 
-        title: const Text('Tian Key V11'),
+
+        backgroundColor: Colors.black,
+
+
+        title: const Text(
+
+          "Tian Key V11",
+
+        ),
+
 
         centerTitle: true,
+
 
       ),
 
 
-      body: Padding(
+
+
+      body: SingleChildScrollView(
+
 
         padding: const EdgeInsets.all(20),
 
+
         child: Column(
 
-          crossAxisAlignment: CrossAxisAlignment.start,
 
           children: [
 
 
-            const Text(
-              '车辆信息',
-              style: TextStyle(
-                fontSize:18,
-                fontWeight:FontWeight.bold,
-              ),
-            ),
 
 
-
-            const SizedBox(height:10),
-
+            Container(
 
 
-            const Text(
+              width: double.infinity,
 
-              '陕A0P92Y',
 
-              style:TextStyle(
+              height: 170,
 
-                fontSize:22,
 
-                color:Colors.cyan,
+              decoration: BoxDecoration(
+
+
+                borderRadius:
+
+                BorderRadius.circular(20),
+
+
+                color: Colors.grey[900],
+
 
               ),
 
+
+
+              child: const Center(
+
+
+                child: Text(
+
+
+                  "车辆图片区域",
+
+
+                  style: TextStyle(
+
+                    color: Colors.grey,
+
+                    fontSize:18,
+
+                  ),
+
+                ),
+
+              ),
+
+
             ),
+
+
 
 
 
@@ -105,85 +186,295 @@ class _HomePageState extends State<HomePage> {
 
 
 
-            const Text(
 
-              '当前状态',
 
-              style:TextStyle(
+            _card(
+
+
+              "车辆信息",
+
+
+              [
+
+                "车牌：陕A0P92Y",
+
+                "设备ID：${esp32.deviceId}",
+
+              ],
+
+
+            ),
+
+
+
+
+
+            const SizedBox(height:15),
+
+
+
+
+
+            _card(
+
+
+              "当前状态",
+
+
+              [
+
+                "蓝牙：${esp32.isConnected() ? "已连接":"未连接"}",
+
+                "身份：${esp32.getCurrentUser()}",
+
+                "权限：${esp32.sessionRole}",
+
+                "时间：已同步",
+
+              ],
+
+
+            ),
+
+
+
+
+
+
+            const SizedBox(height:20),
+
+
+
+
+
+            Row(
+
+
+              mainAxisAlignment:
+
+              MainAxisAlignment.spaceEvenly,
+
+
+              children:[
+
+
+                _bigButton(
+
+                  "连接",
+
+                  (){
+
+                    connectDevice();
+
+                  },
+
+                ),
+
+
+
+                _bigButton(
+
+                  "断开",
+
+                  (){
+
+                    disconnectDevice();
+
+                  },
+
+                ),
+
+
+
+              ],
+
+
+            ),
+
+
+
+
+
+
+            const SizedBox(height:20),
+
+
+
+
+
+
+            Text(
+
+
+              message,
+
+
+              style:
+
+              const TextStyle(
+
+                color:Colors.cyan,
 
                 fontSize:18,
 
-                fontWeight:FontWeight.bold,
-
               ),
 
-            ),
-
-
-
-            const SizedBox(height:10),
-
-
-
-            _buildStatusRow(
-
-              '蓝牙',
-
-              connected ? '已连接' : '未连接',
 
             ),
 
 
 
-            _buildStatusRow(
 
-              '管理员',
 
-              '未授权',
+            const SizedBox(height:25),
+
+
+
+
+
+
+            Wrap(
+
+
+              spacing:12,
+
+              runSpacing:12,
+
+
+              children:[
+
+
+
+                _controlButton("锁车"),
+
+
+                _controlButton("解锁"),
+
+
+                _controlButton("升窗"),
+
+
+                _controlButton("降窗"),
+
+
+                _controlButton("寻车"),
+
+
+                _controlButton("后备箱"),
+
+
+
+              ],
+
 
             ),
 
 
 
-            _buildStatusRow(
 
-              '时间',
 
-              '未同步',
+          ],
+
+
+        ),
+
+
+      ),
+
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+
+
+  Widget _card(String title,List<String> items){
+
+
+    return Container(
+
+
+      width:double.infinity,
+
+
+      padding:
+
+      const EdgeInsets.all(15),
+
+
+      decoration:
+
+      BoxDecoration(
+
+
+        color:Colors.grey[900],
+
+
+        borderRadius:
+
+        BorderRadius.circular(20),
+
+
+      ),
+
+
+
+      child:Column(
+
+
+        crossAxisAlignment:
+
+        CrossAxisAlignment.start,
+
+
+        children:[
+
+
+
+          Text(
+
+
+            title,
+
+
+            style:
+
+            const TextStyle(
+
+              color:Colors.white,
+
+              fontSize:18,
+
+              fontWeight:FontWeight.bold,
 
             ),
 
 
-
-            const SizedBox(height:30),
-
-
-
-            ElevatedButton(
-
-              onPressed: toggleConnection,
-
-              child: Text(
-
-                connected ? '断开车辆' : '连接车辆',
-
-              ),
-
-            ),
+          ),
 
 
 
-            const SizedBox(height:30),
+          const SizedBox(height:10),
 
 
 
-            const Text(
+          ...items.map(
 
-              '控制操作',
 
-              style:TextStyle(
+                (e)=>Text(
 
-                fontSize:16,
+              e,
+
+              style:
+
+              const TextStyle(
 
                 color:Colors.grey,
 
@@ -192,88 +483,18 @@ class _HomePageState extends State<HomePage> {
             ),
 
 
-
-            const SizedBox(height:15),
-
-
-
-            Row(
-
-              mainAxisAlignment:MainAxisAlignment.spaceEvenly,
-
-              children:[
-
-
-                _buildButton('锁车'),
-
-                _buildButton('解锁'),
-
-                _buildButton('寻车'),
-
-                _buildButton('后备箱'),
-
-
-              ],
-
-            ),
-
-
-          ],
-
-
-        ),
-
-      ),
-
-    );
-
-  }
-
-
-
-
-
-  Widget _buildStatusRow(String label,String value){
-
-    return Padding(
-
-      padding:const EdgeInsets.symmetric(vertical:4),
-
-      child:Row(
-
-        children:[
-
-          Text(
-
-            '$label：',
-
-            style:const TextStyle(
-
-              color:Colors.grey,
-
-            ),
-
           ),
 
-
-          Text(
-
-            value,
-
-            style:const TextStyle(
-
-              color:Colors.white,
-
-            ),
-
-          ),
 
 
         ],
 
+
       ),
 
+
     );
+
 
   }
 
@@ -281,17 +502,73 @@ class _HomePageState extends State<HomePage> {
 
 
 
-  Widget _buildButton(String text){
+
+
+  Widget _bigButton(String text,VoidCallback action){
+
 
     return ElevatedButton(
 
-      onPressed:null,
 
-      child:Text(text),
+      onPressed:action,
+
+
+      style:
+
+      ElevatedButton.styleFrom(
+
+
+        minimumSize:
+
+        const Size(130,55),
+
+
+      ),
+
+
+
+      child:
+
+      Text(text),
+
 
     );
 
+
   }
+
+
+
+
+
+
+
+  Widget _controlButton(String text){
+
+
+    return ElevatedButton(
+
+
+      onPressed:(){
+
+
+        control(text);
+
+
+      },
+
+
+      child:
+
+      Text(text),
+
+
+    );
+
+
+  }
+
+
 
 
 }
