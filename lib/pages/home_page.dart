@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../services/mock_esp32.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+  });
 
   @override
   State<HomePage> createState() =>
@@ -14,13 +17,17 @@ class _HomePageState
   final MockESP32 _esp32 =
       MockESP32();
 
-  bool _isScanning = false;
+  bool _isScanning =
+      false;
 
-  bool _vehicleFound = false;
+  bool _vehicleFound =
+      false;
 
-  bool _connecting = false;
+  bool _connecting =
+      false;
 
-  bool _loadingAuthorization = true;
+  bool _loadingAuthorization =
+      true;
 
   String _deviceStatus =
       '未连接';
@@ -31,7 +38,8 @@ class _HomePageState
   String _timeStatus =
       '未同步';
 
-  bool _canControl = false;
+  bool _canControl =
+      false;
 
   @override
   void initState() {
@@ -396,7 +404,21 @@ class _HomePageState
                   height: 15,
                 ),
 
+                _buildTemporaryAuthorizationCard(),
+
+                const SizedBox(
+                  height: 15,
+                ),
+
                 _buildAdminSeatPanel(),
+              ],
+
+              if (isTemporary) ...[
+                const SizedBox(
+                  height: 15,
+                ),
+
+                _buildTemporaryUserCard(),
               ],
 
               const SizedBox(
@@ -488,13 +510,15 @@ class _HomePageState
                                 FontWeight.bold,
                           ),
                         ),
+
                         const SizedBox(
                           height: 10,
                         ),
+
                         ..._esp32
                             .logs
                             .reversed
-                            .take(10)
+                            .take(12)
                             .map(
                           (
                             log,
@@ -590,24 +614,34 @@ class _HomePageState
     );
   }
 
-  Widget _buildAdminSeatPanel() {
+  Widget
+      _buildTemporaryAuthorizationCard() {
+    final configured =
+        _esp32
+            .temporaryAuthorizationConfigured;
+
     return Card(
-      child: Padding(
+      child:
+          Padding(
         padding:
             const EdgeInsets.all(
           16,
         ),
-        child: Column(
+        child:
+            Column(
           crossAxisAlignment:
               CrossAxisAlignment
                   .start,
           children: [
             const Text(
-              '管理员设备席位',
-              style: TextStyle(
-                fontSize: 18,
+              '临时借车授权状态',
+              style:
+                  TextStyle(
+                fontSize:
+                    18,
                 fontWeight:
-                    FontWeight.bold,
+                    FontWeight
+                        .bold,
               ),
             ),
 
@@ -616,12 +650,189 @@ class _HomePageState
             ),
 
             Text(
-              '当前设备：\n${_esp32.deviceId}',
+              configured
+                  ? '状态：${_esp32.temporaryAuthorizationStatus}'
+                  : '状态：未设置',
+              style:
+                  const TextStyle(
+                fontSize:
+                    15,
+              ),
+            ),
+
+            if (configured) ...[
+              const SizedBox(
+                height: 8,
+              ),
+              Text(
+                '密码：${_esp32.temporaryPassword}',
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.cyan,
+                ),
+              ),
+              const SizedBox(
+                height: 6,
+              ),
+              Text(
+                '开始：${_esp32.temporaryStart}',
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.grey,
+                  fontSize:
+                      13,
+                ),
+              ),
+              const SizedBox(
+                height: 6,
+              ),
+              Text(
+                '结束：${_esp32.temporaryEnd}',
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.grey,
+                  fontSize:
+                      13,
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              SizedBox(
+                width:
+                    double.infinity,
+                child:
+                    OutlinedButton(
+                  onPressed:
+                      _revokeTemporaryAuthorization,
+                  child:
+                      const Text(
+                    '撤销临时借车授权',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemporaryUserCard() {
+    return Card(
+      child:
+          Padding(
+        padding:
+            const EdgeInsets.all(
+          16,
+        ),
+        child:
+            Column(
+          crossAxisAlignment:
+              CrossAxisAlignment
+                  .start,
+          children: [
+            const Text(
+              '临时借车状态',
+              style:
+                  TextStyle(
+                fontSize:
+                    18,
+                fontWeight:
+                    FontWeight
+                        .bold,
+              ),
+            ),
+
+            const SizedBox(
+              height: 10,
+            ),
+
+            Text(
+              '授权状态：'
+              '${_esp32.temporaryAuthorizationStatus}',
+            ),
+
+            const SizedBox(
+              height: 6,
+            ),
+
+            Text(
+              '有效期至：'
+              '${_esp32.temporaryEnd ?? '未知'}',
               style:
                   const TextStyle(
                 color:
                     Colors.grey,
-                fontSize: 13,
+                fontSize:
+                    13,
+              ),
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            const Text(
+              '当前身份只有六项车辆控制权限。',
+              style:
+                  TextStyle(
+                color:
+                    Colors.grey,
+                fontSize:
+                    13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminSeatPanel() {
+    return Card(
+      child:
+          Padding(
+        padding:
+            const EdgeInsets.all(
+          16,
+        ),
+        child:
+            Column(
+          crossAxisAlignment:
+              CrossAxisAlignment
+                  .start,
+          children: [
+            const Text(
+              '管理员设备席位',
+              style:
+                  TextStyle(
+                fontSize:
+                    18,
+                fontWeight:
+                    FontWeight
+                        .bold,
+              ),
+            ),
+
+            const SizedBox(
+              height: 10,
+            ),
+
+            Text(
+              '当前设备：\n'
+              '${_esp32.deviceId}',
+              style:
+                  const TextStyle(
+                color:
+                    Colors.grey,
+                fontSize:
+                    13,
               ),
             ),
 
@@ -636,12 +847,13 @@ class _HomePageState
                   const TextStyle(
                 color:
                     Colors.grey,
-                fontSize: 13,
+                fontSize:
+                    13,
               ),
             ),
 
             const SizedBox(
-              height: 12,
+              height: 8,
             ),
 
             const Text(
@@ -650,7 +862,8 @@ class _HomePageState
                   TextStyle(
                 color:
                     Colors.grey,
-                fontSize: 13,
+                fontSize:
+                    13,
               ),
             ),
           ],
@@ -661,22 +874,27 @@ class _HomePageState
 
   Widget _buildSimulationTestPanel() {
     return Card(
-      child: Padding(
+      child:
+          Padding(
         padding:
             const EdgeInsets.all(
           16,
         ),
-        child: Column(
+        child:
+            Column(
           crossAxisAlignment:
               CrossAxisAlignment
                   .start,
           children: [
             const Text(
               '模拟测试工具',
-              style: TextStyle(
-                fontSize: 18,
+              style:
+                  TextStyle(
+                fontSize:
+                    18,
                 fontWeight:
-                    FontWeight.bold,
+                    FontWeight
+                        .bold,
               ),
             ),
 
@@ -685,12 +903,13 @@ class _HomePageState
             ),
 
             const Text(
-              '仅用于模拟两个不同手机的管理员迁移场景。',
+              '这些按钮只用于开发阶段测试最终场景。',
               style:
                   TextStyle(
                 color:
                     Colors.grey,
-                fontSize: 13,
+                fontSize:
+                    13,
               ),
             ),
 
@@ -729,6 +948,27 @@ class _HomePageState
                 ),
               ),
             ),
+
+            if (_esp32
+                .temporaryAuthorizationConfigured) ...[
+              const SizedBox(
+                height: 8,
+              ),
+
+              SizedBox(
+                width:
+                    double.infinity,
+                child:
+                    OutlinedButton(
+                  onPressed:
+                      _simulateTemporaryExpired,
+                  child:
+                      const Text(
+                    '模拟临时借车立即过期',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -805,9 +1045,11 @@ class _HomePageState
                             .bold,
                   ),
                 ),
+
                 const SizedBox(
                   height: 20,
                 ),
+
                 SizedBox(
                   width:
                       double.infinity,
@@ -826,9 +1068,11 @@ class _HomePageState
                     ),
                   ),
                 ),
+
                 const SizedBox(
                   height: 10,
                 ),
+
                 SizedBox(
                   width:
                       double.infinity,
@@ -855,8 +1099,7 @@ class _HomePageState
     );
 
     if (!mounted ||
-        result ==
-            null) {
+        result == null) {
       return;
     }
 
@@ -907,7 +1150,8 @@ class _HomePageState
               onPressed:
                   () {
                 Navigator.pop(
-                    context);
+                  context,
+                );
               },
               child:
                   const Text(
@@ -1059,7 +1303,8 @@ class _HomePageState
               onPressed:
                   () {
                 Navigator.pop(
-                    context);
+                  context,
+                );
               },
               child:
                   const Text(
@@ -1164,95 +1409,434 @@ class _HomePageState
       });
 
       _showMessage(
-        '临时借车密码错误或已过期',
+        '临时借车密码错误、尚未开始或已经过期',
       );
     }
   }
 
   Future<void>
-      _showTemporaryAuthorization()
-          async {
-    final password =
-        await _esp32
-            .generateTemporaryPassword(
-      validity:
-          const Duration(
+      _showTemporaryAuthorization() async {
+    DateTime start =
+        DateTime.now();
+
+    DateTime end =
+        start.add(
+      const Duration(
         hours: 24,
       ),
     );
 
-    final end =
-        _esp32.temporaryEnd;
+    final configured =
+        await showDialog<
+            _TemporaryAuthorizationInput>(
+      context: context,
+      builder:
+          (context) {
+        return StatefulBuilder(
+          builder:
+              (
+            context,
+            setDialogState,
+          ) {
+            return AlertDialog(
+              title:
+                  const Text(
+                '设置临时借车授权',
+              ),
+              content:
+                  Column(
+                mainAxisSize:
+                    MainAxisSize
+                        .min,
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                children: [
+                  const Text(
+                    '默认有效期为24小时，也可以修改开始和结束时间。',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.grey,
+                      fontSize:
+                          13,
+                    ),
+                  ),
 
-    if (!mounted) {
+                  const SizedBox(
+                    height: 15,
+                  ),
+
+                  ListTile(
+                    contentPadding:
+                        EdgeInsets
+                            .zero,
+                    leading:
+                        const Icon(
+                      Icons
+                          .play_arrow,
+                    ),
+                    title:
+                        const Text(
+                      '开始时间',
+                    ),
+                    subtitle:
+                        Text(
+                      _formatDateTime(
+                        start,
+                      ),
+                    ),
+                    onTap:
+                        () async {
+                      final picked =
+                          await _pickDateTime(
+                        context,
+                        start,
+                      );
+
+                      if (picked !=
+                          null) {
+                        setDialogState(() {
+                          start =
+                              picked;
+
+                          if (!end.isAfter(
+                            start,
+                          )) {
+                            end =
+                                start.add(
+                              const Duration(
+                                hours:
+                                    24,
+                              ),
+                            );
+                          }
+                        });
+                      }
+                    },
+                  ),
+
+                  ListTile(
+                    contentPadding:
+                        EdgeInsets
+                            .zero,
+                    leading:
+                        const Icon(
+                      Icons
+                          .stop,
+                    ),
+                    title:
+                        const Text(
+                      '结束时间',
+                    ),
+                    subtitle:
+                        Text(
+                      _formatDateTime(
+                        end,
+                      ),
+                    ),
+                    onTap:
+                        () async {
+                      final picked =
+                          await _pickDateTime(
+                        context,
+                        end,
+                      );
+
+                      if (picked !=
+                          null) {
+                        setDialogState(() {
+                          end =
+                              picked;
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(
+                    height: 10,
+                  ),
+
+                  Text(
+                    '当前有效时长：'
+                    '${end.difference(start).inHours}小时 '
+                    '${end.difference(start).inMinutes % 60}分钟',
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      () {
+                    Navigator.pop(
+                      context,
+                    );
+                  },
+                  child:
+                      const Text(
+                    '取消',
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      () {
+                    if (!end.isAfter(
+                      start,
+                    )) {
+                      _showMessage(
+                        '结束时间必须晚于开始时间',
+                      );
+                      return;
+                    }
+
+                    Navigator.pop(
+                      context,
+                      _TemporaryAuthorizationInput(
+                        start:
+                            start,
+                        end:
+                            end,
+                      ),
+                    );
+                  },
+                  child:
+                      const Text(
+                    '生成密码',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted ||
+        configured ==
+            null) {
       return;
     }
 
-    await showDialog<void>(
+    try {
+      final password =
+          await _esp32
+              .generateTemporaryPassword(
+        start:
+            configured.start,
+        end:
+            configured.end,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await showDialog<void>(
+        context: context,
+        builder:
+            (context) {
+          return AlertDialog(
+            title:
+                const Text(
+              '临时借车密码已生成',
+            ),
+            content:
+                Column(
+              mainAxisSize:
+                  MainAxisSize
+                      .min,
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                const Text(
+                  '临时密码',
+                ),
+                const SizedBox(
+                  height: 8,
+                ),
+                Text(
+                  password,
+                  style:
+                      const TextStyle(
+                    fontSize:
+                        28,
+                    color:
+                        Colors.cyan,
+                    fontWeight:
+                        FontWeight
+                            .bold,
+                    letterSpacing:
+                        4,
+                  ),
+                ),
+                const SizedBox(
+                  height: 16,
+                ),
+                Text(
+                  '开始：\n'
+                  '${_formatDateTime(configured.start)}',
+                ),
+                const SizedBox(
+                  height: 8,
+                ),
+                Text(
+                  '结束：\n'
+                  '${_formatDateTime(configured.end)}',
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed:
+                    () {
+                  Navigator.pop(
+                    context,
+                  );
+                },
+                child:
+                    const Text(
+                  '完成',
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (mounted) {
+        setState(
+          () {},
+        );
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        '生成临时授权失败：$e',
+      );
+    }
+  }
+
+  Future<DateTime?>
+      _pickDateTime(
+    BuildContext context,
+    DateTime initial,
+  ) async {
+    final date =
+        await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate:
+          DateTime.now().subtract(
+        const Duration(
+          days: 1,
+        ),
+      ),
+      lastDate:
+          DateTime.now().add(
+        const Duration(
+          days: 3650,
+        ),
+      ),
+    );
+
+    if (date == null ||
+        !context.mounted) {
+      return null;
+    }
+
+    final time =
+        await showTimePicker(
+      context: context,
+      initialTime:
+          TimeOfDay.fromDateTime(
+        initial,
+      ),
+    );
+
+    if (time == null) {
+      return null;
+    }
+
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+  }
+
+  String _formatDateTime(
+    DateTime value,
+  ) {
+    String two(
+      int value,
+    ) {
+      return value
+          .toString()
+          .padLeft(
+            2,
+            '0',
+          );
+    }
+
+    return '${value.year}-'
+        '${two(value.month)}-'
+        '${two(value.day)} '
+        '${two(value.hour)}:'
+        '${two(value.minute)}';
+  }
+
+  Future<void>
+      _revokeTemporaryAuthorization() async {
+    final confirm =
+        await showDialog<bool>(
       context: context,
       builder:
           (context) {
         return AlertDialog(
           title:
               const Text(
-            '临时借车授权',
+            '撤销临时借车授权',
           ),
           content:
-              Column(
-            mainAxisSize:
-                MainAxisSize
-                    .min,
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
-            children: [
               const Text(
-                '临时密码',
-              ),
-              const SizedBox(
-                height: 8,
-              ),
-              Text(
-                password,
-                style:
-                    const TextStyle(
-                  fontSize:
-                      28,
-                  color:
-                      Colors.cyan,
-                  fontWeight:
-                      FontWeight
-                          .bold,
-                  letterSpacing:
-                      4,
-                ),
-              ),
-              const SizedBox(
-                height: 16,
-              ),
-              Text(
-                '有效期至：\n'
-                '${end?.toString() ?? ''}',
-              ),
-              const SizedBox(
-                height: 10,
-              ),
-              const Text(
-                '当前模拟有效期：24小时',
-              ),
-            ],
+            '撤销后，这个临时密码将立即失效。',
           ),
           actions: [
+            TextButton(
+              onPressed:
+                  () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child:
+                  const Text(
+                '取消',
+              ),
+            ),
             ElevatedButton(
               onPressed:
                   () {
                 Navigator.pop(
                   context,
+                  true,
                 );
               },
               child:
                   const Text(
-                '完成',
+                '确认撤销',
               ),
             ),
           ],
@@ -1260,16 +1844,67 @@ class _HomePageState
       },
     );
 
-    if (mounted) {
-      setState(
-        () {},
-      );
+    if (confirm != true) {
+      return;
     }
+
+    await _esp32
+        .clearTemporaryAuthorization();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(
+      () {},
+    );
+
+    _showMessage(
+      '临时借车授权已撤销',
+    );
   }
 
   Future<void>
-      _simulateNewPhone()
+      _simulateTemporaryExpired()
           async {
+    await _esp32
+        .simulateTemporaryExpired();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (_esp32.sessionRole ==
+        'temporary') {
+      setState(() {
+        _deviceStatus =
+            '未连接';
+
+        _adminStatus =
+            '临时授权过期';
+
+        _timeStatus =
+            '未同步';
+
+        _canControl =
+            false;
+
+        _vehicleFound =
+            false;
+      });
+    }
+
+    setState(
+      () {},
+    );
+
+    _showMessage(
+      '已经模拟临时授权过期',
+    );
+  }
+
+  Future<void>
+      _simulateNewPhone() async {
     await _esp32
         .simulateNewPhone();
 
@@ -1298,8 +1933,7 @@ class _HomePageState
     });
 
     _showMessage(
-      '已经模拟切换到新手机。\n'
-      '现在请通过管理员密码认证接管管理员席位。',
+      '已经模拟切换到新手机。',
     );
   }
 
@@ -1417,4 +2051,15 @@ class _HomePageState
       ),
     );
   }
+}
+
+class _TemporaryAuthorizationInput {
+  final DateTime start;
+
+  final DateTime end;
+
+  const _TemporaryAuthorizationInput({
+    required this.start,
+    required this.end,
+  });
 }
