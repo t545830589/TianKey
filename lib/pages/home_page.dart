@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
+import 'permission_page.dart';
 
 
 
@@ -25,7 +26,6 @@ class HomePage extends StatefulWidget {
 
 
 }
-
 
 
 
@@ -75,6 +75,44 @@ class _HomePageState extends State<HomePage> {
 
 
 
+  void openPermission(){
+
+
+    Navigator.push(
+
+
+      context,
+
+
+      MaterialPageRoute(
+
+
+        builder:(context)=>PermissionPage(
+
+          esp32:widget.esp32,
+
+        ),
+
+
+      ),
+
+
+    ).then((value){
+
+
+      setState(() {});
+
+
+    });
+
+
+  }
+
+
+
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -83,12 +121,13 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
 
 
+      appBar:AppBar(
 
-      appBar: AppBar(
 
+        title:const Text(
 
-        title: const Text(
           "Tian Key V11",
+
         ),
 
 
@@ -101,11 +140,11 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
       body:Padding(
 
 
         padding:const EdgeInsets.all(20),
+
 
 
         child:Column(
@@ -163,7 +202,6 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
             Text(
 
               "蓝牙状态：${connected ? "已连接":"未连接"}",
@@ -173,9 +211,7 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
             const SizedBox(height:10),
-
 
 
 
@@ -189,9 +225,7 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
             const SizedBox(height:10),
-
 
 
 
@@ -211,11 +245,10 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
             ElevatedButton(
 
-
               onPressed:toggleConnection,
-
 
               child:Text(
 
@@ -223,7 +256,30 @@ class _HomePageState extends State<HomePage> {
 
                 ?"断开设备"
 
-                :"连接设备"
+                :"连接设备",
+
+              ),
+
+            ),
+
+
+
+
+            const SizedBox(height:15),
+
+
+
+
+
+            ElevatedButton(
+
+
+              onPressed:openPermission,
+
+
+              child:const Text(
+
+                "权限管理",
 
               ),
 
@@ -233,7 +289,9 @@ class _HomePageState extends State<HomePage> {
 
 
 
+
             const SizedBox(height:30),
+
 
 
 
@@ -261,9 +319,7 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
             Wrap(
-
 
               spacing:10,
 
@@ -273,18 +329,13 @@ class _HomePageState extends State<HomePage> {
               children:[
 
 
-
                 _button("锁车"),
-
 
                 _button("解锁"),
 
-
                 _button("寻车"),
 
-
                 _button("后备箱"),
-
 
 
               ],
@@ -314,8 +365,8 @@ class _HomePageState extends State<HomePage> {
 
 
 
-  Widget _button(String text){
 
+  Widget _button(String text){
 
 
     return ElevatedButton(
@@ -328,9 +379,7 @@ class _HomePageState extends State<HomePage> {
         widget.esp32.executeCommand(text);
 
 
-
         setState(() {});
-
 
 
       },
