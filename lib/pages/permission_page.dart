@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/mock_esp32.dart';
 
 
+
 class PermissionPage extends StatefulWidget {
+
 
   final MockESP32 esp32;
 
@@ -16,8 +18,10 @@ class PermissionPage extends StatefulWidget {
   });
 
 
+
   @override
   State<PermissionPage> createState() => _PermissionPageState();
+
 
 }
 
@@ -28,15 +32,14 @@ class PermissionPage extends StatefulWidget {
 class _PermissionPageState extends State<PermissionPage> {
 
 
-  String role = "请选择身份";
-
 
   final TextEditingController passwordController =
       TextEditingController();
 
 
 
-  String result = "";
+  String message = "";
+
 
 
 
@@ -44,7 +47,7 @@ class _PermissionPageState extends State<PermissionPage> {
   void adminLogin(){
 
 
-    bool success = widget.esp32.adminLogin(
+    bool ok = widget.esp32.adminLogin(
 
       passwordController.text,
 
@@ -55,19 +58,16 @@ class _PermissionPageState extends State<PermissionPage> {
     setState(() {
 
 
-      role = "管理员";
+      if(ok){
 
 
-      if(success){
-
-
-        result = "管理员授权成功";
+        message = "管理员授权成功";
 
 
       }else{
 
 
-        result = "管理员密码错误";
+        message = "管理员密码错误";
 
 
       }
@@ -77,6 +77,7 @@ class _PermissionPageState extends State<PermissionPage> {
 
 
   }
+
 
 
 
@@ -86,7 +87,7 @@ class _PermissionPageState extends State<PermissionPage> {
   void temporaryLogin(){
 
 
-    bool success = widget.esp32.temporaryLogin(
+    bool ok = widget.esp32.temporaryLogin(
 
       passwordController.text,
 
@@ -97,28 +98,55 @@ class _PermissionPageState extends State<PermissionPage> {
     setState(() {
 
 
-      role = "临时借车";
+
+      if(ok){
 
 
-      if(success){
-
-
-        result = "临时借车授权成功\n有效时间8小时";
+        message = "临时借车授权成功";
 
 
       }else{
 
 
-        result = "临时密码错误";
+        message = "临时密码错误";
 
 
       }
+
 
 
     });
 
 
   }
+
+
+
+
+
+
+
+
+  String formatDate(DateTime? time){
+
+
+    if(time == null){
+
+      return "无";
+
+    }
+
+
+    return
+
+    "${time.year}-${time.month}-${time.day} "
+
+    "${time.hour}:${time.minute}";
+
+
+  }
+
+
 
 
 
@@ -132,19 +160,16 @@ class _PermissionPageState extends State<PermissionPage> {
     return Scaffold(
 
 
-      backgroundColor: Colors.black,
+      backgroundColor:Colors.black,
 
 
 
-      appBar: AppBar(
+      appBar:AppBar(
 
 
-        backgroundColor: Colors.black,
+        title:const Text(
 
-
-        title: const Text(
-
-          "权限授权",
+          "权限管理",
 
         ),
 
@@ -158,12 +183,11 @@ class _PermissionPageState extends State<PermissionPage> {
 
 
 
-      body: Padding(
+
+      body:Padding(
 
 
-        padding:
-
-        const EdgeInsets.all(20),
+        padding:const EdgeInsets.all(20),
 
 
 
@@ -180,149 +204,9 @@ class _PermissionPageState extends State<PermissionPage> {
 
 
 
-            const Text(
-
-              "请选择连接身份",
-
-              style:
-
-              TextStyle(
-
-                color:Colors.white,
-
-                fontSize:20,
-
-                fontWeight:
-
-                FontWeight.bold,
-
-              ),
-
-            ),
-
-
-
-
-            const SizedBox(height:20),
-
-
-
-
-
-
-            Row(
-
-
-              children:[
-
-
-
-                Expanded(
-
-
-                  child:
-
-                  ElevatedButton(
-
-
-                    onPressed:(){
-
-
-                      setState(() {
-
-
-                        role="管理员";
-
-
-                      });
-
-
-                    },
-
-
-                    child:
-
-                    const Text(
-
-                      "管理员",
-
-                    ),
-
-
-                  ),
-
-
-                ),
-
-
-
-
-                const SizedBox(width:15),
-
-
-
-
-
-                Expanded(
-
-
-                  child:
-
-                  ElevatedButton(
-
-
-                    onPressed:(){
-
-
-                      setState(() {
-
-
-                        role="临时借车";
-
-
-                      });
-
-
-                    },
-
-
-                    child:
-
-                    const Text(
-
-                      "临时借车",
-
-                    ),
-
-
-                  ),
-
-
-                ),
-
-
-
-              ],
-
-
-            ),
-
-
-
-
-
-
-            const SizedBox(height:30),
-
-
-
-
-
             Text(
 
-
-              "当前选择：$role",
-
+              "当前身份：${widget.esp32.getCurrentUser()}",
 
               style:
 
@@ -330,10 +214,39 @@ class _PermissionPageState extends State<PermissionPage> {
 
                 color:Colors.cyan,
 
-                fontSize:18,
+                fontSize:20,
 
               ),
 
+            ),
+
+
+
+
+            const SizedBox(height:10),
+
+
+
+
+            Text(
+
+              "权限类型：${widget.esp32.sessionRole}",
+
+            ),
+
+
+
+
+
+            const SizedBox(height:10),
+
+
+
+
+
+            Text(
+
+              "临时状态：${widget.esp32.temporaryAuthorizationStatus}",
 
             ),
 
@@ -352,131 +265,85 @@ class _PermissionPageState extends State<PermissionPage> {
             TextField(
 
 
-              controller:
-
-              passwordController,
-
+              controller:passwordController,
 
 
               obscureText:true,
-
-
-
-              style:
-
-              const TextStyle(
-
-                color:Colors.white,
-
-              ),
-
 
 
               decoration:
 
               const InputDecoration(
 
+                labelText:"输入密码",
 
-                labelText:"请输入密码",
-
-
-                labelStyle:
-
-                TextStyle(
-
-                  color:Colors.grey,
-
-                ),
+              ),
 
 
-                enabledBorder:
 
-                UnderlineInputBorder(
+            ),
 
 
-                  borderSide:
 
-                  BorderSide(
 
-                    color:Colors.grey,
+
+            const SizedBox(height:20),
+
+
+
+
+
+
+            Row(
+
+              children:[
+
+
+                Expanded(
+
+                  child:ElevatedButton(
+
+                    onPressed:adminLogin,
+
+                    child:
+
+                    const Text(
+
+                      "管理员授权",
+
+                    ),
 
                   ),
 
                 ),
 
-              ),
+
+
+                const SizedBox(width:10),
 
 
 
-            ),
+                Expanded(
 
+                  child:ElevatedButton(
 
+                    onPressed:temporaryLogin,
 
+                    child:
 
+                    const Text(
 
+                      "临时借车",
 
+                    ),
 
-            const SizedBox(height:30),
-
-
-
-
-
-            SizedBox(
-
-
-              width:
-
-              double.infinity,
-
-
-
-              child:
-
-              ElevatedButton(
-
-
-                onPressed:(){
-
-
-
-                  if(role=="管理员"){
-
-
-
-                    adminLogin();
-
-
-
-                  }else if(role=="临时借车"){
-
-
-
-                    temporaryLogin();
-
-
-
-                  }
-
-
-
-                },
-
-
-
-                child:
-
-                const Text(
-
-                  "确认授权",
+                  ),
 
                 ),
 
 
 
-              ),
-
-
+              ],
 
             ),
 
@@ -484,9 +351,7 @@ class _PermissionPageState extends State<PermissionPage> {
 
 
 
-
-            const SizedBox(height:30),
-
+            const SizedBox(height:20),
 
 
 
@@ -494,9 +359,7 @@ class _PermissionPageState extends State<PermissionPage> {
 
             Text(
 
-
-              result,
-
+              message,
 
               style:
 
@@ -504,13 +367,52 @@ class _PermissionPageState extends State<PermissionPage> {
 
                 color:Colors.greenAccent,
 
+              ),
+
+            ),
+
+
+
+
+
+            const SizedBox(height:20),
+
+
+
+
+
+            Text(
+
+              "临时时间",
+
+              style:
+
+              const TextStyle(
+
                 fontSize:18,
 
               ),
 
+            ),
 
+
+
+
+
+            Text(
+
+              "开始：${formatDate(widget.esp32.temporaryStart)}",
 
             ),
+
+
+
+            Text(
+
+              "结束：${formatDate(widget.esp32.temporaryEnd)}",
+
+            ),
+
 
 
 
@@ -518,13 +420,10 @@ class _PermissionPageState extends State<PermissionPage> {
           ],
 
 
-
         ),
 
 
-
       ),
-
 
 
     );
