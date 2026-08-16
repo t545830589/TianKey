@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../services/ble_service.dart';
 import '../services/mock_esp32.dart';
-import '../services/vehicle_controller.dart';
+import '../services/mock_vehicle.dart';
 import 'home_page.dart';
 import 'permission_page.dart';
 import 'settings_page.dart';
@@ -19,13 +18,13 @@ class _MainPageState extends State<MainPage> {
   bool restoring = true;
 
   late final MockESP32 esp32;
-  late final VehicleController controller;
+  late final MockVehicle vehicle;
 
   @override
   void initState() {
     super.initState();
     esp32 = MockESP32();
-    controller = VehicleController(BleService(esp32));
+    vehicle = MockVehicle();
     _restoreSession();
   }
 
@@ -45,7 +44,7 @@ class _MainPageState extends State<MainPage> {
     }
 
     final pages = <Widget>[
-      HomePage(controller: controller),
+      HomePage(esp32: esp32, vehicle: vehicle),
       PermissionPage(esp32: esp32),
       SettingsPage(esp32: esp32),
     ];
