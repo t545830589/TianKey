@@ -16,7 +16,7 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int index = 0;
 
-  // One shared simulated ESP32 and one shared vehicle model for the whole APP.
+  // Single shared simulated ESP32 and vehicle state for the entire app.
   final MockESP32 esp32 = MockESP32();
   final MockVehicle vehicle = MockVehicle();
 
@@ -25,7 +25,7 @@ class _MainPageState extends State<MainPage> {
     final pages = <Widget>[
       HomePage(esp32: esp32, vehicle: vehicle),
       PermissionPage(esp32: esp32),
-      const SettingsPage(),
+      SettingsPage(esp32: esp32),
     ];
 
     return Scaffold(
@@ -38,24 +38,11 @@ class _MainPageState extends State<MainPage> {
         backgroundColor: Colors.black,
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
-        onTap: (i) {
-          setState(() {
-            index = i;
-          });
-        },
+        onTap: (i) => setState(() => index = i),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: '首页',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: '权限',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: '设置',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: '首页'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: '权限'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '设置'),
         ],
       ),
     );
