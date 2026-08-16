@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tiankey/services/mock_esp32.dart';
+import '../lib/services/mock_esp32.dart';
 
 void main() {
   test('BLE scan discovers the frozen demo vehicle', () {
