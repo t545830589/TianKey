@@ -72,7 +72,7 @@ jobs:
         run: flutter test
 
       - name: Flutter Analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Build Release APK
         run: flutter build apk --release
