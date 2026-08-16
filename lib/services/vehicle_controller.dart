@@ -47,7 +47,7 @@ class VehicleController {
 
   Future<bool> authorize(String password) async {
     if (password.isEmpty) return false;
-    final result = transport.device.authenticateAdmin(password);
+    final result = transport.authenticateAdmin(password);
     if (result) {
       state = VehicleConnectionState.authorized;
       vehicleState = vehicleState.copyWith(
@@ -80,7 +80,7 @@ class VehicleController {
       VehicleCommand.trunk => VehicleProtocol.trunk,
     };
 
-    transport.device.executeCommand(protocolCommand);
+    transport.executeCommand(protocolCommand);
     vehicleState = vehicleState.copyWith(
       locked: command == VehicleCommand.lock
           ? true
