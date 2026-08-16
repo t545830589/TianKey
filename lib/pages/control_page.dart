@@ -23,12 +23,15 @@ class _ControlPageState extends State<ControlPage> {
 
   Future<void> execute(String command) async {
     if (!widget.esp32.isConnected()) {
+      widget.esp32.recordVehicleEvent('$command失败：设备未连接');
       setState(() => status = '设备未连接，拒绝执行');
       return;
     }
 
     final accepted = widget.esp32.executeCommand(command);
-    if (accepted == '设备未连接' || accepted == '无有效授权') {
+    if (accepted == '设备未连接' ||
+        accepted == '无有效授权' ||
+        accepted == '临时授权已失效') {
       setState(() => status = accepted);
       return;
     }
@@ -59,10 +62,13 @@ class _ControlPageState extends State<ControlPage> {
         break;
     }
 
+    final hardwareTrace = widget.vehicle.lastHardwareTrace;
+    widget.esp32.recordVehicleEvent('$command执行完成：$hardwareTrace');
+
     if (!mounted) return;
     setState(() {
       busy = false;
-      status = '$command执行成功\n${widget.vehicle.lastHardwareTrace}';
+      status = '$command执行成功\n$hardwareTrace';
     });
   }
 
@@ -138,10 +144,7 @@ class _ControlPageState extends State<ControlPage> {
                     Text('身份：${widget.esp32.getCurrentUser()}'),
                     Text('BLE：${widget.esp32.isConnected() ? '已连接' : '未连接'}'),
                     const SizedBox(height: 8),
-                    Text(
-                      status,
-                      style: const TextStyle(color: Colors.greenAccent, height: 1.35),
-                    ),
+                    Text(status, style: const TextStyle(color: Colors.greenAccent, height: 1.35)),
                   ],
                 ),
               ),
