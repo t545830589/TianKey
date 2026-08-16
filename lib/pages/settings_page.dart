@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
+import 'borrow_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final MockESP32 esp32;
@@ -47,29 +48,10 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => message = '已恢复出厂设置');
   }
 
-  Future<void> generateTemporaryPassword() async {
-    if (!widget.esp32.adminAuthorized) return;
-    final duration = await showDialog<Duration>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('选择借车时长'),
-        children: [
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, const Duration(hours: 1)), child: const Text('1小时')),
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, const Duration(hours: 4)), child: const Text('4小时')),
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, const Duration(hours: 8)), child: const Text('8小时')),
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, const Duration(days: 1)), child: const Text('24小时')),
-        ],
-      ),
-    );
-    if (!mounted || duration == null) return;
-    final password = widget.esp32.generateTemporaryPassword(duration);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('临时借车密码'),
-        content: Text('密码：$password\n有效期至：${widget.esp32.temporaryEnd}'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('确定'))],
-      ),
+  Future<void> openBorrowPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => BorrowPage(esp32: widget.esp32)),
     );
     if (mounted) setState(() {});
   }
@@ -136,7 +118,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 _panel(
                   title: '临时借车',
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? generateTemporaryPassword : null, child: const Text('生成临时借车密码'))),
+                    SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: authorized ? openBorrowPage : null, icon: const Icon(Icons.key), label: const Text('打开临时借车中心'))),
                     Text('当前临时密码：${widget.esp32.temporaryPassword.isEmpty ? '无' : widget.esp32.temporaryPassword}'),
                     Text('开始：${widget.esp32.temporaryStart ?? '无'}'),
                     Text('结束：${widget.esp32.temporaryEnd ?? '无'}'),
