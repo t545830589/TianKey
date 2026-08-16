@@ -28,17 +28,22 @@ class VehicleController {
   VehicleConnectionState state = VehicleConnectionState.disconnected;
 
   Future<void> scan() async {
+    device.scanDevices();
     state = VehicleConnectionState.scanning;
   }
 
   Future<void> connect() async {
+    device.connectBLE();
     state = VehicleConnectionState.connected;
   }
 
   Future<bool> authorize(String password) async {
     if (password.isEmpty) return false;
-    state = VehicleConnectionState.authorized;
-    return true;
+    final result = device.authenticateAdmin(password);
+    if (result) {
+      state = VehicleConnectionState.authorized;
+    }
+    return result;
   }
 
   Future<void> ready() async {
@@ -56,17 +61,17 @@ class VehicleController {
 
     switch (command) {
       case VehicleCommand.lock:
-        await device.lock();
+        device.executeCommand('LOCK');
       case VehicleCommand.unlock:
-        await device.unlock();
+        device.executeCommand('UNLOCK');
       case VehicleCommand.findCar:
-        await device.findCar();
+        device.executeCommand('FIND');
       case VehicleCommand.windowUp:
-        await device.windowUp();
+        device.executeCommand('WINDOW_UP');
       case VehicleCommand.windowDown:
-        await device.windowDown();
+        device.executeCommand('WINDOW_DOWN');
       case VehicleCommand.trunk:
-        await device.trunk();
+        device.executeCommand('TRUNK');
     }
 
     state = VehicleConnectionState.ready;
