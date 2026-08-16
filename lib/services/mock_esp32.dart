@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
 /// Tian Key V11 simulated ESP32 controller.
 ///
-/// The hardware boundary stays isolated here so a real BLE/ESP32 adapter can
+/// Hardware behavior remains isolated here so a real BLE/ESP32 adapter can
 /// replace this class later without rewriting the Flutter pages.
 class MockESP32 {
   static const String vehicleName = '陕A0P92Y';
@@ -15,6 +19,7 @@ class MockESP32 {
   bool _adminAuthorized = false;
   bool _temporaryAuthorized = false;
   bool _adminSeatOccupied = false;
+  bool _autoConnectEnabled = true;
 
   String _currentUser = '无';
   String _sessionRole = '无';
@@ -26,12 +31,14 @@ class MockESP32 {
   String _deviceId = 'ESP32-TIANKEY-001';
 
   final List<_LogEntry> _logEntries = <_LogEntry>[];
+  Future<void>? _restoreFuture;
 
   bool get scanned => _scanned;
   bool get authenticated => _authenticated;
   bool get adminAuthorized => _adminAuthorized;
   bool get temporaryAuthorized => _temporaryAuthorized;
   bool get adminSeatOccupied => _adminSeatOccupied;
+  bool get autoConnectEnabled => _autoConnectEnabled;
   String get deviceId => _deviceId;
   String get temporaryPassword => _temporaryPassword;
   DateTime? get temporaryStart => _temporaryStart;
@@ -41,6 +48,73 @@ class MockESP32 {
 
   String getCurrentUser() => _currentUser;
 
+  Future<void> restoreState() {
+    return _restoreFuture ??= _restoreStateInternal();
+  }
+
+  Future<void> _restoreStateInternal() async {
+    final prefs = await SharedPreferences.getInstance();
+    _adminPassword = prefs.getString('adminPassword') ?? initialAdminPassword;
+    _deviceId = prefs.getString('deviceId') ?? 'ESP32-TIANKEY-001';
+    _autoConnectEnabled = prefs.getBool('autoConnectEnabled') ?? true;
+    _adminSeatOccupied = prefs.getBool('adminSeatOccupied') ?? false;
+    _adminAuthorized = prefs.getBool('adminAuthorized') ?? false;
+    _authenticated = _adminAuthorized;
+    _currentUser = prefs.getString('currentUser') ?? (_adminAuthorized ? '管理员' : '无');
+    _sessionRole = prefs.getString('sessionRole') ?? (_adminAuthorized ? 'admin' : '无');
+    _temporaryPassword = prefs.getString('temporaryPassword') ?? '';
+    _temporaryStart = _readDate(prefs.getString('temporaryStart'));
+    _temporaryEnd = _readDate(prefs.getString('temporaryEnd'));
+
+    if (_sessionRole == 'temporary') {
+      final status = temporaryAuthorizationStatus;
+      if (status != '临时授权有效') {
+        _sessionRole = '无';
+        _currentUser = '无';
+        _authenticated = false;
+        _temporaryAuthorized = false;
+      } else {
+        _temporaryAuthorized = true;
+      }
+    }
+
+    if (_autoConnectEnabled && _authenticated) {
+      _scanned = true;
+      autoReconnect();
+    }
+  }
+
+  DateTime? _readDate(String? value) {
+    if (value == null || value.isEmpty) return null;
+    return DateTime.tryParse(value);
+  }
+
+  void _persistSoon() {
+    unawaited(_persist());
+  }
+
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('adminPassword', _adminPassword);
+    await prefs.setString('deviceId', _deviceId);
+    await prefs.setBool('autoConnectEnabled', _autoConnectEnabled);
+    await prefs.setBool('adminSeatOccupied', _adminSeatOccupied);
+    await prefs.setBool('adminAuthorized', _adminAuthorized);
+    await prefs.setString('currentUser', _currentUser);
+    await prefs.setString('sessionRole', _sessionRole);
+    await prefs.setString('temporaryPassword', _temporaryPassword);
+    if (_temporaryStart == null) {
+      await prefs.remove('temporaryStart');
+    } else {
+      await prefs.setString('temporaryStart', _temporaryStart!.toIso8601String());
+    }
+    if (_temporaryEnd == null) {
+      await prefs.remove('temporaryEnd');
+    } else {
+      await prefs.setString('temporaryEnd', _temporaryEnd!.toIso8601String());
+    }
+  }
+
   String get temporaryAuthorizationStatus {
     if (!_temporaryAuthorized) return '无临时授权';
     if (_temporaryEnd != null && DateTime.now().isAfter(_temporaryEnd!)) {
@@ -49,6 +123,7 @@ class MockESP32 {
       _connected = false;
       _sessionRole = '无';
       _currentUser = '无';
+      _persistSoon();
       _addLog('临时授权已过期，连接已断开');
       return '临时授权已过期';
     }
@@ -78,6 +153,7 @@ class MockESP32 {
     _temporaryAuthorized = false;
     _currentUser = '管理员';
     _sessionRole = 'admin';
+    _persistSoon();
     _addLog(migrate ? '管理员迁移认证成功' : '管理员认证成功');
     return true;
   }
@@ -104,6 +180,7 @@ class MockESP32 {
     _adminAuthorized = false;
     _currentUser = '临时借车';
     _sessionRole = 'temporary';
+    _persistSoon();
     _addLog('临时借车认证成功');
     return true;
   }
@@ -115,6 +192,7 @@ class MockESP32 {
     _temporaryStart = now;
     _temporaryEnd = now.add(duration);
     _temporaryAuthorized = false;
+    _persistSoon();
     _addLog('生成临时密码，有效至 ${_temporaryEnd!.toIso8601String()}');
     return _temporaryPassword;
   }
@@ -130,6 +208,7 @@ class MockESP32 {
       _sessionRole = '无';
       _currentUser = '无';
     }
+    _persistSoon();
     _addLog('临时借车已取消');
   }
 
@@ -168,7 +247,14 @@ class MockESP32 {
     }
     _connected = true;
     _addLog('BLE自动重新连接成功');
+    syncTime();
     return true;
+  }
+
+  void setAutoConnectEnabled(bool enabled) {
+    _autoConnectEnabled = enabled;
+    _persistSoon();
+    _addLog('自动连接已${enabled ? '开启' : '关闭'}');
   }
 
   bool syncTime() {
@@ -187,6 +273,7 @@ class MockESP32 {
       return false;
     }
     _adminPassword = next;
+    _persistSoon();
     _addLog('管理员密码修改成功');
     return true;
   }
@@ -202,6 +289,7 @@ class MockESP32 {
       _sessionRole = '无';
       _currentUser = '无';
     }
+    _persistSoon();
     _addLog('管理员席位已释放');
   }
 
@@ -212,6 +300,7 @@ class MockESP32 {
       return;
     }
     _deviceId = value;
+    _persistSoon();
     _addLog('设备名称已修改：$_deviceId');
   }
 
@@ -242,9 +331,7 @@ class MockESP32 {
     );
   }
 
-  void clearLogs() {
-    _logEntries.clear();
-  }
+  void clearLogs() => _logEntries.clear();
 
   void _addLog(String message) {
     _pruneLogs();
@@ -277,7 +364,9 @@ class MockESP32 {
     _temporaryEnd = null;
     _lastTimeSync = null;
     _deviceId = 'ESP32-TIANKEY-001';
+    _autoConnectEnabled = true;
     _logEntries.clear();
+    _persistSoon();
     _addLog('系统已恢复出厂设置');
   }
 }
