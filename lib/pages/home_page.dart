@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
 import '../services/mock_vehicle.dart';
+import 'bluetooth_page.dart';
 import 'permission_page.dart';
 import 'control_page.dart';
 import 'log_page.dart';
@@ -21,14 +22,19 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  void toggleConnection() {
-    setState(() {
-      if (widget.esp32.isConnected()) {
-        widget.esp32.disconnectBLE();
-      } else {
-        widget.esp32.connectBLE();
-      }
-    });
+  Future<void> openBluetooth() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BluetoothPage(esp32: widget.esp32),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  void disconnect() {
+    widget.esp32.disconnectBLE();
+    setState(() {});
   }
 
   void openPermission() {
@@ -37,7 +43,9 @@ class _HomePageState extends State<HomePage> {
       MaterialPageRoute(
         builder: (context) => PermissionPage(esp32: widget.esp32),
       ),
-    ).then((_) => setState(() {}));
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void openControl() {
@@ -49,7 +57,9 @@ class _HomePageState extends State<HomePage> {
           vehicle: widget.vehicle,
         ),
       ),
-    ).then((_) => setState(() {}));
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void openLog() {
@@ -100,9 +110,13 @@ class _HomePageState extends State<HomePage> {
             Text('当前身份：${widget.esp32.getCurrentUser()}'),
             Text('设备ID：${widget.esp32.deviceId}'),
             const SizedBox(height: 25),
-            ElevatedButton(
-              onPressed: toggleConnection,
-              child: Text(connected ? '断开设备' : '连接设备'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: connected ? disconnect : openBluetooth,
+                icon: Icon(connected ? Icons.bluetooth_disabled : Icons.bluetooth),
+                label: Text(connected ? '断开设备' : '连接设备'),
+              ),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
@@ -110,7 +124,7 @@ class _HomePageState extends State<HomePage> {
               child: const Text('权限管理'),
             ),
             ElevatedButton(
-              onPressed: openControl,
+              onPressed: connected ? openControl : null,
               child: const Text('车辆控制中心'),
             ),
             ElevatedButton(
