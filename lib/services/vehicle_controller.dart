@@ -1,7 +1,8 @@
+import '../core/vehicle_protocol.dart';
 import 'mock_esp32.dart';
 
 /// High level vehicle control state machine.
-/// Keeps UI independent from real ESP32 BLE implementation.
+/// Keeps UI independent from ESP32 transport details.
 enum VehicleConnectionState {
   disconnected,
   scanning,
@@ -59,21 +60,16 @@ class VehicleController {
 
     state = VehicleConnectionState.executing;
 
-    switch (command) {
-      case VehicleCommand.lock:
-        device.executeCommand('LOCK');
-      case VehicleCommand.unlock:
-        device.executeCommand('UNLOCK');
-      case VehicleCommand.findCar:
-        device.executeCommand('FIND');
-      case VehicleCommand.windowUp:
-        device.executeCommand('WINDOW_UP');
-      case VehicleCommand.windowDown:
-        device.executeCommand('WINDOW_DOWN');
-      case VehicleCommand.trunk:
-        device.executeCommand('TRUNK');
-    }
+    final protocolCommand = switch (command) {
+      VehicleCommand.lock => VehicleProtocol.lock,
+      VehicleCommand.unlock => VehicleProtocol.unlock,
+      VehicleCommand.findCar => VehicleProtocol.find,
+      VehicleCommand.windowUp => VehicleProtocol.windowUp,
+      VehicleCommand.windowDown => VehicleProtocol.windowDown,
+      VehicleCommand.trunk => VehicleProtocol.trunk,
+    };
 
+    device.executeCommand(protocolCommand);
     state = VehicleConnectionState.ready;
   }
 }
