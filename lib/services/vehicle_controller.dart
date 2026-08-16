@@ -63,7 +63,7 @@ class VehicleController {
     final protocolCommand = switch (command) {
       VehicleCommand.lock => VehicleProtocol.lock,
       VehicleCommand.unlock => VehicleProtocol.unlock,
-      VehicleCommand.findCar => VehicleProtocol.find,
+      VehicleCommand.findCar => VehicleProtocol.findCar,
       VehicleCommand.windowUp => VehicleProtocol.windowUp,
       VehicleCommand.windowDown => VehicleProtocol.windowDown,
       VehicleCommand.trunk => VehicleProtocol.trunk,
