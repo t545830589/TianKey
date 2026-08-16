@@ -15,13 +15,34 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int index = 0;
+  bool restoring = true;
 
-  // Single shared simulated ESP32 and vehicle state for the entire app.
   final MockESP32 esp32 = MockESP32();
   final MockVehicle vehicle = MockVehicle();
 
   @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    await esp32.restoreState();
+    if (!mounted) return;
+    setState(() => restoring = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (restoring) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final pages = <Widget>[
       HomePage(esp32: esp32, vehicle: vehicle),
       PermissionPage(esp32: esp32),
@@ -29,19 +50,16 @@ class _MainPageState extends State<MainPage> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: index,
-        children: pages,
-      ),
+      body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
         backgroundColor: Colors.black,
-        selectedItemColor: Colors.blueAccent,
+        selectedItemColor: Colors.cyanAccent,
         unselectedItemColor: Colors.grey,
-        onTap: (i) => setState(() => index = i),
+        onTap: (value) => setState(() => index = value),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '首页'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: '权限'),
+          BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: '权限'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: '设置'),
         ],
       ),
