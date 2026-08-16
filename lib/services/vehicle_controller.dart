@@ -1,8 +1,6 @@
 import '../core/vehicle_protocol.dart';
-import 'mock_esp32.dart';
+import 'ble_service.dart';
 
-/// High level vehicle control state machine.
-/// Keeps UI independent from ESP32 transport details.
 enum VehicleConnectionState {
   disconnected,
   scanning,
@@ -22,33 +20,33 @@ enum VehicleCommand {
 }
 
 class VehicleController {
-  VehicleController(this.device);
+  VehicleController(this.transport);
 
-  final MockESP32 device;
-
+  final BleService transport;
+  List<String> vehicles = <String>[];
   VehicleConnectionState state = VehicleConnectionState.disconnected;
 
   Future<void> scan() async {
-    device.scanDevices();
+    vehicles = await transport.scanVehicles();
     state = VehicleConnectionState.scanning;
   }
 
-  Future<void> connect() async {
-    device.connectBLE();
-    state = VehicleConnectionState.connected;
+  Future<bool> connect(String deviceId) async {
+    final result = await transport.connect(deviceId);
+    if (result) state = VehicleConnectionState.connected;
+    return result;
   }
 
   Future<bool> authorize(String password) async {
     if (password.isEmpty) return false;
-    final result = device.authenticateAdmin(password);
-    if (result) {
-      state = VehicleConnectionState.authorized;
-    }
+    final result = transport.device.authenticateAdmin(password);
+    if (result) state = VehicleConnectionState.authorized;
     return result;
   }
 
   Future<void> ready() async {
-    if (state == VehicleConnectionState.authorized) {
+    if (state == VehicleConnectionState.authorized ||
+        state == VehicleConnectionState.connected) {
       state = VehicleConnectionState.ready;
     }
   }
@@ -59,7 +57,6 @@ class VehicleController {
     }
 
     state = VehicleConnectionState.executing;
-
     final protocolCommand = switch (command) {
       VehicleCommand.lock => VehicleProtocol.lock,
       VehicleCommand.unlock => VehicleProtocol.unlock,
@@ -69,7 +66,7 @@ class VehicleController {
       VehicleCommand.trunk => VehicleProtocol.trunk,
     };
 
-    device.executeCommand(protocolCommand);
+    transport.device.executeCommand(protocolCommand);
     state = VehicleConnectionState.ready;
   }
 }
