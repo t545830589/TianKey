@@ -1,4 +1,5 @@
 import '../core/vehicle_protocol.dart';
+import '../models/vehicle_state.dart';
 import 'ble_service.dart';
 
 enum VehicleConnectionState {
@@ -25,6 +26,7 @@ class VehicleController {
   final BleService transport;
   List<String> vehicles = <String>[];
   VehicleConnectionState state = VehicleConnectionState.disconnected;
+  VehicleState vehicleState = const VehicleState();
 
   Future<void> scan() async {
     vehicles = await transport.scanVehicles();
@@ -33,14 +35,26 @@ class VehicleController {
 
   Future<bool> connect(String deviceId) async {
     final result = await transport.connect(deviceId);
-    if (result) state = VehicleConnectionState.connected;
+    if (result) {
+      state = VehicleConnectionState.connected;
+      vehicleState = vehicleState.copyWith(
+        connected: true,
+        updatedAt: DateTime.now(),
+      );
+    }
     return result;
   }
 
   Future<bool> authorize(String password) async {
     if (password.isEmpty) return false;
     final result = transport.device.authenticateAdmin(password);
-    if (result) state = VehicleConnectionState.authorized;
+    if (result) {
+      state = VehicleConnectionState.authorized;
+      vehicleState = vehicleState.copyWith(
+        authorized: true,
+        updatedAt: DateTime.now(),
+      );
+    }
     return result;
   }
 
@@ -67,6 +81,15 @@ class VehicleController {
     };
 
     transport.device.executeCommand(protocolCommand);
+    vehicleState = vehicleState.copyWith(
+      locked: command == VehicleCommand.lock
+          ? true
+          : command == VehicleCommand.unlock
+              ? false
+              : vehicleState.locked,
+      lastAction: protocolCommand,
+      updatedAt: DateTime.now(),
+    );
     state = VehicleConnectionState.ready;
   }
 }
