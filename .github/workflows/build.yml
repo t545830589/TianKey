@@ -40,29 +40,7 @@ jobs:
           flutter --version
           dart --version
 
-      - name: Remove old Android project
-        shell: bash
-        run: |
-          if [ -d "android" ]; then
-            echo "发现旧的 android/ 工程，删除后重新生成。"
-            rm -rf android
-          else
-            echo "当前仓库没有 android/ 工程，直接生成。"
-          fi
-
-      - name: Generate clean Android project
-        shell: bash
-        run: |
-          flutter create . \
-            --platforms=android \
-            --project-name=tiankey \
-            --org=com.tiankey
-
-      - name: Remove generated sample widget test
-        shell: bash
-        run: rm -f test/widget_test.dart
-
-      - name: Flutter clean
+      - name: Flutter Clean
         run: flutter clean
 
       - name: Flutter Pub Get
