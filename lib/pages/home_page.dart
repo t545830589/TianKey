@@ -2,461 +2,124 @@ import 'package:flutter/material.dart';
 
 import '../services/mock_esp32.dart';
 import '../services/mock_vehicle.dart';
-
 import 'permission_page.dart';
 import 'control_page.dart';
 import 'log_page.dart';
 
-
-
 class HomePage extends StatefulWidget {
-
-
   final MockESP32 esp32;
-
+  final MockVehicle vehicle;
 
   const HomePage({
-
     super.key,
-
     required this.esp32,
-
+    required this.vehicle,
   });
-
-
 
   @override
   State<HomePage> createState() => _HomePageState();
-
-
 }
-
-
-
-
 
 class _HomePageState extends State<HomePage> {
-
-
-
-  bool connected = false;
-
-
-  final MockVehicle vehicle = MockVehicle();
-
-
-
-
-  void toggleConnection(){
-
-
+  void toggleConnection() {
     setState(() {
-
-
-      if(connected){
-
-
+      if (widget.esp32.isConnected()) {
         widget.esp32.disconnectBLE();
-
-
-        connected = false;
-
-
-      }else{
-
-
+      } else {
         widget.esp32.connectBLE();
-
-
-        connected = true;
-
-
       }
-
-
     });
-
-
   }
 
-
-
-
-
-
-
-  void openPermission(){
-
-
+  void openPermission() {
     Navigator.push(
-
       context,
-
       MaterialPageRoute(
-
-        builder:(context)=>
-
-        PermissionPage(
-
-          esp32:widget.esp32,
-
-        ),
-
+        builder: (context) => PermissionPage(esp32: widget.esp32),
       ),
-
-    ).then((value){
-
-      setState(() {});
-
-    });
-
-
+    ).then((_) => setState(() {}));
   }
 
-
-
-
-
-
-
-
-  void openControl(){
-
+  void openControl() {
     Navigator.push(
-
       context,
-
       MaterialPageRoute(
-
-        builder:(context)=>
-
-        ControlPage(
-
-          esp32:widget.esp32,
-
-          vehicle:vehicle,
-
+        builder: (context) => ControlPage(
+          esp32: widget.esp32,
+          vehicle: widget.vehicle,
         ),
-
       ),
+    ).then((_) => setState(() {}));
+  }
 
+  void openLog() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LogPage(esp32: widget.esp32),
+      ),
     );
-
-}
-
-
-
-
-
-
-
-  void openLog(){
-
-
-    Navigator.push(
-
-      context,
-
-      MaterialPageRoute(
-
-        builder:(context)=>
-
-        LogPage(
-
-          esp32:widget.esp32,
-
-        ),
-
-      ),
-
-    );
-
-
   }
-
-
-
-
-
-
 
   @override
-  Widget build(BuildContext context){
-
-
+  Widget build(BuildContext context) {
+    final connected = widget.esp32.isConnected();
 
     return Scaffold(
-
-
-
-      appBar:AppBar(
-
-        title:const Text(
-
-          "Tian Key V11",
-
-        ),
-
-        centerTitle:true,
-
+      appBar: AppBar(
+        title: const Text('Tian Key V11'),
+        centerTitle: true,
       ),
-
-
-
-
-      body:Padding(
-
-
-        padding:const EdgeInsets.all(20),
-
-
-
-        child:Column(
-
-
-          crossAxisAlignment:
-
-          CrossAxisAlignment.start,
-
-
-
-          children:[
-
-
-
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             const Text(
-
-              "车辆信息",
-
-              style:TextStyle(
-
-                fontSize:18,
-
-                fontWeight:FontWeight.bold,
-
+              '车辆信息',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
-
             ),
-
-
-
-
-
-            const SizedBox(height:10),
-
-
-
-
-
+            const SizedBox(height: 10),
             const Text(
-
-              "陕A0P92Y",
-
-              style:TextStyle(
-
-                fontSize:24,
-
-                color:Colors.cyan,
-
+              MockESP32.vehicleName,
+              style: TextStyle(
+                fontSize: 24,
+                color: Colors.cyan,
               ),
-
             ),
-
-
-
-
-
-            const SizedBox(height:25),
-
-
-
-
-
-            Text(
-
-              "🔋 电量：${vehicle.getBattery()}",
-
-            ),
-
-
-
-
-
-            Text(
-
-              "🚪 车门：${vehicle.getDoorStatus()}",
-
-            ),
-
-
-
-
-
-            Text(
-
-              "🔒 车锁：${vehicle.getLockStatus()}",
-
-            ),
-
-
-
-
-
-            Text(
-
-              "🌡 温度：${vehicle.getTemperature()}",
-
-            ),
-
-
-
-
-
-            const SizedBox(height:25),
-
-
-
-
-
-
-            Text(
-
-              "蓝牙状态：${connected ? "已连接":"未连接"}",
-
-            ),
-
-
-
-
-
-            Text(
-
-              "当前身份：${widget.esp32.getCurrentUser()}",
-
-            ),
-
-
-
-
-
-            Text(
-
-              "设备ID：${widget.esp32.deviceId}",
-
-            ),
-
-
-
-
-
-
-            const SizedBox(height:25),
-
-
-
-
-
+            const SizedBox(height: 25),
+            Text('🔋 电量：${widget.vehicle.getBattery()}'),
+            Text('🚪 车门：${widget.vehicle.getDoorStatus()}'),
+            Text('🔒 车锁：${widget.vehicle.getLockStatus()}'),
+            Text('🌡 温度：${widget.vehicle.getTemperature()}'),
+            const SizedBox(height: 25),
+            Text('蓝牙状态：${connected ? '已连接' : '未连接'}'),
+            Text('当前身份：${widget.esp32.getCurrentUser()}'),
+            Text('设备ID：${widget.esp32.deviceId}'),
+            const SizedBox(height: 25),
             ElevatedButton(
-
-              onPressed:toggleConnection,
-
-              child:Text(
-
-                connected
-
-                ?"断开设备"
-
-                :"连接设备",
-
-              ),
-
+              onPressed: toggleConnection,
+              child: Text(connected ? '断开设备' : '连接设备'),
             ),
-
-
-
-
-
-
-            const SizedBox(height:10),
-
-
-
-
-
-
+            const SizedBox(height: 10),
             ElevatedButton(
-
-              onPressed:openPermission,
-
-              child:
-
-              const Text(
-
-                "权限管理",
-
-              ),
-
+              onPressed: openPermission,
+              child: const Text('权限管理'),
             ),
-
-
-
-
-
-
             ElevatedButton(
-
-              onPressed:openControl,
-
-              child:
-
-              const Text(
-
-                "车辆控制中心",
-
-              ),
-
+              onPressed: openControl,
+              child: const Text('车辆控制中心'),
             ),
-
-
-
-
-
-
             ElevatedButton(
-
-              onPressed:openLog,
-
-              child:
-
-              const Text(
-
-                "车辆日志",
-
-              ),
-
+              onPressed: openLog,
+              child: const Text('车辆日志'),
             ),
-
-
-
-
-
           ],
-
-
-
         ),
-
-
-
       ),
-
-
-
     );
-
-
   }
-
-
-
 }
