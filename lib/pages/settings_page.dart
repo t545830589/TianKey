@@ -5,10 +5,7 @@ import '../services/mock_esp32.dart';
 class SettingsPage extends StatefulWidget {
   final MockESP32 esp32;
 
-  const SettingsPage({
-    super.key,
-    required this.esp32,
-  });
+  const SettingsPage({super.key, required this.esp32});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -65,16 +62,13 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (!mounted || duration == null) return;
-
     final password = widget.esp32.generateTemporaryPassword(duration);
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('临时借车密码'),
         content: Text('密码：$password\n有效期至：${widget.esp32.temporaryEnd}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('确定')),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('确定'))],
       ),
     );
     if (mounted) setState(() {});
@@ -95,98 +89,81 @@ class _SettingsPageState extends State<SettingsPage> {
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
-                const Text(
-                  '车辆设置',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 1.5),
-                ),
+                const Text('车辆设置', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 1.5)),
                 const SizedBox(height: 8),
                 Text(message, style: const TextStyle(color: Colors.cyanAccent)),
                 const SizedBox(height: 16),
+                _panel(title: '车辆信息', child: const ListTile(contentPadding: EdgeInsets.zero, title: Text('车辆名称', style: TextStyle(color: Colors.white60)), subtitle: Text(MockESP32.vehicleName, style: TextStyle(color: Colors.white, fontSize: 18)))),
+                const SizedBox(height: 12),
                 _panel(
-                  title: '车辆信息',
-                  child: const ListTile(
+                  title: '自动连接',
+                  child: SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: Text('车辆名称', style: TextStyle(color: Colors.white60)),
-                    subtitle: Text(MockESP32.vehicleName, style: TextStyle(color: Colors.white, fontSize: 18)),
+                    title: const Text('记住已授权手机并自动连接'),
+                    subtitle: const Text('仅在已有有效授权时恢复连接'),
+                    value: widget.esp32.autoConnectEnabled,
+                    onChanged: (value) {
+                      widget.esp32.setAutoConnectEnabled(value);
+                      setState(() => message = '自动连接已${value ? '开启' : '关闭'}');
+                    },
                   ),
                 ),
                 const SizedBox(height: 12),
                 _panel(
                   title: '安全设置',
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: currentPasswordController,
-                        obscureText: true,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: '当前管理员密码'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: newPasswordController,
-                        obscureText: true,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: '新管理员密码（至少8位）'),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? savePassword : null, child: const Text('保存密码'))),
-                    ],
-                  ),
+                  child: Column(children: [
+                    TextField(controller: currentPasswordController, obscureText: true, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '当前管理员密码')),
+                    const SizedBox(height: 10),
+                    TextField(controller: newPasswordController, obscureText: true, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '新管理员密码（至少8位）')),
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? savePassword : null, child: const Text('保存密码'))),
+                  ]),
                 ),
                 const SizedBox(height: 12),
                 _panel(
                   title: 'ESP32设备信息',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('设备ID：${widget.esp32.deviceId}'),
-                      const SizedBox(height: 4),
-                      const Text('蓝牙名称：TianKey BLE'),
-                      const SizedBox(height: 10),
-                      TextField(controller: deviceNameController, decoration: const InputDecoration(labelText: '修改设备ID/名称')),
-                      const SizedBox(height: 10),
-                      SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? saveDeviceName : null, child: const Text('保存设备名称'))),
-                    ],
-                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('设备ID：${widget.esp32.deviceId}'),
+                    const SizedBox(height: 4),
+                    const Text('蓝牙名称：TianKey BLE'),
+                    const SizedBox(height: 10),
+                    TextField(controller: deviceNameController, decoration: const InputDecoration(labelText: '修改设备ID/名称')),
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? saveDeviceName : null, child: const Text('保存设备名称'))),
+                  ]),
                 ),
                 const SizedBox(height: 12),
                 _panel(
                   title: '临时借车',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? generateTemporaryPassword : null, child: const Text('生成临时借车密码'))),
-                      Text('当前临时密码：${widget.esp32.temporaryPassword.isEmpty ? '无' : widget.esp32.temporaryPassword}'),
-                      Text('开始：${widget.esp32.temporaryStart ?? '无'}'),
-                      Text('结束：${widget.esp32.temporaryEnd ?? '无'}'),
-                      const SizedBox(height: 8),
-                      SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? () { widget.esp32.cancelTemporaryLoan(); setState(() {}); } : null, child: const Text('取消临时借车'))),
-                    ],
-                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? generateTemporaryPassword : null, child: const Text('生成临时借车密码'))),
+                    Text('当前临时密码：${widget.esp32.temporaryPassword.isEmpty ? '无' : widget.esp32.temporaryPassword}'),
+                    Text('开始：${widget.esp32.temporaryStart ?? '无'}'),
+                    Text('结束：${widget.esp32.temporaryEnd ?? '无'}'),
+                    const SizedBox(height: 8),
+                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: authorized ? () { widget.esp32.cancelTemporaryLoan(); setState(() {}); } : null, child: const Text('取消临时借车'))),
+                  ]),
                 ),
                 const SizedBox(height: 12),
                 _panel(
                   title: '恢复出厂',
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('恢复出厂设置'),
-                            content: const Text('将清除模拟ESP32权限、临时密码、连接状态和设备名称。'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-                              ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('确认恢复')),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true) factoryReset();
-                      },
-                      child: const Text('恢复出厂设置'),
-                    ),
-                  ),
+                  child: SizedBox(width: double.infinity, child: OutlinedButton(
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('恢复出厂设置'),
+                          content: const Text('将清除模拟ESP32权限、临时密码、连接状态和设备名称。'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+                            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('确认恢复')),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) factoryReset();
+                    },
+                    child: const Text('恢复出厂设置'),
+                  )),
                 ),
               ],
             ),
@@ -204,14 +181,11 @@ class _SettingsPageState extends State<SettingsPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.cyanAccent.withOpacity(0.35)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
+        const SizedBox(height: 10),
+        child,
+      ]),
     );
   }
 }
