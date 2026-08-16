@@ -87,7 +87,7 @@ class VehicleController {
           : command == VehicleCommand.unlock
               ? false
               : vehicleState.locked,
-      lastAction: protocolCommand,
+      lastAction: protocolCommand.toString(),
       updatedAt: DateTime.now(),
     );
     state = VehicleConnectionState.ready;
