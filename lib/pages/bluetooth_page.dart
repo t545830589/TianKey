@@ -129,7 +129,26 @@ class _BluetoothPageState extends State<BluetoothPage> {
 
     var authorized = widget.esp32.adminLogin(password);
     if (!authorized && widget.esp32.adminSeatOccupied) {
-      authorized = widget.esp32.migrateAdmin(password);
+      final migrate = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('管理员席位已占用'),
+          content: const Text('这辆车已有其他手机占用管理员席位。继续将立即迁移管理员权限，旧管理员授权失效。是否继续？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('确认迁移'),
+            ),
+          ],
+        ),
+      );
+      if (migrate == true) {
+        authorized = widget.esp32.migrateAdmin(password);
+      }
     }
 
     if (!authorized) {
@@ -154,7 +173,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
 
     final authorized = widget.esp32.temporaryLogin(password);
     if (!authorized) {
-      setState(() => message = '临时密码错误或已过期');
+      setState(() => message = '临时密码错误、未到开始时间或已过期');
       return;
     }
 
