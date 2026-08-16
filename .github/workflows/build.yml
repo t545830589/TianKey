@@ -58,6 +58,10 @@ jobs:
             --project-name=tiankey \
             --org=com.tiankey
 
+      - name: Remove generated sample widget test
+        shell: bash
+        run: rm -f test/widget_test.dart
+
       - name: Flutter clean
         run: flutter clean
 
