@@ -304,6 +304,11 @@ class MockESP32 {
     _addLog('设备名称已修改：$_deviceId');
   }
 
+  /// Adds an event from the vehicle/GPIO simulation into the unified TianKey log.
+  void recordVehicleEvent(String event) {
+    _addLog('车辆硬件事件：$event');
+  }
+
   String executeCommand(String command) {
     if (!_connected) {
       _addLog('命令拒绝：设备未连接');
@@ -331,7 +336,9 @@ class MockESP32 {
     );
   }
 
-  void clearLogs() => _logEntries.clear();
+  void clearLogs() {
+    _logEntries.clear();
+  }
 
   void _addLog(String message) {
     _pruneLogs();
@@ -356,6 +363,7 @@ class MockESP32 {
     _adminAuthorized = false;
     _temporaryAuthorized = false;
     _adminSeatOccupied = false;
+    _autoConnectEnabled = true;
     _currentUser = '无';
     _sessionRole = '无';
     _adminPassword = initialAdminPassword;
@@ -364,10 +372,9 @@ class MockESP32 {
     _temporaryEnd = null;
     _lastTimeSync = null;
     _deviceId = 'ESP32-TIANKEY-001';
-    _autoConnectEnabled = true;
     _logEntries.clear();
-    _persistSoon();
     _addLog('系统已恢复出厂设置');
+    _persistSoon();
   }
 }
 
