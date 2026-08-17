@@ -16,30 +16,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.16.0
         with:
           flutter-version: '3.19.6'
           channel: stable
           cache: true
-
       - name: Verify environment
         run: |
           flutter --version
           flutter doctor -v
-
       - name: Prepare project
         shell: bash
         run: |
@@ -47,16 +44,12 @@ jobs:
             flutter create --platforms=android --project-name=tiankey .
           fi
           rm -rf test
-
       - name: Get dependencies
         run: flutter pub get
-
       - name: Analyze Dart code
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
       - name: Build release APK
         run: flutter build apk --release
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
