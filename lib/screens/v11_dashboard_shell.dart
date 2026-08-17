@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/v11_vehicle_panel.dart';
 
 class V11DashboardShell extends StatelessWidget {
   const V11DashboardShell({super.key});
@@ -24,7 +25,12 @@ class V11DashboardShell extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: V11VehiclePanel(),
+          ),
+          const SizedBox(height: 12),
           Expanded(
             child: GridView.count(
               padding: const EdgeInsets.all(16),
