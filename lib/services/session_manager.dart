@@ -28,8 +28,8 @@ class SessionManager {
     required this.authService,
   });
 
-  bool connectTianKeyDevice() {
-    final connected = bleService.connect('TianKey-ESP32-V11');
+  Future<bool> connectTianKeyDevice() async {
+    final connected = await bleService.connect('TianKey-ESP32-V11');
     if (connected) {
       state = SessionState(
         connected: true,
