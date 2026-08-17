@@ -10,10 +10,10 @@ class V11HudTheme {
     return BoxDecoration(
       color: const Color(0xCC101820),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: cyan.withValues(alpha: 0.35)),
+      border: Border.all(color: cyan.withOpacity(0.35)),
       boxShadow: [
         BoxShadow(
-          color: cyan.withValues(alpha: 0.15),
+          color: cyan.withOpacity(0.15),
           blurRadius: 18,
         ),
       ],
