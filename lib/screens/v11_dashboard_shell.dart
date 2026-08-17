@@ -16,21 +16,26 @@ class V11DashboardShell extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const SizedBox(height: 24),
-          const Text(
-            'TIANKEY V11',
-            style: TextStyle(
-              color: Color(0xFF4DA3FF),
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          const SizedBox(height: 20),
+          const Text('TIANKEY V11', style: TextStyle(color: Color(0xFF4DA3FF), fontSize: 26, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            height: 110,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF1595FF)),
+              color: const Color(0x220095FF),
+            ),
+            child: const Center(
+              child: Text('VEHICLE HUD AREA', style: TextStyle(color: Color(0xFF8BC7FF), fontSize: 18)),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: V11VehiclePanel(),
           ),
-          const SizedBox(height: 12),
           Expanded(
             child: GridView.count(
               padding: const EdgeInsets.all(16),
