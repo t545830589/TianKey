@@ -17,9 +17,9 @@ class V11VehiclePanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: Colors.black.withOpacity(0.55),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.5)),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
       ),
       child: Column(
         children: [
