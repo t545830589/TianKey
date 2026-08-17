@@ -9,7 +9,7 @@ class HudStateBinding {
     return {
       'connected': status.connected,
       'role': status.role,
-      'vehicleLocked': status.vehicleLocked,
+      'vehicleLocked': status.locked,
       'lastAction': status.lastAction,
     };
   }
