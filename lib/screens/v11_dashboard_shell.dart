@@ -35,6 +35,8 @@ class V11DashboardShell extends StatelessWidget {
             child: GridView.count(
               padding: const EdgeInsets.all(16),
               crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
               children: const [
                 _HudTile(icon: Icons.bluetooth, title: 'BLE'),
                 _HudTile(icon: Icons.lock, title: 'LOCK'),
@@ -44,6 +46,10 @@ class V11DashboardShell extends StatelessWidget {
                 _HudTile(icon: Icons.settings, title: 'SETUP'),
               ],
             ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 18),
+            child: _BottomNav(),
           ),
         ],
       ),
@@ -59,8 +65,13 @@ class _HudTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF091827),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF091827),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1595FF), width: 1.5),
+        boxShadow: const [BoxShadow(color: Color(0x331595FF), blurRadius: 12)],
+      ),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -71,6 +82,22 @@ class _HudTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _BottomNav extends StatelessWidget {
+  const _BottomNav();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        Icon(Icons.home, color: Color(0xFF4DA3FF)),
+        Icon(Icons.people, color: Colors.white54),
+        Icon(Icons.settings, color: Colors.white54),
+      ],
     );
   }
 }
