@@ -35,10 +35,12 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Flutter doctor
-        run: flutter doctor -v
+      - name: Verify environment
+        run: |
+          flutter --version
+          flutter doctor -v
 
-      - name: Create Android project if missing
+      - name: Prepare project
         shell: bash
         run: |
           if [ ! -f android/settings.gradle ]; then
