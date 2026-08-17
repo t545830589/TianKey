@@ -20,7 +20,7 @@ jobs:
           java-version: '17'
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.16.0
         with:
           flutter-version: '3.19.6'
           channel: stable
@@ -32,8 +32,6 @@ jobs:
           if [ ! -f android/settings.gradle ]; then
             flutter create --platforms=android --project-name=tiankey .
           fi
-          # The Android project is generated only for the GitHub build environment.
-          # Remove Flutter's generated sample test because it expects the default MyApp class.
           rm -rf test
 
       - name: Flutter version
