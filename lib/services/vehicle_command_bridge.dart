@@ -5,15 +5,15 @@ class VehicleCommandBridge {
 
   VehicleCommandBridge(this.esp32);
 
-  Future<String> sendLock() async {
-    return esp32.executeCommand('LOCK');
+  Future<Esp32Response> sendLock() async {
+    return esp32.execute('LOCK');
   }
 
-  Future<String> sendUnlock() async {
-    return esp32.executeCommand('UNLOCK');
+  Future<Esp32Response> sendUnlock() async {
+    return esp32.execute('UNLOCK');
   }
 
-  Future<String> sendTrunk() async {
-    return esp32.executeCommand('TRUNK');
+  Future<Esp32Response> sendTrunk() async {
+    return esp32.execute('TRUNK');
   }
 }
