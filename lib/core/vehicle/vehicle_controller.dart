@@ -1,35 +1,34 @@
 import 'dart:async';
 
-/// TianKey V11 vehicle control simulation layer.
-/// This module simulates the command pipeline before ESP32 hardware is connected.
+import 'vehicle_state.dart';
+import 'vehicle_service_bridge.dart';
+
+/// TianKey V11 vehicle control orchestration layer.
 class VehicleController {
-  String status = 'READY';
-  bool locked = true;
-  bool radarEnabled = false;
+  final VehicleServiceBridge bridge;
 
-  final StreamController<String> _events = StreamController.broadcast();
+  VehicleState state = VehicleState();
+  final StreamController<VehicleState> _stateEvents = StreamController.broadcast();
 
-  Stream<String> get events => _events.stream;
+  VehicleController(this.bridge);
 
-  void lock() {
-    locked = true;
-    status = 'LOCKED';
-    _events.add('LOCK command sent');
-  }
+  Stream<VehicleState> get stateEvents => _stateEvents.stream;
 
-  void unlock() {
-    locked = false;
-    status = 'UNLOCKED';
-    _events.add('UNLOCK command sent');
-  }
+  Future<String> execute(String command) async {
+    final result = await bridge.execute(command);
 
-  void radar() {
-    radarEnabled = !radarEnabled;
-    status = radarEnabled ? 'RADAR ON' : 'RADAR OFF';
-    _events.add(status);
+    if (command == 'LOCK') {
+      state.locked = true;
+    }
+    if (command == 'UNLOCK') {
+      state.locked = false;
+    }
+
+    _stateEvents.add(state);
+    return result;
   }
 
   void dispose() {
-    _events.close();
+    _stateEvents.close();
   }
 }
