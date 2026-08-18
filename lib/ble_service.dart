@@ -19,15 +19,34 @@ class TianKeyBleService {
   List<BluetoothService> _services = <BluetoothService>[];
 
   bool get isConnected => device?.isConnected ?? false;
+  String? get connectedRemoteId => device?.remoteId.str;
   List<BleScanItem> get foundDevices => _found.values.toList(growable: false);
   List<BluetoothService> get discoveredServices => List<BluetoothService>.unmodifiable(_services);
 
   /// UUID-only inventory of the GATT services actually returned by the
-  /// connected peripheral. This is intentionally diagnostic data only: no
-  /// service UUID is treated as a TianKey protocol UUID here.
+  /// connected peripheral. This is diagnostic data only: no service UUID is
+  /// treated as a TianKey protocol UUID here.
   List<String> get discoveredServiceUuids => List<String>.unmodifiable(
         _services.map((service) => service.serviceUuid.toString()),
       );
+
+  /// UUID-only inventory of characteristics actually returned by the
+  /// peripheral, grouped as `serviceUuid/characteristicUuid` strings.
+  /// This deliberately does not assign protocol meanings to any UUID.
+  List<String> get discoveredCharacteristicUuids => List<String>.unmodifiable(
+        _services.expand(
+          (service) => service.characteristics.map(
+            (characteristic) => '${service.serviceUuid}/${characteristic.characteristicUuid}',
+          ),
+        ),
+      );
+
+  /// Stable, human-readable diagnostic snapshot for protocol integration.
+  /// The returned values come only from FlutterBluePlus discovery results.
+  List<String> get discoveredGattInventory => List<String>.unmodifiable(<String>[
+        ...discoveredServiceUuids.map((uuid) => 'service:$uuid'),
+        ...discoveredCharacteristicUuids.map((uuid) => 'characteristic:$uuid'),
+      ]);
 
   Future<bool> isSupported() async => FlutterBluePlus.isSupported;
 
