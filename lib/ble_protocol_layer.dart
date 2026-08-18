@@ -10,7 +10,9 @@ class BleProtocolPacket {
 
   final Uint8List bytes;
 
-  String get hex => bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(' ');
+  String get hex => bytes
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join(' ');
 }
 
 class BleProtocolResult {
@@ -18,6 +20,21 @@ class BleProtocolResult {
 
   final bool success;
   final String message;
+}
+
+/// A protocol request container for upper BLE layers.
+///
+/// It keeps the command path separate from BLE transport so UI code does not
+/// directly depend on raw bytes.
+class BleProtocolRequest {
+  const BleProtocolRequest({required this.payload, this.name = ''});
+
+  final Uint8List payload;
+  final String name;
+
+  BleProtocolPacket toPacket() {
+    return BleProtocolPacket(bytes: Uint8List.fromList(payload));
+  }
 }
 
 class TianKeyBleProtocolLayer {
@@ -30,5 +47,9 @@ class TianKeyBleProtocolLayer {
       return const BleProtocolResult(success: false, message: 'empty BLE packet');
     }
     return const BleProtocolResult(success: true);
+  }
+
+  BleProtocolResult validateRequest(BleProtocolRequest request) {
+    return validatePacket(request.toPacket());
   }
 }
