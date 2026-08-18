@@ -52,9 +52,31 @@ jobs:
           # remove generated template files so they cannot enter analysis or conflict with the app.
           rm -rf test
           rm -f analysis_options.yaml
+
+          # flutter_blue_plus 1.36.8 requires Android API 21+ and Android 12 BLE permissions.
+          sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' android/app/build.gradle
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text()
+          permissions = '''    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />
+'''
+          if 'android.permission.BLUETOOTH_SCAN' not in text:
+              text = text.replace('<application', permissions + '    <application', 1)
+              manifest.write_text(text)
+          PY
+
           test -f android/settings.gradle
           test -f android/app/build.gradle
+          test -f android/app/src/main/AndroidManifest.xml
           test -f lib/main.dart
+          test -f lib/ble_service.dart
 
       - name: Get dependencies
         run: flutter pub get
