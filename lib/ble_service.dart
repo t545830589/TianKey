@@ -15,6 +15,7 @@ class TianKeyBleService {
   final Map<String, BleScanItem> _found = <String, BleScanItem>{};
   BluetoothDevice? device;
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
+  StreamSubscription<void>? _servicesResetSubscription;
 
   bool get isConnected => device?.isConnected ?? false;
   List<BleScanItem> get foundDevices => _found.values.toList(growable: false);
@@ -48,18 +49,37 @@ class TianKeyBleService {
 
   Future<void> connect(BluetoothDevice target) async {
     await _connectionSubscription?.cancel();
+    await _servicesResetSubscription?.cancel();
     device = target;
+
     _connectionSubscription = target.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
         device = null;
       }
     });
+
+    // FlutterBluePlus clears the discovered GATT service cache when the
+    // peripheral reports a Services Changed event. Re-discover immediately
+    // so the real connection remains ready for the future protocol layer.
+    // No service/characteristic UUID is invented here.
+    _servicesResetSubscription = target.onServicesReset.listen((_) async {
+      if (!target.isConnected) return;
+      try {
+        await target.discoverServices();
+      } catch (_) {
+        // The app-level connection state remains authoritative; the next
+        // operation can retry discovery after the peripheral is stable.
+      }
+    });
+
     try {
       await target.connect(timeout: const Duration(seconds: 15), autoConnect: false);
       await target.discoverServices();
     } catch (error) {
       await _connectionSubscription?.cancel();
+      await _servicesResetSubscription?.cancel();
       _connectionSubscription = null;
+      _servicesResetSubscription = null;
       device = null;
       rethrow;
     }
@@ -69,7 +89,9 @@ class TianKeyBleService {
     final current = device;
     device = null;
     await _connectionSubscription?.cancel();
+    await _servicesResetSubscription?.cancel();
     _connectionSubscription = null;
+    _servicesResetSubscription = null;
     if (current != null && current.isConnected) {
       await current.disconnect();
     }
@@ -78,8 +100,10 @@ class TianKeyBleService {
   Future<void> dispose() async {
     await _scanSubscription?.cancel();
     await _connectionSubscription?.cancel();
+    await _servicesResetSubscription?.cancel();
     _scanSubscription = null;
     _connectionSubscription = null;
+    _servicesResetSubscription = null;
     if (device?.isConnected ?? false) {
       await device!.disconnect();
     }
