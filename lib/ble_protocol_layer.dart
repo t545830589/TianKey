@@ -22,10 +22,6 @@ class BleProtocolResult {
   final String message;
 }
 
-/// A protocol request container for upper BLE layers.
-///
-/// It keeps the command path separate from BLE transport so UI code does not
-/// directly depend on raw bytes.
 class BleProtocolRequest {
   const BleProtocolRequest({required this.payload, this.name = ''});
 
@@ -37,9 +33,21 @@ class BleProtocolRequest {
   }
 }
 
+class BleProtocolResponse {
+  const BleProtocolResponse({required this.packet});
+
+  final BleProtocolPacket packet;
+
+  Uint8List get bytes => packet.bytes;
+}
+
 class TianKeyBleProtocolLayer {
   BleProtocolPacket createPacket(Uint8List payload) {
     return BleProtocolPacket(bytes: Uint8List.fromList(payload));
+  }
+
+  BleProtocolResponse createResponse(Uint8List payload) {
+    return BleProtocolResponse(packet: createPacket(payload));
   }
 
   BleProtocolResult validatePacket(BleProtocolPacket packet) {
