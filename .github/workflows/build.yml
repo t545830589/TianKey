@@ -54,12 +54,8 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # main.dart is the current application entry point. The repository also
-      # contains legacy/unwired Dart files under lib/core, lib/services,
-      # lib/screens and lib/widgets. They are preserved, but must not prevent
-      # the actual application from being analyzed and built.
-      - name: Analyze application entry point
-        run: flutter analyze lib/main.dart --no-fatal-infos --no-fatal-warnings
+      - name: Analyze Dart project
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build release APK
         run: flutter build apk --release
