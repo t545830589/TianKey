@@ -55,13 +55,13 @@ jobs:
           sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' android/app/build.gradle
 
           if ! grep -q 'android.permission.BLUETOOTH_SCAN' android/app/src/main/AndroidManifest.xml; then
-            sed -i '/<application/i\    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />\
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />\
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />\
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />\
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />\
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />' android/app/src/main/AndroidManifest.xml
+            sed -i '/<application/i\    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="28" />' android/app/src/main/AndroidManifest.xml
           fi
 
           grep -q 'minSdkVersion 21' android/app/build.gradle
