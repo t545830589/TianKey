@@ -1,0 +1,37 @@
+# TianKey State Machine
+
+版本: V1.0
+
+## APP状态
+
+START
+
+NO_DEVICE
+
+SCANNING
+
+DEVICE_FOUND
+
+CONNECTING
+
+AUTH_CHECK
+
+TIME_SYNC
+
+READY
+
+CONTROL
+
+## 异常状态
+
+AUTH_FAIL
+
+BLE_FAIL
+
+DEVICE_LOST
+
+TEMP_EXPIRED
+
+## 原则
+
+所有功能操作必须通过状态变化完成，禁止只修改界面显示。
