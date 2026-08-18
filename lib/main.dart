@@ -816,7 +816,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             _adminAction(authorized ? '关闭授权' : '恢复授权', Icons.verified_user, adminEnabled ? toggleAuthorization : _requireAdmin),
             _adminAction('重新同步时间', Icons.sync, adminEnabled ? syncTime : _requireAdmin),
             _adminAction('统一日志', Icons.receipt_long, showLogs),
-            _adminAction('自动连接：${autoConnect ? '开启' : '关闭'}', Icons.bluetooth_auto, _toggleAutoConnect),
+            _adminAction('自动连接：${autoConnect ? '开启' : '关闭'}', Icons.bluetooth, _toggleAutoConnect),
             _adminAction('恢复出厂', Icons.delete_forever, adminEnabled ? factoryReset : _requireAdmin, danger: true),
             const SizedBox(height: 12),
             _adminCard('关键状态', '管理员席位：${adminDevice == phoneId ? '当前手机' : '未绑定'}\n授权：${authorized ? '有效' : '关闭'}\n时间：${timeSynced ? '已同步' : '未同步'}\n车辆：${locked ? '已锁定' : '已解锁'}\n临时借车：${borrowValid ? '有效至 ${_formatTime(borrowEnd!)}' : '无有效授权'}'),
