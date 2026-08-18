@@ -57,17 +57,17 @@ jobs:
           # flutter_blue_plus_android 7.0.4 is a legacy Android library module that
           # reads Flutter's SDK values through a project property named `flutter`.
           # Flutter 3.19.6 does not expose that property to the generated library
-          # subproject, so define the exact SDK values before every Gradle project
-          # is evaluated. This fixes the observed `unknown property 'flutter'` and
-          # subsequent `compileSdkVersion is not specified` failure without changing
-          # the BLE plugin or inventing any BLE UUID/protocol.
-          if ! grep -q 'gradle.beforeProject' android/build.gradle; then
+          # subproject, so define the exact SDK values only on that library project.
+          # Do NOT define `project.ext.flutter` on :app: Flutter's own Gradle plugin
+          # uses that property for the Flutter source directory; overwriting it on
+          # every project causes the observed `Must provide Flutter source directory`.
+          if ! grep -q 'flutter_blue_plus_android' android/build.gradle; then
             python3 - <<'PY'
           from pathlib import Path
           p = Path('android/build.gradle')
           s = p.read_text()
-          prefix = """// Compatibility bridge for flutter_blue_plus_android 7.0.4 on Flutter 3.19.6.\ngradle.beforeProject { project ->\n    project.ext.flutter = [\n        compileSdkVersion: 34,\n        minSdkVersion: 21,\n        targetSdkVersion: 34,\n        ndkVersion: '25.1.8937393'\n    ]\n}\n\n"""
-          if 'gradle.beforeProject' not in s:
+          prefix = """// Compatibility bridge for flutter_blue_plus_android 7.0.4 on Flutter 3.19.6.\ngradle.beforeProject { project ->\n    if (project.name == 'flutter_blue_plus_android') {\n        project.ext.flutter = [\n            compileSdkVersion: 34,\n            minSdkVersion: 21,\n            targetSdkVersion: 34,\n            ndkVersion: '25.1.8937393'\n        ]\n    }\n}\n\n"""
+          if 'flutter_blue_plus_android' not in s:
               p.write_text(prefix + s)
           PY
           fi
@@ -84,7 +84,7 @@ jobs:
 
           grep -q 'minSdkVersion 21' android/app/build.gradle
           grep -q 'android.permission.BLUETOOTH_SCAN' android/app/src/main/AndroidManifest.xml
-          grep -q 'gradle.beforeProject' android/build.gradle
+          grep -q 'flutter_blue_plus_android' android/build.gradle
           test -f android/settings.gradle
           test -f android/app/build.gradle
           test -f android/app/src/main/AndroidManifest.xml
