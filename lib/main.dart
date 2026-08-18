@@ -64,6 +64,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   bool locked = true;
   bool timeSynced = false;
   bool timeFail = false;
+  int commandSeconds = 0;
+  String activeCommand = '';
 
   String deviceName = defaultName;
   String adminPassword = defaultPassword;
@@ -75,6 +77,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   String lastCommand = '';
   final List<String> logs = <String>[];
+  Timer? borrowExpiryTimer;
+  Timer? commandTimer;
 
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController newPasswordController = TextEditingController();
@@ -84,7 +88,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   bool get borrowValid {
     if (borrowCode == null || borrowStart == null || borrowEnd == null) return false;
     final now = DateTime.now();
-    return now.isAfter(borrowStart!) && now.isBefore(borrowEnd!);
+    return !now.isBefore(borrowStart!) && now.isBefore(borrowEnd!);
   }
 
   bool get adminEnabled => connected && mode == AccessMode.admin && adminSession;
@@ -101,6 +105,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   @override
   void dispose() {
+    borrowExpiryTimer?.cancel();
+    commandTimer?.cancel();
     passwordController.dispose();
     newPasswordController.dispose();
     nameController.dispose();
@@ -124,7 +130,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     sound = p.getBool('sound') ?? true;
     ready = true;
     _log('APP启动');
-    if (borrowEnd != null && DateTime.now().isAfter(borrowEnd!)) await _clearBorrow();
+    _scheduleBorrowExpiry();
+    if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
+      await _clearBorrow(logExpiry: true);
+    }
     if (mounted) setState(() {});
   }
 
@@ -138,6 +147,20 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _scheduleBorrowExpiry() {
+    borrowExpiryTimer?.cancel();
+    final end = borrowEnd;
+    if (end == null) return;
+    final delay = end.difference(DateTime.now());
+    if (delay.isNegative || delay == Duration.zero) {
+      unawaited(_clearBorrow(logExpiry: true));
+      return;
+    }
+    borrowExpiryTimer = Timer(delay, () {
+      unawaited(_clearBorrow(logExpiry: true));
+    });
+  }
+
   Future<void> scan() async {
     if (!ready || scanning || connecting || connected) return;
     setState(() {
@@ -145,7 +168,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       found = false;
       status = '正在扫描 BLE 设备...';
     });
-    _log('BLE扫描开始');
+    _log('BLE扫描开始（当前构建为演示链路，尚未接入真实BLE扫描）');
     await Future<void>.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
     setState(() {
@@ -190,7 +213,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       timeSynced = false;
       status = 'BLE连接成功，正在自动同步时间...';
     });
-    _log('ESP32 BLE连接');
+    _log('ESP32 BLE连接（当前构建为演示链路）');
     await syncTime();
   }
 
@@ -256,7 +279,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               const SizedBox(height: 12),
               _dialogButton('验证并连接', Icons.link, const Color(0xFF1595FF), () {
                 final value = passwordController.text.trim();
-                final ok = selected == AccessMode.admin ? value == adminPassword : borrowValid && value == borrowCode;
+                final ok = selected == AccessMode.admin
+                    ? value == adminPassword
+                    : borrowValid && value == borrowCode;
                 if (ok) {
                   Navigator.pop(context, true);
                 } else {
@@ -280,7 +305,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       setState(() {
         timeSynced = false;
         espTime = null;
-        status = mode == AccessMode.admin ? '时间同步失败：管理员仍可正常使用' : '时间同步失败：无法确认临时授权有效期';
+        status = mode == AccessMode.admin
+            ? '时间同步失败：管理员仍可正常使用'
+            : '时间同步失败：无法确认临时授权有效期';
       });
       _log('ESP32时间同步失败');
       return;
@@ -288,18 +315,23 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     setState(() {
       timeSynced = true;
       espTime = DateTime.now();
-      status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
+      status = mode == AccessMode.admin
+          ? '已连接 · 时间同步成功 · 管理员权限已开放'
+          : '已连接 · 时间同步成功 · 临时借车权限已开放';
     });
-    _log('ESP32时间同步成功');
+    _log('ESP32时间同步成功（当前构建为演示链路）');
   }
 
   Future<void> disconnect() async {
+    commandTimer?.cancel();
     setState(() {
       connected = false;
       mode = null;
       adminSession = false;
       timeSynced = false;
       espTime = null;
+      commandSeconds = 0;
+      activeCommand = '';
       status = 'BLE已断开：车辆功能重新锁定';
     });
     _log('BLE断开，安全保护');
@@ -315,25 +347,62 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     late final String protocol;
     late final String detail;
     late final int gpio;
+    final timed = command == '升窗' || command == '降窗' || command == '后备箱';
     switch (command) {
       case '锁车':
-        protocol = 'suoche'; gpio = 12; detail = 'GPIO12 锁车脉冲'; locked = true;
+        protocol = 'suoche';
+        gpio = 12;
+        detail = 'GPIO12 锁车脉冲';
+        locked = true;
       case '解锁':
-        protocol = 'jiesuo'; gpio = 13; detail = 'GPIO13 解锁脉冲'; locked = false;
+        protocol = 'jiesuo';
+        gpio = 13;
+        detail = 'GPIO13 解锁脉冲';
+        locked = false;
       case '寻车':
-        protocol = 'xunche'; gpio = 12; detail = 'GPIO12 连续两次锁车脉冲';
+        protocol = 'xunche';
+        gpio = 12;
+        detail = 'GPIO12 连续两次锁车脉冲';
       case '升窗':
-        protocol = 'chuangsheng'; gpio = 12; detail = 'GPIO12 保持7秒';
+        protocol = 'chuangsheng';
+        gpio = 12;
+        detail = 'GPIO12 保持7秒';
       case '降窗':
-        protocol = 'chuangjiang'; gpio = 13; detail = 'GPIO13 保持7秒';
+        protocol = 'chuangjiang';
+        gpio = 13;
+        detail = 'GPIO13 保持7秒';
       default:
-        protocol = 'houbeixiang'; gpio = 14; detail = 'GPIO14 保持7秒';
+        protocol = 'houbeixiang';
+        gpio = 14;
+        detail = 'GPIO14 保持7秒';
+    }
+    commandTimer?.cancel();
+    if (timed) {
+      commandSeconds = 7;
+      activeCommand = command;
+      commandTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (commandSeconds <= 1) {
+          timer.cancel();
+          setState(() {
+            commandSeconds = 0;
+            activeCommand = '';
+            status = '$command 7秒动作完成：$detail';
+          });
+          _log('$protocol 7秒动作完成');
+          return;
+        }
+        setState(() => commandSeconds -= 1);
+      });
     }
     lastCommand = '$protocol → GPIO$gpio → $detail';
-    setState(() => status = '$command 已发送：$lastCommand');
+    setState(() => status = timed ? '$command 已开始：7秒保持中（$commandSeconds）' : '$command 已发送：$lastCommand');
     _log('APP发起 $protocol');
-    _log('ESP32收到 $protocol → GPIO$gpio');
-    _message('$command\n$detail');
+    _log('ESP32收到 $protocol → GPIO$gpio（当前构建为演示链路）');
+    _message(timed ? '$command\n7秒保持中' : '$command\n$detail');
   }
 
   Future<void> generateBorrowCode() async {
@@ -351,19 +420,33 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setString('borrow_code', code);
     await prefs?.setInt('borrow_start', start.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', end.millisecondsSinceEpoch);
+    _scheduleBorrowExpiry();
     _log('生成临时借车密码');
     setState(() => status = '临时借车密码已生成');
     _message('临时密码：$code\n有效期：$hours 小时');
   }
 
-  Future<void> _clearBorrow() async {
+  Future<void> _clearBorrow({bool logExpiry = false}) async {
+    final hadCode = borrowCode != null;
+    borrowExpiryTimer?.cancel();
+    borrowExpiryTimer = null;
     borrowCode = null;
     borrowStart = null;
     borrowEnd = null;
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
-    if (mounted) setState(() {});
+    if (logExpiry && hadCode) _log('临时借车密码已到期并清除');
+    if (mounted) {
+      if (mode == AccessMode.borrower) {
+        connected = false;
+        mode = null;
+        timeSynced = false;
+        espTime = null;
+        status = '临时借车授权已失效，车辆功能重新锁定';
+      }
+      setState(() {});
+    }
   }
 
   Future<void> toggleAuthorization() async {
@@ -375,7 +458,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setBool('authorized', authorized);
     _log(authorized ? '恢复设备授权' : '关闭设备授权');
     setState(() {
-      status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权';
+      status = authorized
+          ? '授权已恢复：管理员会话仍有效，车辆功能已开放'
+          : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权';
     });
     _message(authorized ? '授权已恢复' : '授权已关闭，管理员会话保留');
   }
@@ -413,7 +498,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     }
     adminPassword = value;
     await prefs?.setString('admin_password', adminPassword);
-    _log('管理员密码修改成功');
+    _log('管理员密码修改成功（当前构建保存于APP本地）');
     setState(() {});
     _message('新密码已生效，旧密码失效');
   }
@@ -448,7 +533,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (value.isEmpty) return;
     deviceName = value;
     await prefs?.setString('device_name', deviceName);
-    _log('设备名称修改成功');
+    _log('设备名称修改成功（当前构建保存于APP本地）');
     setState(() {});
     _message('设备名称已保存');
   }
@@ -484,6 +569,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     authorized = true;
     autoConnect = true;
     sound = true;
+    deviceName = defaultName;
     borrowCode = null;
     borrowStart = null;
     borrowEnd = null;
@@ -492,12 +578,29 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     mode = null;
     adminSession = false;
     timeSynced = false;
+    borrowExpiryTimer?.cancel();
+    commandTimer?.cancel();
     _log('恢复出厂');
     setState(() {
       status = '已恢复未绑定初始状态';
       tab = PageTab.vehicle;
     });
     _message('恢复出厂完成，管理员初始密码恢复为13092991951');
+  }
+
+  void _toggleAutoConnect() async {
+    autoConnect = !autoConnect;
+    await prefs?.setBool('auto_connect', autoConnect);
+    _log(autoConnect ? '自动连接开启' : '自动连接关闭');
+    setState(() {});
+  }
+
+  void _toggleSound() async {
+    sound = !sound;
+    await prefs?.setBool('sound', sound);
+    _log(sound ? '声音反馈开启' : '声音反馈关闭');
+    setState(() {});
+    _message('声音反馈：${sound ? '开启' : '关闭'}');
   }
 
   InputDecoration _field(String label) => InputDecoration(
@@ -539,26 +642,33 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     required double aspectRatio,
     required Widget Function(double width, double height) overlays,
   }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = width / aspectRatio;
-        return Center(
-          child: SingleChildScrollView(
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  Image.asset(asset, fit: BoxFit.fill),
-                  overlays(width, height),
-                ],
+    return Scaffold(
+      backgroundColor: const Color(0xFF000000),
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final height = width / aspectRatio;
+            return SingleChildScrollView(
+              child: Center(
+                child: SizedBox(
+                  width: width,
+                  height: height,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      Image.asset(asset, fit: BoxFit.fill),
+                      overlays(width, height),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -568,55 +678,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       aspectRatio: 448 / 580,
       overlays: (w, h) => Stack(
         children: <Widget>[
-          Positioned(
-            left: w * .055,
-            top: h * .045,
-            width: w * .13,
-            height: h * .085,
-            child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings)),
-          ),
-          Positioned(
-            right: w * .055,
-            top: h * .045,
-            width: w * .13,
-            height: h * .085,
-            child: _transparentHotspot(onTap: () => _message(connected ? 'BLE：已连接 · ${timeSynced ? '时间已同步' : '时间未同步'}' : 'BLE：未连接')),
-          ),
-          Positioned(
-            left: w * .035,
-            top: h * .445,
-            width: w * .19,
-            height: h * .075,
-            child: _transparentHotspot(onTap: connected ? disconnect : (found ? connect : scan)),
-          ),
-          Positioned(
-            left: w * .215,
-            top: h * .445,
-            width: w * .19,
-            height: h * .075,
-            child: _transparentHotspot(onTap: adminEnabled ? toggleAuthorization : null),
-          ),
-          Positioned(
-            left: w * .405,
-            top: h * .445,
-            width: w * .19,
-            height: h * .075,
-            child: _transparentHotspot(onTap: () => _message('车辆状态：${locked ? '锁定' : '解锁'}')),
-          ),
-          Positioned(
-            left: w * .595,
-            top: h * .445,
-            width: w * .19,
-            height: h * .075,
-            child: _transparentHotspot(onTap: connected ? syncTime : null),
-          ),
-          Positioned(
-            left: w * .785,
-            top: h * .445,
-            width: w * .18,
-            height: h * .075,
-            child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin)),
-          ),
+          Positioned(left: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
+          Positioned(right: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => _message(connected ? 'BLE：已连接 · ${timeSynced ? '时间已同步' : '时间未同步'}' : 'BLE：未连接'))),
+          Positioned(left: w * .035, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? disconnect : (found ? connect : scan))),
+          Positioned(left: w * .215, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: adminEnabled ? toggleAuthorization : null)),
+          Positioned(left: w * .405, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: () => _message('车辆状态：${locked ? '锁定' : '解锁'}'))),
+          Positioned(left: w * .595, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? syncTime : null)),
+          Positioned(right: w * .035, top: h * .445, width: w * .18, height: h * .075, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin))),
           Positioned(left: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null)),
           Positioned(right: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null)),
           Positioned(left: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null)),
@@ -638,6 +706,14 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   child: Center(child: Text(scanning ? '蓝牙扫描中…' : found ? '已发现 $deviceName · 点击蓝牙键连接' : '未连接 · 点击蓝牙键扫描', style: const TextStyle(color: Colors.white, fontSize: 13))),
                 ),
               ),
+            ),
+          if (commandSeconds > 0)
+            Positioned(
+              left: w * .18,
+              right: w * .18,
+              top: h * .79,
+              height: h * .055,
+              child: IgnorePointer(child: Center(child: Text('$activeCommand：$commandSeconds 秒', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
             ),
         ],
       ),
@@ -677,7 +753,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         ],
       ),
     );
-    if (value != null && adminEnabled) await generateBorrowCode();
+    if (value == null || !adminEnabled) return;
+    hoursController.text = value;
+    await generateBorrowCode();
   }
 
   Future<void> _connectAsBorrower() async {
@@ -708,7 +786,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           Positioned(left: w * .05, top: h * .205, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: connected ? syncTime : scan)),
           Positioned(left: w * .05, top: h * .31, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: adminEnabled ? changePassword : _requireAdmin)),
           Positioned(left: w * .05, top: h * .415, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin))),
-          Positioned(left: w * .05, top: h * .52, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: () => _message('声音反馈：${sound ? '开启' : '关闭'}'))),
+          Positioned(left: w * .05, top: h * .52, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: _toggleSound)),
           Positioned(left: w * .05, top: h * .625, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: showLogs)),
           Positioned(left: 0, bottom: 0, width: w / 3, height: h * .15, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
           Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .15, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
@@ -731,18 +809,19 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: connected ? const Color(0xFF19D36B) : Colors.grey),
             ]),
             const SizedBox(height: 8),
-            _adminCard('管理员权限', adminEnabled ? '管理员权限已开启：可修改 ESP32 保存信息。' : '请先通过管理员密码认证。'),
+            _adminCard('管理员权限', adminEnabled ? '管理员权限已开启：可修改设备保存信息。' : '请先通过管理员密码认证。'),
             _adminAction('修改管理员/蓝牙密码', Icons.password, adminEnabled ? changePassword : _requireAdmin),
             _adminAction('修改设备名称', Icons.edit, adminEnabled ? changeDeviceName : _requireAdmin),
             _adminAction('生成临时借车密码', Icons.key, adminEnabled ? generateBorrowCode : _requireAdmin),
             _adminAction(authorized ? '关闭授权' : '恢复授权', Icons.verified_user, adminEnabled ? toggleAuthorization : _requireAdmin),
             _adminAction('重新同步时间', Icons.sync, adminEnabled ? syncTime : _requireAdmin),
             _adminAction('统一日志', Icons.receipt_long, showLogs),
+            _adminAction('自动连接：${autoConnect ? '开启' : '关闭'}', Icons.bluetooth_auto, _toggleAutoConnect),
             _adminAction('恢复出厂', Icons.delete_forever, adminEnabled ? factoryReset : _requireAdmin, danger: true),
             const SizedBox(height: 12),
-            _adminCard('关键状态', '管理员席位：${adminDevice == phoneId ? '当前手机' : '未绑定'}\n授权：${authorized ? '有效' : '关闭'}\n时间：${timeSynced ? '已同步' : '未同步'}\n车辆：${locked ? '已锁定' : '已解锁'}'),
+            _adminCard('关键状态', '管理员席位：${adminDevice == phoneId ? '当前手机' : '未绑定'}\n授权：${authorized ? '有效' : '关闭'}\n时间：${timeSynced ? '已同步' : '未同步'}\n车辆：${locked ? '已锁定' : '已解锁'}\n临时借车：${borrowValid ? '有效至 ${_formatTime(borrowEnd!)}' : '无有效授权'}'),
             const SizedBox(height: 10),
-            _adminCard('安全规则', '授权关闭只锁定车辆控制，不清除管理员会话；管理员仍可恢复授权。'),
+            _adminCard('安全规则', '授权关闭只锁定车辆控制，不清除当前管理员会话；管理员仍可恢复授权。临时密码到期后自动清除并撤销借车会话。'),
           ],
         ),
       ),
@@ -790,7 +869,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         child: Column(children: <Widget>[
           const SizedBox(height: 14),
           const Text('Tian Key 系统日志', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const Text('APP + ESP32统一日志 · ≤200条 · ≤7天', style: TextStyle(color: Colors.grey)),
+          const Text('APP + ESP32统一日志 · ≤200条 · 当前会话内保存', style: TextStyle(color: Colors.grey)),
           const Divider(),
           Expanded(child: logs.isEmpty ? const Center(child: Text('暂无日志')) : ListView.builder(itemCount: logs.length, itemBuilder: (context, index) => ListTile(dense: true, title: Text(logs[logs.length - 1 - index], style: const TextStyle(fontSize: 12))))),
         ]),
