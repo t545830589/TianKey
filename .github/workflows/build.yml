@@ -45,16 +45,22 @@ jobs:
         shell: bash
         run: |
           if [ ! -f android/settings.gradle ]; then
-            flutter create --platforms=android --project-name=tiankey .
+            flutter create --platforms=android --project-name=tiankey --no-pub .
           fi
+          # flutter create generates a default test and analysis_options.yaml.
+          # This repository intentionally has no flutter_test/flutter_lints dependencies;
+          # remove generated template files so they cannot enter analysis or conflict with the app.
+          rm -rf test
+          rm -f analysis_options.yaml
           test -f android/settings.gradle
           test -f android/app/build.gradle
+          test -f lib/main.dart
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze Dart project
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Analyze application code only
+        run: flutter analyze lib
 
       - name: Build release APK
         run: flutter build apk --release
