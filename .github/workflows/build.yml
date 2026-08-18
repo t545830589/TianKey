@@ -54,6 +54,7 @@ jobs:
           rm -f analysis_options.yaml
 
           # flutter_blue_plus 1.36.8 requires Android API 21+ and Android 12 BLE permissions.
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' android/app/build.gradle
           sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' android/app/build.gradle
           python3 - <<'PY'
           from pathlib import Path
@@ -72,6 +73,8 @@ jobs:
               manifest.write_text(text)
           PY
 
+          grep -q 'minSdkVersion 21' android/app/build.gradle
+          grep -q 'android.permission.BLUETOOTH_SCAN' android/app/src/main/AndroidManifest.xml
           test -f android/settings.gradle
           test -f android/app/build.gradle
           test -f android/app/src/main/AndroidManifest.xml
