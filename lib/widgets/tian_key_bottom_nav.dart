@@ -6,13 +6,14 @@ class TianKeyBottomNav extends StatelessWidget {
 
   const TianKeyBottomNav({
     super.key,
-    required this.currentIndex,
+    required this currentIndex,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      height: 76,
       decoration: BoxDecoration(
         color: const Color(0xFF050E18),
         border: Border(
@@ -25,38 +26,29 @@ class TianKeyBottomNav extends StatelessWidget {
         data: NavigationBarThemeData(
           backgroundColor: const Color(0xFF050E18),
           indicatorColor: Colors.blueAccent.withOpacity(0.18),
-          labelTextStyle: MaterialStateProperty.resolveWith(
-            (states) {
-              if (states.contains(MaterialState.selected)) {
-                return const TextStyle(
-                  color: Colors.blueAccent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                );
-              }
-              return const TextStyle(
-                color: Colors.white54,
-                fontSize: 12,
-              );
-            },
-          ),
-          iconTheme: MaterialStateProperty.resolveWith(
-            (states) {
-              if (states.contains(MaterialState.selected)) {
-                return const IconThemeData(
-                  color: Colors.blueAccent,
-                  size: 26,
-                );
-              }
-              return const IconThemeData(
-                color: Colors.white54,
-                size: 24,
-              );
-            },
-          ),
+          labelTextStyle: MaterialStateProperty.resolveWith((states) {
+            return TextStyle(
+              color: states.contains(MaterialState.selected)
+                  ? Colors.blueAccent
+                  : Colors.white54,
+              fontSize: 12,
+              fontWeight: states.contains(MaterialState.selected)
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+            );
+          }),
+          iconTheme: MaterialStateProperty.resolveWith((states) {
+            return IconThemeData(
+              color: states.contains(MaterialState.selected)
+                  ? Colors.blueAccent
+                  : Colors.white54,
+              size: states.contains(MaterialState.selected) ? 26 : 24,
+            );
+          }),
         ),
         child: NavigationBar(
-          height: 72,
+          height: 70,
+          elevation: 0,
           selectedIndex: currentIndex,
           onDestinationSelected: onChanged,
           destinations: const [
