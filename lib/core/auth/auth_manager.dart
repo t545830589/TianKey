@@ -1,11 +1,12 @@
 /// TianKey V11 permission simulation layer.
-/// Provides basic role state before backend/ESP32 authorization is connected.
 class AuthManager {
+  static const String initialAdminPassword = '13092991951';
+
   String role = 'GUEST';
   bool authenticated = false;
 
   bool loginAdmin(String password) {
-    if (password == '123456') {
+    if (password == initialAdminPassword) {
       role = 'ADMIN';
       authenticated = true;
       return true;
