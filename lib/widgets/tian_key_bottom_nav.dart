@@ -6,7 +6,7 @@ class TianKeyBottomNav extends StatelessWidget {
 
   const TianKeyBottomNav({
     super.key,
-    required this currentIndex,
+    required this.currentIndex,
     required this.onChanged,
   });
 
