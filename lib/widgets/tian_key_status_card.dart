@@ -5,34 +5,62 @@ class TianKeyStatusCard extends StatelessWidget {
   final String title;
   final String value;
   final Color color;
+  final double height;
 
   const TianKeyStatusCard({
     super.key,
-    required this.icon,
+    required this icon,
     required this.title,
     required this.value,
     required this.color,
+    this.height = 82,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF061321),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.7)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.75)),
         boxShadow: [
-          BoxShadow(color: color.withOpacity(0.2), blurRadius: 8),
+          BoxShadow(
+            color: color.withOpacity(0.18),
+            blurRadius: 12,
+            spreadRadius: 1,
+          ),
         ],
       ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 6),
-          Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          Text(value, style: TextStyle(color: color, fontSize: 12)),
+          Icon(icon, color: color, size: 26),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
