@@ -23,9 +23,9 @@ class TianKeyApp extends StatelessWidget {
           primary: Color(0xFF1595FF),
           secondary: Color(0xFFFF8A1C),
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF15160F),
-          elevation: 0,
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: Color(0xFF171A20),
+          contentTextStyle: TextStyle(color: Colors.white),
         ),
       ),
       home: const TianKeyHome(),
@@ -33,7 +33,7 @@ class TianKeyApp extends StatelessWidget {
   }
 }
 
-enum PageTab { vehicle, bluetooth, borrow, admin, settings }
+enum PageTab { vehicle, borrow, settings, admin }
 enum AccessMode { admin, borrower }
 
 class TianKeyHome extends StatefulWidget {
@@ -154,6 +154,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       status = '发现车辆：$deviceName';
     });
     _log('发现 $deviceName');
+    _message('发现 $deviceName');
   }
 
   Future<void> connect() async {
@@ -164,17 +165,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     }
     final selected = await showDialog<AccessMode>(
       context: context,
-      builder: (context) => _dialog(
-        '选择连接身份',
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            _actionButton('管理员连接', Icons.admin_panel_settings, const Color(0xFF1595FF), () => Navigator.pop(context, AccessMode.admin)),
-            const SizedBox(height: 10),
-            _actionButton('临时借车连接', Icons.key, const Color(0xFFFF8A1C), () => Navigator.pop(context, AccessMode.borrower)),
-          ],
-        ),
-      ),
+      builder: (context) => _authChoiceDialog(),
     );
     if (selected == null || !mounted) return;
     passwordController.clear();
@@ -225,35 +216,56 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await syncTime();
   }
 
+  Widget _authChoiceDialog() {
+    return Dialog(
+      backgroundColor: const Color(0xFF020914),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFF1595FF))),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Text('选择连接身份', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _dialogButton('管理员连接', Icons.admin_panel_settings, const Color(0xFF1595FF), () => Navigator.pop(context, AccessMode.admin)),
+            const SizedBox(height: 10),
+            _dialogButton('临时借车连接', Icons.key, const Color(0xFFFF8A1C), () => Navigator.pop(context, AccessMode.borrower)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<bool> _verify(AccessMode selected) async {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _dialog(
-        selected == AccessMode.admin ? '管理员密码' : '临时借车密码',
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              decoration: _field('请输入密码'),
-            ),
-            const SizedBox(height: 14),
-            _actionButton('验证并连接', Icons.link, const Color(0xFF1595FF), () {
-              final value = passwordController.text.trim();
-              final ok = selected == AccessMode.admin
-                  ? value == adminPassword
-                  : borrowValid && value == borrowCode;
-              if (ok) {
-                Navigator.pop(context, true);
-              } else {
-                _message('密码错误、授权无效或临时密码已过期');
-                _log('认证失败');
-              }
-            }),
-          ],
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF020914),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFFFF8A1C))),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(height: 110, width: double.infinity, child: Image.asset('assets/popup_admin_auth.png', fit: BoxFit.contain)),
+              const SizedBox(height: 4),
+              Text(selected == AccessMode.admin ? '管理员密码' : '临时借车密码', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextField(controller: passwordController, obscureText: true, keyboardType: TextInputType.number, decoration: _field('请输入密码')),
+              const SizedBox(height: 12),
+              _dialogButton('验证并连接', Icons.link, const Color(0xFF1595FF), () {
+                final value = passwordController.text.trim();
+                final ok = selected == AccessMode.admin ? value == adminPassword : borrowValid && value == borrowCode;
+                if (ok) {
+                  Navigator.pop(context, true);
+                } else {
+                  _message('密码错误、授权无效或临时密码已过期');
+                  _log('认证失败');
+                }
+              }),
+            ],
+          ),
         ),
       ),
     );
@@ -268,9 +280,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       setState(() {
         timeSynced = false;
         espTime = null;
-        status = mode == AccessMode.admin
-            ? '时间同步失败：管理员仍可正常使用'
-            : '时间同步失败：无法确认临时授权有效期';
+        status = mode == AccessMode.admin ? '时间同步失败：管理员仍可正常使用' : '时间同步失败：无法确认临时授权有效期';
       });
       _log('ESP32时间同步失败');
       return;
@@ -278,9 +288,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     setState(() {
       timeSynced = true;
       espTime = DateTime.now();
-      status = mode == AccessMode.admin
-          ? '已连接 · 时间同步成功 · 管理员权限已开放'
-          : '已连接 · 时间同步成功 · 临时借车权限已开放';
+      status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
     });
     _log('ESP32时间同步成功');
   }
@@ -304,47 +312,54 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       _log('拒绝车辆指令 $command');
       return;
     }
-    String protocol;
-    String detail;
-    int gpio;
+    late final String protocol;
+    late final String detail;
+    late final int gpio;
     switch (command) {
       case '锁车':
-        protocol = 'suoche'; gpio = 12; detail = 'GPIO12 锁车脉冲'; locked = true; break;
+        protocol = 'suoche'; gpio = 12; detail = 'GPIO12 锁车脉冲'; locked = true;
       case '解锁':
-        protocol = 'jiesuo'; gpio = 13; detail = 'GPIO13 解锁脉冲'; locked = false; break;
+        protocol = 'jiesuo'; gpio = 13; detail = 'GPIO13 解锁脉冲'; locked = false;
       case '寻车':
-        protocol = 'xunche'; gpio = 12; detail = 'GPIO12 连续两次锁车脉冲'; break;
+        protocol = 'xunche'; gpio = 12; detail = 'GPIO12 连续两次锁车脉冲';
       case '升窗':
-        protocol = 'chuangsheng'; gpio = 12; detail = 'GPIO12 保持7秒'; break;
+        protocol = 'chuangsheng'; gpio = 12; detail = 'GPIO12 保持7秒';
       case '降窗':
-        protocol = 'chuangjiang'; gpio = 13; detail = 'GPIO13 保持7秒'; break;
+        protocol = 'chuangjiang'; gpio = 13; detail = 'GPIO13 保持7秒';
       default:
         protocol = 'houbeixiang'; gpio = 14; detail = 'GPIO14 保持7秒';
     }
     lastCommand = '$protocol → GPIO$gpio → $detail';
-    setState(() { status = '$command 已发送：$lastCommand'; });
+    setState(() => status = '$command 已发送：$lastCommand');
     _log('APP发起 $protocol');
     _log('ESP32收到 $protocol → GPIO$gpio');
     _message('$command\n$detail');
   }
 
   Future<void> generateBorrowCode() async {
-    if (!adminEnabled) return;
+    if (!adminEnabled) {
+      _message('请先完成管理员认证');
+      return;
+    }
     final hours = (int.tryParse(hoursController.text.trim()) ?? 2).clamp(1, 24).toInt();
     final code = (100000 + Random().nextInt(900000)).toString();
     final start = DateTime.now();
     final end = start.add(Duration(hours: hours));
-    borrowCode = code; borrowStart = start; borrowEnd = end;
+    borrowCode = code;
+    borrowStart = start;
+    borrowEnd = end;
     await prefs?.setString('borrow_code', code);
     await prefs?.setInt('borrow_start', start.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', end.millisecondsSinceEpoch);
     _log('生成临时借车密码');
-    setState(() { status = '临时借车密码已生成'; });
+    setState(() => status = '临时借车密码已生成');
     _message('临时密码：$code\n有效期：$hours 小时');
   }
 
   Future<void> _clearBorrow() async {
-    borrowCode = null; borrowStart = null; borrowEnd = null;
+    borrowCode = null;
+    borrowStart = null;
+    borrowEnd = null;
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
@@ -352,37 +367,50 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   Future<void> toggleAuthorization() async {
-    if (!adminEnabled) return;
+    if (!adminEnabled) {
+      _message('请先完成管理员认证');
+      return;
+    }
     authorized = !authorized;
     await prefs?.setBool('authorized', authorized);
     _log(authorized ? '恢复设备授权' : '关闭设备授权');
     setState(() {
-      status = authorized
-          ? '授权已恢复：管理员会话仍有效，车辆功能已开放'
-          : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权';
+      status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权';
     });
+    _message(authorized ? '授权已恢复' : '授权已关闭，管理员会话保留');
   }
 
   Future<void> changePassword() async {
-    if (!adminEnabled) return;
+    if (!adminEnabled) {
+      _message('请先完成管理员认证');
+      return;
+    }
     newPasswordController.clear();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => _dialog(
-        '修改管理员/蓝牙密码',
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextField(controller: newPasswordController, obscureText: true, keyboardType: TextInputType.number, decoration: _field('输入新密码')),
-            const SizedBox(height: 12),
-            _actionButton('保存到ESP32', Icons.save, const Color(0xFFFF8A1C), () => Navigator.pop(context, true)),
-          ],
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF020914),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFF1595FF))),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(height: 100, child: Image.asset('assets/popup_edit_pwd.png', fit: BoxFit.contain)),
+              TextField(controller: newPasswordController, obscureText: true, keyboardType: TextInputType.number, decoration: _field('输入新密码')),
+              const SizedBox(height: 12),
+              _dialogButton('保存到ESP32', Icons.save, const Color(0xFF1595FF), () => Navigator.pop(context, true)),
+            ],
+          ),
         ),
       ),
     );
     if (ok != true) return;
     final value = newPasswordController.text.trim();
-    if (value.length < 6) { _message('密码至少6位'); return; }
+    if (value.length < 6) {
+      _message('密码至少6位');
+      return;
+    }
     adminPassword = value;
     await prefs?.setString('admin_password', adminPassword);
     _log('管理员密码修改成功');
@@ -391,19 +419,27 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   Future<void> changeDeviceName() async {
-    if (!adminEnabled) return;
+    if (!adminEnabled) {
+      _message('请先完成管理员认证');
+      return;
+    }
     nameController.text = deviceName;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => _dialog(
-        '修改设备名称',
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextField(controller: nameController, decoration: _field('BLE设备名称')),
-            const SizedBox(height: 12),
-            _actionButton('保存到ESP32', Icons.save, const Color(0xFF1595FF), () => Navigator.pop(context, true)),
-          ],
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF020914),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFF1595FF))),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(height: 100, child: Image.asset('assets/popup_device_name.png', fit: BoxFit.contain)),
+              TextField(controller: nameController, decoration: _field('BLE设备名称')),
+              const SizedBox(height: 12),
+              _dialogButton('保存到ESP32', Icons.save, const Color(0xFF1595FF), () => Navigator.pop(context, true)),
+            ],
+          ),
         ),
       ),
     );
@@ -414,233 +450,335 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setString('device_name', deviceName);
     _log('设备名称修改成功');
     setState(() {});
+    _message('设备名称已保存');
   }
 
   Future<void> factoryReset() async {
-    if (!adminEnabled) return;
+    if (!adminEnabled) {
+      _message('请先完成管理员认证');
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => _dialog(
-        '恢复出厂',
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Text('清除管理员密码、管理员设备绑定、授权状态和临时借车授权。'),
-            const SizedBox(height: 12),
-            _actionButton('确认恢复出厂', Icons.delete_forever, const Color(0xFFFF2B1A), () => Navigator.pop(context, true)),
-          ],
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF020914),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFFFF2B1A))),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(height: 100, child: Image.asset('assets/popup_reset_pwd.png', fit: BoxFit.contain)),
+              const Text('清除管理员绑定、授权状态和临时借车授权。', textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              _dialogButton('确认恢复出厂', Icons.delete_forever, const Color(0xFFFF2B1A), () => Navigator.pop(context, true)),
+            ],
+          ),
         ),
       ),
     );
     if (ok != true) return;
     await prefs?.clear();
-    adminPassword = defaultPassword; adminDevice = null; authorized = true; autoConnect = true; sound = true;
-    borrowCode = null; borrowStart = null; borrowEnd = null; connected = false; found = false; mode = null;
-    adminSession = false; timeSynced = false;
+    adminPassword = defaultPassword;
+    adminDevice = null;
+    authorized = true;
+    autoConnect = true;
+    sound = true;
+    borrowCode = null;
+    borrowStart = null;
+    borrowEnd = null;
+    connected = false;
+    found = false;
+    mode = null;
+    adminSession = false;
+    timeSynced = false;
     _log('恢复出厂');
-    setState(() { status = '已恢复未绑定初始状态'; });
+    setState(() {
+      status = '已恢复未绑定初始状态';
+      tab = PageTab.vehicle;
+    });
     _message('恢复出厂完成，管理员初始密码恢复为13092991951');
   }
 
   InputDecoration _field(String label) => InputDecoration(
-    labelText: label,
-    labelStyle: const TextStyle(color: Colors.white70),
-    enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF1595FF))),
-    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF8A1C), width: 2)),
-  );
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: const Color(0xFF030A13),
+        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF1595FF))),
+        focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF8A1C), width: 2)),
+      );
 
-  Widget _dialog(String title, Widget child) => Dialog(
-    backgroundColor: const Color(0xFF06101D),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFF1595FF))),
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
-        Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 18),
-        child,
-      ]),
-    ),
-  );
+  Widget _dialogButton(String text, IconData icon, Color color, VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(text),
+        style: FilledButton.styleFrom(backgroundColor: color, foregroundColor: Colors.black),
+      ),
+    );
+  }
 
-  Widget _actionButton(String text, IconData icon, Color color, VoidCallback onPressed) => SizedBox(
-    width: double.infinity,
-    child: FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(text),
-      style: FilledButton.styleFrom(backgroundColor: color, foregroundColor: Colors.black, minimumSize: const Size.fromHeight(50)),
-    ),
-  );
-
-  Widget _panel(Widget child, {Color border = const Color(0xFF1595FF), EdgeInsets padding = const EdgeInsets.all(14)}) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: const Color(0xCC020A14),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: border),
-      boxShadow: <BoxShadow>[BoxShadow(color: border.withOpacity(0.28), blurRadius: 14)],
-    ),
-    child: child,
-  );
-
-  Widget _neonButton(String text, IconData icon, VoidCallback? onTap, {bool orange = false}) {
-    final color = orange ? const Color(0xFFFF8A1C) : const Color(0xFF1595FF);
-    return Opacity(
-      opacity: onTap == null ? 0.35 : 1,
+  Widget _transparentHotspot({required VoidCallback? onTap, double radius = 12}) {
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          height: 78,
-          decoration: BoxDecoration(
-            color: const Color(0xFF061321),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color, width: 1.5),
-            boxShadow: <BoxShadow>[BoxShadow(color: color.withOpacity(0.35), blurRadius: 12)],
+        borderRadius: BorderRadius.circular(radius),
+        splashColor: Colors.white10,
+        highlightColor: Colors.white10,
+      ),
+    );
+  }
+
+  Widget _targetImagePage({
+    required String asset,
+    required double aspectRatio,
+    required Widget Function(double width, double height) overlays,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = width / aspectRatio;
+        return Center(
+          child: SingleChildScrollView(
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  Image.asset(asset, fit: BoxFit.fill),
+                  overlays(width, height),
+                ],
+              ),
+            ),
           ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: <Widget>[
-            Icon(icon, color: color, size: 27),
-            const SizedBox(height: 5),
-            Text(text, style: const TextStyle(fontSize: 15)),
-          ]),
+        );
+      },
+    );
+  }
+
+  Widget vehiclePage() {
+    return _targetImagePage(
+      asset: 'assets/home_controls_bg.png',
+      aspectRatio: 448 / 580,
+      overlays: (w, h) => Stack(
+        children: <Widget>[
+          Positioned(
+            left: w * .055,
+            top: h * .045,
+            width: w * .13,
+            height: h * .085,
+            child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings)),
+          ),
+          Positioned(
+            right: w * .055,
+            top: h * .045,
+            width: w * .13,
+            height: h * .085,
+            child: _transparentHotspot(onTap: () => _message(connected ? 'BLE：已连接 · ${timeSynced ? '时间已同步' : '时间未同步'}' : 'BLE：未连接')),
+          ),
+          Positioned(
+            left: w * .035,
+            top: h * .445,
+            width: w * .19,
+            height: h * .075,
+            child: _transparentHotspot(onTap: connected ? disconnect : (found ? connect : scan)),
+          ),
+          Positioned(
+            left: w * .215,
+            top: h * .445,
+            width: w * .19,
+            height: h * .075,
+            child: _transparentHotspot(onTap: adminEnabled ? toggleAuthorization : null),
+          ),
+          Positioned(
+            left: w * .405,
+            top: h * .445,
+            width: w * .19,
+            height: h * .075,
+            child: _transparentHotspot(onTap: () => _message('车辆状态：${locked ? '锁定' : '解锁'}')),
+          ),
+          Positioned(
+            left: w * .595,
+            top: h * .445,
+            width: w * .19,
+            height: h * .075,
+            child: _transparentHotspot(onTap: connected ? syncTime : null),
+          ),
+          Positioned(
+            left: w * .785,
+            top: h * .445,
+            width: w * .18,
+            height: h * .075,
+            child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin)),
+          ),
+          Positioned(left: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null)),
+          Positioned(right: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null)),
+          Positioned(left: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null)),
+          Positioned(right: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('升窗') : null)),
+          Positioned(left: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('降窗') : null)),
+          Positioned(right: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null)),
+          Positioned(left: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
+          Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
+          Positioned(right: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
+          if (!connected)
+            Positioned(
+              left: w * .12,
+              right: w * .12,
+              top: h * .385,
+              height: h * .055,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(color: Colors.black54),
+                  child: Center(child: Text(scanning ? '蓝牙扫描中…' : found ? '已发现 $deviceName · 点击蓝牙键连接' : '未连接 · 点击蓝牙键扫描', style: const TextStyle(color: Colors.white, fontSize: 13))),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget borrowPage() {
+    return _targetImagePage(
+      asset: 'assets/borrow_page_bg.png',
+      aspectRatio: 512 / 775,
+      overlays: (w, h) => Stack(
+        children: <Widget>[
+          Positioned(left: w * .05, top: h * .025, width: w * .12, height: h * .07, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
+          Positioned(left: w * .08, top: h * .25, width: w * .84, height: h * .10, child: IgnorePointer(child: Center(child: Text(borrowValid ? borrowCode! : '暂无有效临时借车密码', style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.bold, letterSpacing: 3))))),
+          Positioned(left: w * .12, top: h * .43, width: w * .76, height: h * .07, child: IgnorePointer(child: Center(child: Text(borrowValid ? '有效至 ${_formatTime(borrowEnd!)}' : '管理员生成临时密码后可借车', style: const TextStyle(color: Colors.white70, fontSize: 14))))),
+          Positioned(left: w * .09, top: h * .55, width: w * .82, height: h * .09, child: _transparentHotspot(onTap: adminEnabled ? () async { hoursController.text = '2'; await _editBorrowHours(); } : () => _message('请先在管理页完成管理员认证'))),
+          Positioned(left: w * .09, top: h * .70, width: w * .82, height: h * .09, child: _transparentHotspot(onTap: adminEnabled ? generateBorrowCode : () => _message('请先完成管理员认证'))),
+          Positioned(left: w * .09, top: h * .79, width: w * .82, height: h * .09, child: _transparentHotspot(onTap: borrowValid ? _connectAsBorrower : () => _message('当前没有有效临时借车密码'))),
+          Positioned(left: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
+          Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
+          Positioned(right: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editBorrowHours() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF06101D),
+        title: const Text('临时借车有效期'),
+        content: TextField(controller: hoursController, keyboardType: TextInputType.number, decoration: _field('小时数 1-24')),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(context, hoursController.text), child: const Text('确定')),
+        ],
+      ),
+    );
+    if (value != null && adminEnabled) await generateBorrowCode();
+  }
+
+  Future<void> _connectAsBorrower() async {
+    if (!borrowValid || connected) return;
+    passwordController.clear();
+    final ok = await _verify(AccessMode.borrower);
+    if (!ok) return;
+    setState(() {
+      connected = true;
+      connecting = false;
+      mode = AccessMode.borrower;
+      timeSynced = false;
+      status = '临时借车认证成功，正在同步时间...';
+    });
+    _log('临时借车连接');
+    await syncTime();
+    if (mounted) setState(() => tab = PageTab.vehicle);
+  }
+
+  Widget settingsPage() {
+    return _targetImagePage(
+      asset: 'assets/settings_page_bg.png',
+      aspectRatio: 272 / 289,
+      overlays: (w, h) => Stack(
+        children: <Widget>[
+          Positioned(left: w * .03, top: 0, width: w * .13, height: h * .09, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
+          Positioned(left: w * .05, top: h * .10, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: () => _message(connected ? '蓝牙已连接：$deviceName' : '蓝牙未连接'))),
+          Positioned(left: w * .05, top: h * .205, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: connected ? syncTime : scan)),
+          Positioned(left: w * .05, top: h * .31, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: adminEnabled ? changePassword : _requireAdmin)),
+          Positioned(left: w * .05, top: h * .415, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin))),
+          Positioned(left: w * .05, top: h * .52, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: () => _message('声音反馈：${sound ? '开启' : '关闭'}'))),
+          Positioned(left: w * .05, top: h * .625, width: w * .90, height: h * .105, child: _transparentHotspot(onTap: showLogs)),
+          Positioned(left: 0, bottom: 0, width: w / 3, height: h * .15, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
+          Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .15, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
+          Positioned(right: 0, bottom: 0, width: w / 3, height: h * .15, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
+        ],
+      ),
+    );
+  }
+
+  Widget adminPage() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF02060D),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          children: <Widget>[
+            Row(children: <Widget>[
+              IconButton(onPressed: () => setState(() => tab = PageTab.vehicle), icon: const Icon(Icons.arrow_back)),
+              const Expanded(child: Text('管理员操作', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
+              Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: connected ? const Color(0xFF19D36B) : Colors.grey),
+            ]),
+            const SizedBox(height: 8),
+            _adminCard('管理员权限', adminEnabled ? '管理员权限已开启：可修改 ESP32 保存信息。' : '请先通过管理员密码认证。'),
+            _adminAction('修改管理员/蓝牙密码', Icons.password, adminEnabled ? changePassword : _requireAdmin),
+            _adminAction('修改设备名称', Icons.edit, adminEnabled ? changeDeviceName : _requireAdmin),
+            _adminAction('生成临时借车密码', Icons.key, adminEnabled ? generateBorrowCode : _requireAdmin),
+            _adminAction(authorized ? '关闭授权' : '恢复授权', Icons.verified_user, adminEnabled ? toggleAuthorization : _requireAdmin),
+            _adminAction('重新同步时间', Icons.sync, adminEnabled ? syncTime : _requireAdmin),
+            _adminAction('统一日志', Icons.receipt_long, showLogs),
+            _adminAction('恢复出厂', Icons.delete_forever, adminEnabled ? factoryReset : _requireAdmin, danger: true),
+            const SizedBox(height: 12),
+            _adminCard('关键状态', '管理员席位：${adminDevice == phoneId ? '当前手机' : '未绑定'}\n授权：${authorized ? '有效' : '关闭'}\n时间：${timeSynced ? '已同步' : '未同步'}\n车辆：${locked ? '已锁定' : '已解锁'}'),
+            const SizedBox(height: 10),
+            _adminCard('安全规则', '授权关闭只锁定车辆控制，不清除管理员会话；管理员仍可恢复授权。'),
+          ],
         ),
       ),
     );
   }
 
-  Widget _line(String label, String value, {bool green = false}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(children: <Widget>[
-      Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 16))),
-      Text(value, style: TextStyle(color: green ? const Color(0xFF19D36B) : Colors.white, fontSize: 16)),
-    ]),
-  );
+  void _requireAdmin() {
+    _message('请先连接车辆并使用管理员密码：$defaultPassword');
+  }
 
-  Widget vehiclePage() => ListView(
-    padding: const EdgeInsets.all(14),
-    children: <Widget>[
-      ClipRRect(
+  Widget _adminCard(String title, String body) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: const Color(0xCC020A14),
         borderRadius: BorderRadius.circular(16),
-        child: Stack(alignment: Alignment.bottomLeft, children: <Widget>[
-          Image.asset('assets/home_car_bg.png', width: double.infinity, height: 235, fit: BoxFit.cover),
-          Container(width: double.infinity, padding: const EdgeInsets.all(16), color: Colors.black54, child: Text(deviceName, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold))),
-        ]),
+        border: Border.all(color: const Color(0xFF1595FF)),
+        boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x441595FF), blurRadius: 12)],
       ),
-      const SizedBox(height: 14),
-      _panel(Column(children: <Widget>[
-        _line('蓝牙', connected ? '已连接' : '未连接'),
-        _line('登录权限', adminEnabled ? '管理员' : (mode == AccessMode.borrower && borrowValid ? '临时借车' : '未授权')),
-        _line('时间', timeSynced ? '已同步' : '未同步'),
-        _line('授权状态', authorized ? '有效' : '已关闭', green: authorized),
-        const SizedBox(height: 6),
-        Text(status, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-      ])),
-      const SizedBox(height: 14),
-      Row(children: <Widget>[
-        Expanded(child: _actionButton(scanning ? '扫描中...' : '蓝牙扫描', Icons.bluetooth_searching, const Color(0xFFFFC62E), scan)),
-        const SizedBox(width: 10),
-        Expanded(child: _actionButton(connected ? '断开' : '连接', Icons.link, const Color(0xFF2B2D34), connected ? disconnect : (found ? connect : () {}))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 7),
+        Text(body, style: const TextStyle(color: Colors.white70)),
       ]),
-      const SizedBox(height: 18),
-      _panel(Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-        const Text('车辆控制', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        Image.asset('assets/home_controls_bg.png', width: double.infinity, height: 100, fit: BoxFit.cover),
-        const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 1.1,
-          children: <Widget>[
-            _neonButton('锁车', Icons.lock, vehicleEnabled ? () => vehicleCommand('锁车') : null),
-            _neonButton('解锁', Icons.lock_open, vehicleEnabled ? () => vehicleCommand('解锁') : null),
-            _neonButton('寻车', Icons.directions_car, vehicleEnabled ? () => vehicleCommand('寻车') : null),
-            _neonButton('升窗', Icons.keyboard_arrow_up, vehicleEnabled ? () => vehicleCommand('升窗') : null),
-            _neonButton('降窗', Icons.keyboard_arrow_down, vehicleEnabled ? () => vehicleCommand('降窗') : null),
-            _neonButton('后备箱', Icons.inventory_2, vehicleEnabled ? () => vehicleCommand('后备箱') : null, orange: true),
-          ],
-        ),
-      ])),
-      if (lastCommand.isNotEmpty) ...<Widget>[const SizedBox(height: 12), _panel(Text(lastCommand, style: const TextStyle(color: Colors.white70)))],
-    ],
-  );
+    );
+  }
 
-  Widget bluetoothPage() => ListView(padding: const EdgeInsets.all(14), children: <Widget>[
-    _panel(Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-      const Text('蓝牙', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
-      _line('设备名称', deviceName), _line('设备ID', 'TIANKEY-AXELA-01'), _line('连接状态', connected ? '已连接' : '未连接'), _line('扫描结果', found ? '发现车辆' : '未发现'),
-      const SizedBox(height: 10),
-      _actionButton('扫描 BLE', Icons.bluetooth_searching, const Color(0xFFFFC62E), scan),
-      const SizedBox(height: 10),
-      _actionButton(connected ? '断开连接' : '连接车辆', Icons.link, const Color(0xFF1595FF), connected ? disconnect : (found ? connect : () {})),
-    ])),
-  ]);
-
-  Widget borrowPage() => ListView(padding: const EdgeInsets.all(14), children: <Widget>[
-    _panel(Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-      const Text('临时借车', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
-      _line('当前密码', borrowValid ? borrowCode! : '无有效密码'),
-      _line('有效期', borrowValid ? borrowEnd.toString() : '无'),
-      const SizedBox(height: 12),
-      TextField(controller: hoursController, keyboardType: TextInputType.number, decoration: _field('有效小时数（1-24）')),
-      const SizedBox(height: 12),
-      _actionButton('生成临时借车密码', Icons.key, const Color(0xFFFF8A1C), adminEnabled ? generateBorrowCode : () {}),
-      const SizedBox(height: 10),
-      _actionButton('取消借车授权', Icons.block, const Color(0xFF3A3A40), adminEnabled ? _clearBorrow : () {}),
-    ])),
-  ]);
-
-  Widget adminPage() => ListView(padding: const EdgeInsets.all(14), children: <Widget>[
-    ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.asset('assets/borrow_page_bg.png', height: 160, width: double.infinity, fit: BoxFit.cover)),
-    const SizedBox(height: 12),
-    _panel(Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-      const Text('管理员操作', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8),
-      Text(adminEnabled ? '管理员权限已开启：可修改 ESP32 保存信息。' : '请先连接并通过管理员密码认证。'),
-      const SizedBox(height: 12),
-      _actionButton('修改管理员/蓝牙密码', Icons.password, const Color(0xFF19D36B), adminEnabled ? changePassword : () {}),
-      const SizedBox(height: 10),
-      _actionButton('修改设备名称', Icons.edit, const Color(0xFF19D36B), adminEnabled ? changeDeviceName : () {}),
-      const SizedBox(height: 10),
-      _actionButton('生成临时借车密码', Icons.key, const Color(0xFF19D36B), adminEnabled ? generateBorrowCode : () {}),
-      const SizedBox(height: 10),
-      _actionButton(authorized ? '关闭授权' : '恢复授权', Icons.verified_user, const Color(0xFF19D36B), adminEnabled ? toggleAuthorization : () {}),
-      const SizedBox(height: 10),
-      _actionButton('重新同步时间', Icons.sync, const Color(0xFF19D36B), adminEnabled ? syncTime : () {}),
-      const SizedBox(height: 10),
-      _actionButton('恢复出厂', Icons.delete_forever, const Color(0xFFFF2B1A), adminEnabled ? factoryReset : () {}),
-      const SizedBox(height: 10),
-      _actionButton('查看统一日志', Icons.receipt_long, const Color(0xFF1595FF), showLogs),
-    ])),
-    const SizedBox(height: 12),
-    _panel(const Text('授权关闭不会清除管理员会话；管理员可以再次进入本页恢复授权。', style: TextStyle(color: Colors.white70))),
-  ]);
-
-  Widget settingsPage() => ListView(padding: const EdgeInsets.all(14), children: <Widget>[
-    _panel(ClipRRect(borderRadius: BorderRadius.circular(17), child: Image.asset('assets/settings_page_bg.png', width: double.infinity, height: 180, fit: BoxFit.cover)), padding: EdgeInsets.zero),
-    const SizedBox(height: 12),
-    _panel(Column(children: <Widget>[
-      SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('自动连接'), subtitle: const Text('已授权管理员设备可自动连接'), value: autoConnect, onChanged: (value) async { autoConnect = value; await prefs?.setBool('auto_connect', value); if (mounted) setState(() {}); }),
-      SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('声音反馈'), value: sound, onChanged: (value) async { sound = value; await prefs?.setBool('sound', value); if (mounted) setState(() {}); }),
-      ListTile(contentPadding: EdgeInsets.zero, title: const Text('设备名称'), subtitle: Text(deviceName), trailing: IconButton(onPressed: adminEnabled ? changeDeviceName : null, icon: const Icon(Icons.edit))),
-      ListTile(contentPadding: EdgeInsets.zero, title: const Text('管理员密码'), subtitle: const Text('已保存，不显示明文'), trailing: IconButton(onPressed: adminEnabled ? changePassword : null, icon: const Icon(Icons.edit))),
-      SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('授权状态'), subtitle: Text(authorized ? '有效' : '已关闭'), value: authorized, onChanged: adminEnabled ? (_) => toggleAuthorization() : null),
-    ])),
-    const SizedBox(height: 12),
-    _panel(Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-      const Text('设备状态', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-      _line('设备ID', 'TIANKEY-AXELA-01'),
-      _line('管理员席位', adminDevice == null ? '未绑定' : (adminDevice == phoneId ? '当前手机' : '其他手机')),
-      _line('时间', espTime?.toString() ?? '未同步'), _line('车辆', locked ? '已锁定' : '已解锁'), _line('日志', '${logs.length}/200'),
-    ])),
-    const SizedBox(height: 12),
-    _actionButton('测试时间同步失败', Icons.warning_amber, const Color(0xFF5A3B15), () { timeFail = !timeFail; _message(timeFail ? '已开启时间同步失败测试' : '已关闭时间同步失败测试'); setState(() {}); }),
-  ]);
+  Widget _adminAction(String title, IconData icon, VoidCallback onTap, {bool danger = false}) {
+    final color = danger ? const Color(0xFFFF2B1A) : const Color(0xFF19D36B);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      decoration: BoxDecoration(color: const Color(0xFF09111B), borderRadius: BorderRadius.circular(15), border: Border.all(color: color)),
+      child: ListTile(onTap: onTap, leading: Icon(icon, color: color), title: Text(title), trailing: const Icon(Icons.chevron_right)),
+    );
+  }
 
   Future<void> showLogs() async {
     await showModalBottomSheet<void>(
@@ -648,49 +786,37 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       isScrollControlled: true,
       backgroundColor: const Color(0xFF050B14),
       builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
+        height: MediaQuery.of(context).size.height * .78,
         child: Column(children: <Widget>[
-          const SizedBox(height: 15),
+          const SizedBox(height: 14),
           const Text('Tian Key 系统日志', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const Text('APP + ESP32统一日志 · ≤200条 · ≤7天', style: TextStyle(color: Colors.grey)),
           const Divider(),
-          Expanded(child: logs.isEmpty ? const Center(child: Text('暂无日志')) : ListView.builder(itemCount: logs.length, itemBuilder: (context, index) => ListTile(dense: true, title: Text(logs[logs.length - 1 - index])))),
+          Expanded(child: logs.isEmpty ? const Center(child: Text('暂无日志')) : ListView.builder(itemCount: logs.length, itemBuilder: (context, index) => ListTile(dense: true, title: Text(logs[logs.length - 1 - index], style: const TextStyle(fontSize: 12))))),
         ]),
       ),
     );
   }
 
+  String _formatTime(DateTime value) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${value.month}/${value.day} ${two(value.hour)}:${two(value.minute)}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!ready) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final pages = <Widget>[vehiclePage(), bluetoothPage(), borrowPage(), adminPage(), settingsPage()];
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tian Key V11', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w400)),
-        actions: <Widget>[
-          Icon(connected ? Icons.bluetooth : Icons.bluetooth_disabled, color: connected ? const Color(0xFF19D36B) : Colors.grey, size: 28),
-          const SizedBox(width: 18),
-        ],
-      ),
-      body: SafeArea(child: pages[tab.index]),
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          backgroundColor: const Color(0xFF14170F),
-          indicatorColor: const Color(0xFF19D36B),
-          labelTextStyle: MaterialStatePropertyAll<TextStyle>(const TextStyle(fontWeight: FontWeight.w600)),
-        ),
-        child: NavigationBar(
-          selectedIndex: tab.index,
-          onDestinationSelected: (index) => setState(() => tab = PageTab.values[index]),
-          destinations: const <NavigationDestination>[
-            NavigationDestination(icon: Icon(Icons.directions_car), label: '车辆'),
-            NavigationDestination(icon: Icon(Icons.bluetooth), label: '蓝牙'),
-            NavigationDestination(icon: Icon(Icons.vpn_key), label: '借车'),
-            NavigationDestination(icon: Icon(Icons.admin_panel_settings), label: '管理'),
-            NavigationDestination(icon: Icon(Icons.settings), label: '设置'),
-          ],
-        ),
-      ),
-    );
+    if (!ready) {
+      return const Scaffold(backgroundColor: Color(0xFF02060D), body: Center(child: CircularProgressIndicator()));
+    }
+    switch (tab) {
+      case PageTab.vehicle:
+        return vehiclePage();
+      case PageTab.borrow:
+        return borrowPage();
+      case PageTab.settings:
+        return settingsPage();
+      case PageTab.admin:
+        return adminPage();
+    }
   }
 }
