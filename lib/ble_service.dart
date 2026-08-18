@@ -16,9 +16,11 @@ class TianKeyBleService {
   BluetoothDevice? device;
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
   StreamSubscription<void>? _servicesResetSubscription;
+  List<BluetoothService> _services = <BluetoothService>[];
 
   bool get isConnected => device?.isConnected ?? false;
   List<BleScanItem> get foundDevices => _found.values.toList(growable: false);
+  List<BluetoothService> get discoveredServices => List<BluetoothService>.unmodifiable(_services);
 
   Future<bool> isSupported() async => FlutterBluePlus.isSupported;
 
@@ -47,14 +49,27 @@ class TianKeyBleService {
     return foundDevices;
   }
 
+  Future<List<BluetoothService>> discoverServices() async {
+    final current = device;
+    if (current == null || !current.isConnected) {
+      _services = <BluetoothService>[];
+      throw StateError('BLE设备未连接，无法发现服务');
+    }
+    final services = await current.discoverServices();
+    _services = List<BluetoothService>.from(services);
+    return discoveredServices;
+  }
+
   Future<void> connect(BluetoothDevice target) async {
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
     device = target;
+    _services = <BluetoothService>[];
 
     _connectionSubscription = target.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
         device = null;
+        _services = <BluetoothService>[];
       }
     });
 
@@ -65,7 +80,7 @@ class TianKeyBleService {
     _servicesResetSubscription = target.onServicesReset.listen((_) async {
       if (!target.isConnected) return;
       try {
-        await target.discoverServices();
+        await discoverServices();
       } catch (_) {
         // The app-level connection state remains authoritative; the next
         // operation can retry discovery after the peripheral is stable.
@@ -74,12 +89,13 @@ class TianKeyBleService {
 
     try {
       await target.connect(timeout: const Duration(seconds: 15), autoConnect: false);
-      await target.discoverServices();
+      await discoverServices();
     } catch (error) {
       await _connectionSubscription?.cancel();
       await _servicesResetSubscription?.cancel();
       _connectionSubscription = null;
       _servicesResetSubscription = null;
+      _services = <BluetoothService>[];
       device = null;
       rethrow;
     }
@@ -88,6 +104,7 @@ class TianKeyBleService {
   Future<void> disconnect() async {
     final current = device;
     device = null;
+    _services = <BluetoothService>[];
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
     _connectionSubscription = null;
@@ -107,6 +124,7 @@ class TianKeyBleService {
     if (device?.isConnected ?? false) {
       await device!.disconnect();
     }
+    _services = <BluetoothService>[];
     device = null;
   }
 }
