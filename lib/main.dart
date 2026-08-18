@@ -589,26 +589,66 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   Widget vehiclePage() => _targetImagePage(
         asset: 'assets/home_controls_bg.png',
         aspectRatio: 448 / 580,
-        overlays: (w, h) => Stack(children: <Widget>[
-          Positioned(left: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
-          Positioned(right: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => _message(connected ? 'BLE：已连接' : 'BLE：未连接'))),
-          Positioned(left: w * .035, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? disconnect : connect)),
-          Positioned(left: w * .215, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: adminEnabled ? toggleAuthorization : null)),
-          Positioned(left: w * .405, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: () => _message('车辆状态：${locked ? '锁定' : '解锁'}'))),
-          Positioned(left: w * .595, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? syncTime : null)),
-          Positioned(right: w * .035, top: h * .445, width: w * .18, height: h * .075, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin))),
-          Positioned(left: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null)),
-          Positioned(right: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null)),
-          Positioned(left: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null)),
-          Positioned(right: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('升窗') : null)),
-          Positioned(left: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('降窗') : null)),
-          Positioned(right: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null)),
-          Positioned(left: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
-          Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
-          Positioned(right: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
-          if (!connected) Positioned(left: w * .12, right: w * .12, top: h * .385, height: h * .055, child: IgnorePointer(child: DecoratedBox(decoration: const BoxDecoration(color: Colors.black54), child: Center(child: Text(scanning ? '蓝牙扫描中…' : foundDevice != null ? '已发现 ${foundDevice!.name} · 点击连接' : '未连接 · 点击蓝牙键扫描', style: const TextStyle(color: Colors.white, fontSize: 13))))),
-          if (commandSeconds > 0) Positioned(left: w * .18, right: w * .18, top: h * .79, height: h * .055, child: IgnorePointer(child: Center(child: Text('$activeCommand：$commandSeconds 秒', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))))
-        ]),
+        overlays: (w, h) {
+          final children = <Widget>[
+            Positioned(left: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
+            Positioned(right: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => _message(connected ? 'BLE：已连接' : 'BLE：未连接'))),
+            Positioned(left: w * .035, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? disconnect : connect)),
+            Positioned(left: w * .215, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: adminEnabled ? toggleAuthorization : null)),
+            Positioned(left: w * .405, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: () => _message('车辆状态：${locked ? '锁定' : '解锁'}'))),
+            Positioned(left: w * .595, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? syncTime : null)),
+            Positioned(right: w * .035, top: h * .445, width: w * .18, height: h * .075, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin))),
+            Positioned(left: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null)),
+            Positioned(right: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null)),
+            Positioned(left: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null)),
+            Positioned(right: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('升窗') : null)),
+            Positioned(left: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('降窗') : null)),
+            Positioned(right: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null)),
+            Positioned(left: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
+            Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
+            Positioned(right: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
+          ];
+          if (!connected) {
+            children.add(
+              Positioned(
+                left: w * .12,
+                right: w * .12,
+                top: h * .385,
+                height: h * .055,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(color: Colors.black54),
+                    child: Center(
+                      child: Text(
+                        scanning ? '蓝牙扫描中…' : foundDevice != null ? '已发现 ${foundDevice!.name} · 点击连接' : '未连接 · 点击蓝牙键扫描',
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          if (commandSeconds > 0) {
+            children.add(
+              Positioned(
+                left: w * .18,
+                right: w * .18,
+                top: h * .79,
+                height: h * .055,
+                child: IgnorePointer(
+                  child: Center(
+                    child: Text(
+                      '$activeCommand：$commandSeconds 秒',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          return Stack(children: children);
+        },
       );
 
   Widget borrowPage() => _targetImagePage(
@@ -662,25 +702,41 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         ]),
       );
 
-  Widget adminPage() => Scaffold(
-        backgroundColor: const Color(0xFF02060D),
-        body: SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 24), children: <Widget>[
-          Row(children: <Widget>[IconButton(onPressed: () => setState(() => tab = PageTab.vehicle), icon: const Icon(Icons.arrow_back)), const Expanded(child: Text('管理员操作', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold))), Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: connected ? const Color(0xFF19D36B) : Colors.grey)]),
-          const SizedBox(height: 8),
-          _adminCard('管理员权限', adminEnabled ? '管理员权限已开启：可修改设备保存信息。' : '请先通过管理员密码认证。'),
-          _adminAction('修改管理员/蓝牙密码', Icons.password, adminEnabled ? changePassword : _requireAdmin),
-          _adminAction('修改设备名称', Icons.edit, adminEnabled ? changeDeviceName : _requireAdmin),
-          _adminAction('生成临时借车密码', Icons.key, adminEnabled ? generateBorrowCode : _requireAdmin),
-          _adminAction(authorized ? '关闭授权' : '恢复授权', Icons.verified_user, adminEnabled ? toggleAuthorization : _requireAdmin),
-          _adminAction('重新同步时间', Icons.sync, adminEnabled ? syncTime : _requireAdmin),
-          _adminAction('统一日志', Icons.receipt_long, showLogs),
-          _adminAction('自动连接：${autoConnect ? '开启' : '关闭'}', Icons.bluetooth, _toggleAutoConnect),
-          _adminAction('恢复出厂', Icons.delete_forever, adminEnabled ? factoryReset : _requireAdmin, danger: true),
-          const SizedBox(height: 12),
-          _adminCard('关键状态', '管理员席位：${adminDevice == installId ? '当前安装' : adminDevice == null ? '未绑定' : '其他安装'}\nBLE：${connected ? '已连接' : '未连接'}\n授权：${authorized ? '有效' : '关闭'}\n时间：${timeSynced ? '已同步' : '未同步'}\n车辆：${locked ? '已锁定' : '已解锁'}\n临时借车：${borrowValid ? '有效至 ${_formatTime(borrowEnd!)}' : '无有效授权'}'),
-          const SizedBox(height: 10),
-          _adminCard('当前实现边界', '真实 BLE 扫描、连接、断开已接入；车辆指令帧、ESP32 时间写入、密码持久化、设备名写入仍没有虚构为完成，等待既有硬件协议/固件代码。')
-        ]));
+  Widget adminPage() {
+    final seatStatus = adminDevice == installId ? '当前安装' : adminDevice == null ? '未绑定' : '其他安装';
+    final bleStatus = connected ? '已连接' : '未连接';
+    final authorizationStatus = authorized ? '有效' : '关闭';
+    final timeStatus = timeSynced ? '已同步' : '未同步';
+    final vehicleStatus = locked ? '已锁定' : '已解锁';
+    final borrowStatus = borrowValid ? '有效至 ${_formatTime(borrowEnd!)}' : '无有效授权';
+    final criticalStatus = '管理员席位：$seatStatus\nBLE：$bleStatus\n授权：$authorizationStatus\n时间：$timeStatus\n车辆：$vehicleStatus\n临时借车：$borrowStatus';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF02060D),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          children: <Widget>[
+            Row(children: <Widget>[IconButton(onPressed: () => setState(() => tab = PageTab.vehicle), icon: const Icon(Icons.arrow_back)), const Expanded(child: Text('管理员操作', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold))), Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: connected ? const Color(0xFF19D36B) : Colors.grey)]),
+            const SizedBox(height: 8),
+            _adminCard('管理员权限', adminEnabled ? '管理员权限已开启：可修改设备保存信息。' : '请先通过管理员密码认证。'),
+            _adminAction('修改管理员/蓝牙密码', Icons.password, adminEnabled ? changePassword : _requireAdmin),
+            _adminAction('修改设备名称', Icons.edit, adminEnabled ? changeDeviceName : _requireAdmin),
+            _adminAction('生成临时借车密码', Icons.key, adminEnabled ? generateBorrowCode : _requireAdmin),
+            _adminAction(authorized ? '关闭授权' : '恢复授权', Icons.verified_user, adminEnabled ? toggleAuthorization : _requireAdmin),
+            _adminAction('重新同步时间', Icons.sync, adminEnabled ? syncTime : _requireAdmin),
+            _adminAction('统一日志', Icons.receipt_long, showLogs),
+            _adminAction('自动连接：${autoConnect ? '开启' : '关闭'}', Icons.bluetooth, _toggleAutoConnect),
+            _adminAction('恢复出厂', Icons.delete_forever, adminEnabled ? factoryReset : _requireAdmin, danger: true),
+            const SizedBox(height: 12),
+            _adminCard('关键状态', criticalStatus),
+            const SizedBox(height: 10),
+            _adminCard('当前实现边界', '真实 BLE 扫描、连接、断开已接入；车辆指令帧、ESP32 时间写入、密码持久化、设备名写入仍没有虚构为完成，等待既有硬件协议/固件代码。'),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _requireAdmin() => _message('请先连接车辆并使用管理员密码：$defaultPassword');
 
