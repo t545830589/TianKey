@@ -4,15 +4,17 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 /// Real GATT characteristic gateway.
 ///
-/// This layer intentionally does not assume any TianKey/vehicle UUID.
-/// The caller must provide the characteristic discovered from the real device.
+/// No TianKey protocol UUID or vehicle command is assumed here.
+/// Characteristics must come from actual discovery results.
 class BleCharacteristicGateway {
   StreamSubscription<List<int>>? _notifySubscription;
+  StreamController<List<int>>? _notifyController;
 
   BluetoothCharacteristic? _writeCharacteristic;
   BluetoothCharacteristic? _notifyCharacteristic;
 
-  bool get ready => _writeCharacteristic != null;
+  bool get readyForWrite => _writeCharacteristic != null;
+  bool get readyForNotify => _notifyCharacteristic != null;
 
   void bind({
     required BluetoothCharacteristic writeCharacteristic,
@@ -34,26 +36,30 @@ class BleCharacteristicGateway {
     );
   }
 
-  Stream<List<int>> subscribeNotify() async* {
+  Future<Stream<List<int>>> startNotify() async {
     final characteristic = _notifyCharacteristic;
     if (characteristic == null) {
       throw StateError('未绑定 notify characteristic');
     }
 
-    await characteristic.setNotifyValue(true);
     await _notifySubscription?.cancel();
+    await characteristic.setNotifyValue(true);
 
-    final controller = StreamController<List<int>>();
+    _notifyController ??= StreamController<List<int>>.broadcast();
     _notifySubscription = characteristic.lastValueStream.listen(
-      controller.add,
-      onError: controller.addError,
+      (value) => _notifyController?.add(List<int>.from(value)),
+      onError: _notifyController?.addError,
     );
 
-    yield* controller.stream;
+    return _notifyController!.stream;
   }
 
   Future<void> dispose() async {
     await _notifySubscription?.cancel();
+    await _notifyController?.close();
     _notifySubscription = null;
+    _notifyController = null;
+    _writeCharacteristic = null;
+    _notifyCharacteristic = null;
   }
 }
