@@ -9,7 +9,7 @@ class TianKeyStatusCard extends StatelessWidget {
 
   const TianKeyStatusCard({
     super.key,
-    required this icon,
+    required this.icon,
     required this.title,
     required this.value,
     required this.color,
@@ -42,22 +42,9 @@ class TianKeyStatusCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
-                ),
+                Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(value, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
