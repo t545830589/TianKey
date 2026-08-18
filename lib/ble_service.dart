@@ -22,6 +22,13 @@ class TianKeyBleService {
   List<BleScanItem> get foundDevices => _found.values.toList(growable: false);
   List<BluetoothService> get discoveredServices => List<BluetoothService>.unmodifiable(_services);
 
+  /// UUID-only inventory of the GATT services actually returned by the
+  /// connected peripheral. This is intentionally diagnostic data only: no
+  /// service UUID is treated as a TianKey protocol UUID here.
+  List<String> get discoveredServiceUuids => List<String>.unmodifiable(
+        _services.map((service) => service.serviceUuid.toString()),
+      );
+
   Future<bool> isSupported() async => FlutterBluePlus.isSupported;
 
   Future<List<BleScanItem>> scan({Duration timeout = const Duration(seconds: 6)}) async {
@@ -58,6 +65,16 @@ class TianKeyBleService {
     final services = await current.discoverServices();
     _services = List<BluetoothService>.from(services);
     return discoveredServices;
+  }
+
+  /// Reconnect using the exact platform remoteId previously persisted by the
+  /// app. This does not scan, guess a device name, or invent a protocol UUID.
+  Future<void> reconnectSavedRemoteId(String remoteId) async {
+    final normalized = remoteId.trim();
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(remoteId, 'remoteId', 'BLE remoteId不能为空');
+    }
+    await connect(BluetoothDevice.fromId(normalized));
   }
 
   Future<void> connect(BluetoothDevice target) async {
