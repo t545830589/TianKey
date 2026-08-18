@@ -26,7 +26,7 @@ class TianKeyControlButton extends StatelessWidget {
           border: Border.all(color: glowColor, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: glowColor.withValues(alpha: 0.35),
+              color: glowColor.withOpacity(0.35),
               blurRadius: 12,
             ),
           ],
