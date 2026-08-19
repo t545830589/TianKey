@@ -4,13 +4,17 @@
 
 本文件是 AI 恢复项目上下文的唯一索引入口。
 
-读取顺序：
+所有 AI 和开发者必须通过以下链路恢复项目：
 
 START_HERE.md
 ↓
 AI_ENTRY_RULES.md
 ↓
+PROJECT_MEMORY_INDEX.md
+↓
 project_memory/
+
+其他文件不得定义新的项目恢复顺序。
 
 ---
 
@@ -21,6 +25,10 @@ project_memory/PROJECT_GOAL.md
 ## 当前真实状态
 
 project_memory/CURRENT_STATUS.md
+
+## 当前任务
+
+project_memory/CURRENT_TASK.md
 
 ## 功能进度
 
