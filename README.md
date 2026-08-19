@@ -2,14 +2,21 @@
 
 ## AI / 开发入口规则
 
-进入 TianKey 项目后，任何 AI 或开发者必须先阅读项目入口文档。
+进入 TianKey 项目后，任何 AI 或开发者必须先恢复项目上下文。
 
-第一步：
+唯一入口链：
 
-1. 阅读 `AI_ENTRY_RULES.md`
-2. 阅读 `START_HERE.md`
-3. 阅读 `PROJECT_MEMORY_INDEX.md`
-4. 根据索引加载 docs 中的项目记忆文件
+```text
+START_HERE.md
+↓
+AI_ENTRY_RULES.md
+↓
+PROJECT_MEMORY_INDEX.md
+↓
+project_memory/
+```
+
+详细记忆导航由 `PROJECT_MEMORY_INDEX.md` 维护。
 
 ## 项目原则
 
@@ -41,15 +48,14 @@ ESP32
 必须：
 
 - 先确认当前项目状态
-- 查看 CURRENT_TASK.md
-- 查看 TODO.md
-- 修改后更新 CHANGELOG.md
-- 重大决定记录到 DECISION_LOG.md
+- 查看 `CURRENT_TASK.md`
+- 修改后更新 `CHANGE_LOG.md`
+- 重大决定记录到 `DECISION_HISTORY.md`
 
 ## 当前项目入口
 
 请从：
 
-`AI_ENTRY_RULES.md`
+`START_HERE.md`
 
 开始。
