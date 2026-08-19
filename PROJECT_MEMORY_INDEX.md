@@ -1,52 +1,66 @@
 # TianKey Project Memory Index
 
-## 需求来源
+# AI Memory Core Entry
 
-产品目标：
-docs/01_PRODUCT_REQUIREMENTS.md
+本文件是 AI 恢复项目上下文的唯一索引入口。
 
-## 当前状态
+读取顺序：
 
-docs/02_PROJECT_STATUS.md
+START_HERE.md
+↓
+AI_ENTRY_RULES.md
+↓
+project_memory/
 
-## 功能场景
+---
 
-docs/03_SCENARIO_MATRIX.md
+## 项目目标
 
-## 状态逻辑
+project_memory/PROJECT_GOAL.md
 
-docs/04_STATE_MACHINE.md
+## 当前真实状态
 
-## 软件架构
+project_memory/CURRENT_STATUS.md
 
-docs/05_ARCHITECTURE.md
+## 功能进度
 
-## 文件职责
+project_memory/FEATURE_PROGRESS.md
 
-docs/06_FILE_MAP.md
+## 缺失功能
 
-## 开发路线
+project_memory/MISSING_FEATURES.md
 
-docs/07_TODO.md
+## 代码映射
 
-## 参考资料
+project_memory/CODE_AUDIT_MAP.md
+project_memory/REAL_CODE_AUDIT.md
 
-docs/08_REFERENCE_SYSTEM.md
+## 文件结构
+
+project_memory/FILE_MAP.md
+
+## UI映射
+
+project_memory/UI_MAPPING.md
+
+## BLE状态
+
+project_memory/BLE_STATUS.md
+
+## 下一步任务
+
+project_memory/TODO_QUEUE.md
 
 ## 设计决策
 
-docs/09_DECISION_LOG.md
+project_memory/DECISION_HISTORY.md
 
 ## 修改记录
 
-docs/10_CHANGELOG.md
+project_memory/CHANGE_LOG.md
 
-## 最终验收
+---
 
-docs/11_ACCEPTANCE_CHECKLIST.md
-
-## AI协作规则
-
-docs/AI_WORK_RULES.md
+docs/ 作为资料库和历史说明使用，不作为实时状态来源。
 
 此文件用于帮助新的 AI 或开发者快速恢复项目上下文。
