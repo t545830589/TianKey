@@ -6,24 +6,27 @@ Define the required workflow after any AI or developer performs project work.
 
 ## Before Development
 
-1. Read README.md
+The official project recovery chain is:
+
+1. Read START_HERE.md
 2. Read AI_ENTRY_RULES.md
-3. Read START_HERE.md
-4. Check CURRENT_TASK.md
-5. Check PROJECT_STATUS.md
+3. Read PROJECT_MEMORY_INDEX.md
+4. Load required files through project_memory/
+5. Check current task and current status from the memory index
+
+This file does not define a separate memory navigation path.
 
 ## After Development
 
-Any meaningful change must update:
+Any meaningful change must update the project memory records:
 
-- CURRENT_TASK.md
-- PROJECT_STATUS.md
-- CHANGELOG.md
-- TODO.md
+- project_memory/CURRENT_TASK.md
+- project_memory/CHANGE_LOG.md
+- project_memory/TODO_QUEUE.md when future work changes
 
 Major decisions must update:
 
-- DECISION_LOG.md
+- project_memory/DECISION_HISTORY.md
 
 ## Rules
 
