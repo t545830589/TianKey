@@ -2,23 +2,18 @@
 
 ## Purpose
 
-This file defines the required startup process for any AI entering the project.
+This file defines the required working rules for any AI entering the project.
 
-## Mandatory Reading Order
+The memory navigation path is maintained by PROJECT_MEMORY_INDEX.md.
+This file does not define a separate project reading map.
 
-Before analyzing code or making changes, read:
+## Mandatory Behavior
 
-1. README.md
-2. START_HERE.md
-3. PROJECT_MEMORY_INDEX.md
-4. CURRENT_TASK.md
-5. docs/00_PROJECT_RULES.md
-6. docs/01_PRODUCT_REQUIREMENTS.md
-7. docs/02_PROJECT_STATUS.md
-8. docs/03_SCENARIO_MATRIX.md
-9. docs/04_STATE_MACHINE.md
-10. docs/05_ARCHITECTURE.md
-11. docs/06_FILE_MAP.md
+Before analyzing code or making changes:
+
+- Restore project context through the official memory entry chain
+- Confirm current task and project status
+- Understand existing decisions before changing architecture
 
 ## Development Rules
 
@@ -31,10 +26,10 @@ Do not:
 
 Must:
 
-- Check current task first
+- Check current task before working
 - Update status after major progress
 - Record important decisions
-- Record modifications in CHANGELOG
+- Record modifications in CHANGE_LOG
 
 ## Goal
 
