@@ -28,3 +28,24 @@
 
 影响：
 记忆系统增加执行恢复节点，形成从任务到历史记录的闭环。
+
+---
+
+## Batch 002 - Memory Closure 01
+
+问题：
+AI进入项目时存在多个入口文件重复定义读取顺序，可能导致不同AI采用不同恢复路径。
+
+解决：
+- 统一 START_HERE.md、AI_ENTRY_RULES.md、PROJECT_MEMORY_INDEX.md 的职责
+- START_HERE 负责入口说明
+- AI_ENTRY_RULES 负责AI行为规则
+- PROJECT_MEMORY_INDEX 负责唯一记忆导航
+- 修正 CURRENT_TASK.md 中失效状态文件引用
+
+影响：
+AI恢复路径统一为：
+START_HERE → AI_ENTRY_RULES → PROJECT_MEMORY_INDEX → project_memory
+
+状态：
+Memory Closure 01 继续处理中。
