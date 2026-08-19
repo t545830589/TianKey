@@ -27,6 +27,7 @@ Phase 1 - Repository audit and project alignment
 - Architecture direction established
 - AI entry documentation established
 - AI project context recovery rules strengthened
+- AI entry flow unified through START_HERE → AI_ENTRY_RULES → PROJECT_MEMORY_INDEX
 
 ## Current Task
 
@@ -47,7 +48,6 @@ Before any development:
 
 - Read START_HERE.md
 - Read PROJECT_MEMORY_INDEX.md
-- Read PROJECT_STATUS.md
 - Read CURRENT_TASK.md
 
 Do not restart analysis from zero.
@@ -56,4 +56,4 @@ Do not modify code before understanding file responsibility.
 
 ## Last Update
 
-Added AI context recovery confirmation requirements and expanded code audit preparation tracking.
+Updated during Memory Closure 01 to remove stale project status reference and align recovery flow.
