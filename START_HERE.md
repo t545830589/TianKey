@@ -4,54 +4,27 @@
 
 1. 禁止直接修改代码
 2. 必须先读取项目记忆
-3. 必须读取当前任务
-4. 必须确认项目状态
-5. 必须更新记录后再修改
+3. 必须确认当前任务和项目状态
+4. 必须完成上下文恢复后再开发
+5. 完成工作后必须更新项目记录
 
-任何 AI 或开发者进入 TianKey 项目，必须先完成项目上下文恢复，禁止依靠聊天历史或个人记忆直接开发。
-
-## 项目记忆恢复顺序（强制）
-
-进入项目后必须依次读取：
-
-1. START_HERE.md
-2. docs/00_PROJECT_RULES.md
-3. docs/01_PRODUCT_REQUIREMENTS.md
-4. docs/02_PROJECT_STATUS.md
-5. docs/03_SCENARIO_MATRIX.md
-6. docs/04_STATE_MACHINE.md
-7. docs/05_ARCHITECTURE.md
-8. docs/06_FILE_MAP.md
-9. docs/09_DECISION_LOG.md
-10. CURRENT_TASK.md
-11. CHANGELOG.md
-
-读取完成后，AI 必须确认：
-
-- 项目目标
-- 当前阶段
-- 已完成内容
-- 未完成内容
-- 下一步任务
-- 不允许改变的设计决策
+任何 AI 或开发者进入 TianKey 项目，必须先恢复项目上下文，禁止依靠聊天历史或个人记忆直接开发。
 
 ## 项目入口
 
 TianKey 是一个 Flutter APP + BLE + ESP32 的智能车辆控制系统。
 
-进入项目后的第一原则：先理解项目记忆，再修改代码。
+AI进入后的唯一恢复入口：
 
-## AI / 开发者必须阅读
+START_HERE.md
+↓
+AI_ENTRY_RULES.md
+↓
+PROJECT_MEMORY_INDEX.md
+↓
+project_memory/
 
-请依次读取：
-
-1. docs/00_PROJECT_RULES.md
-2. docs/01_PRODUCT_REQUIREMENTS.md
-3. docs/02_PROJECT_STATUS.md
-4. docs/03_SCENARIO_MATRIX.md
-5. docs/04_STATE_MACHINE.md
-6. docs/05_ARCHITECTURE.md
-7. docs/06_FILE_MAP.md
+详细文件导航由 PROJECT_MEMORY_INDEX.md 负责维护。
 
 ## 开发规则
 
@@ -63,8 +36,8 @@ TianKey 是一个 Flutter APP + BLE + ESP32 的智能车辆控制系统。
 
 必须：
 - 修改前确认职责
-- 修改后记录 CHANGELOG
-- 重大设计记录 DECISION_LOG
+- 修改后记录 CHANGE_LOG
+- 重大设计记录 DECISION_HISTORY
 
 ## 技术路线
 
