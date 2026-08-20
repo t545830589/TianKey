@@ -2,8 +2,7 @@ import '../models/vehicle_state.dart';
 
 /// 车辆控制层
 ///
-/// 用于逐步从 main.dart 迁移车辆控制逻辑。
-/// 当前阶段只建立职责边界，不改变原有运行流程。
+/// 逐步从 main.dart 接管车辆控制逻辑。
 class VehicleController {
   final VehicleState state;
 
@@ -15,5 +14,22 @@ class VehicleController {
 
   void recordCommand(String value) {
     state.lastCommand = value;
+  }
+
+  void lockVehicle() {
+    state.locked = true;
+    state.lastCommand = '锁车';
+    state.status = '车辆已锁定';
+  }
+
+  void unlockVehicle() {
+    state.locked = false;
+    state.lastCommand = '解锁';
+    state.status = '车辆已解锁';
+  }
+
+  void findVehicle() {
+    state.lastCommand = '寻车';
+    state.status = '正在执行寻车';
   }
 }
