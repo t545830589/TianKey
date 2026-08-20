@@ -1,21 +1,52 @@
 # TianKey File Map
 
-记录关键目录对应职责。
+## Responsibility
 
-## Flutter
-- lib/: 应用代码
-- pages/: 页面层
-- widgets/: UI组件层
-- services/: 服务逻辑层
-- models/: 数据模型层
+This file only records **directory and file location mapping**.
 
-## BLE
-记录：
-- 扫描
-- 连接
+It answers:
+
+> Where is the code located?
+
+It does not define:
+
+- feature completion status
+- code verification result
+- requirement completion
+
+Those belong to:
+
+- FEATURE_PROGRESS.md
+- REAL_CODE_AUDIT.md
+- CODE_AUDIT_MAP.md
+
+## Flutter Structure
+
+- lib/: application source
+- pages/: page layer
+- widgets/: UI component layer
+- services/: service logic layer
+- models/: data model layer
+
+## BLE Structure
+
+Record locations for:
+
+- scan
+- connection
 - GATT
 - characteristic
 - notify
-- 数据解析
+- data parsing
 
-后续根据真实仓库审核补充具体文件映射。
+## Mapping Rule
+
+Final mapping chain:
+
+Requirement
+→ Feature
+→ File Location
+→ Real Code Audit
+→ Current State
+→ Missing Part
+→ Next Action
