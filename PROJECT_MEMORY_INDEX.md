@@ -30,9 +30,17 @@ project_memory/CURRENT_STATUS.md
 
 project_memory/CURRENT_TASK.md
 
+## 开发断点状态
+
+project_memory/DEVELOPMENT_STATE.md
+
 ## 功能进度
 
 project_memory/FEATURE_PROGRESS.md
+
+## 功能代码映射
+
+project_memory/FEATURE_CODE_MAP.md
 
 ## 缺失功能
 
