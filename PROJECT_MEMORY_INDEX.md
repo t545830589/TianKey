@@ -38,6 +38,12 @@ project_memory/FEATURE_PROGRESS.md
 
 project_memory/MISSING_FEATURES.md
 
+## 已有功能清单
+
+project_memory/EXISTING_FEATURES.md
+
+用于记录仓库已确认存在的功能区域和审计范围。
+
 ## APP开发映射
 
 project_memory/APP_DEVELOPMENT_MAP.md
