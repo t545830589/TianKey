@@ -49,3 +49,26 @@ START_HERE → AI_ENTRY_RULES → PROJECT_MEMORY_INDEX → project_memory
 
 状态：
 Memory Closure 01 继续处理中。
+
+---
+
+## Batch 003 - Memory Closure 01 checkpoint
+
+检查范围：
+project_memory/
+
+确认：
+- PROJECT_MEMORY_INDEX.md 已定义唯一恢复入口
+- CURRENT_STATUS.md 作为真实状态入口
+- CURRENT_TASK.md 作为执行任务入口
+- CHANGE_LOG.md 作为修改历史入口
+- TODO_QUEUE.md 作为后续任务入口
+
+发现：
+.batch_001_trigger 属于历史批次触发标记，不参与AI恢复链。
+
+处理决定：
+暂不删除，避免破坏历史批次追踪；后续统一清理历史标记文件。
+
+状态：
+Memory Closure 01 继续处理中。
