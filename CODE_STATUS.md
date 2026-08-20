@@ -2,51 +2,24 @@
 
 ## Purpose
 
-Record the actual implementation state separately from product goals.
+This file is a compatibility entry only.
 
-## Flutter APP
+The actual project development status must use:
 
-Status:
+`project_memory/CURRENT_STATUS.md`
 
-Under repository audit.
+The actual implementation audit must use:
 
-Need to confirm:
+`project_memory/REAL_CODE_AUDIT.md`
 
-- Existing UI modules
-- Navigation structure
-- State management
-- BLE integration status
+Do not create another independent status source here.
 
-## BLE Layer
+## Reading Rule
 
-Status:
+For APP development:
 
-To be audited.
+1. Read CURRENT_STATUS for current project state.
+2. Read REAL_CODE_AUDIT for repository code reality.
+3. Read FEATURE_PROGRESS for feature completion.
 
-Need to confirm:
-
-- Existing communication code
-- Mock implementation
-- Real hardware connection path
-
-## ESP32
-
-Status:
-
-Hardware exists.
-
-Firmware integration requires validation after APP implementation.
-
-## APK
-
-Reference APK:
-
-Available for comparison.
-
-Final target APK:
-
-Not completed.
-
-## Rule
-
-Code reality must be updated separately from requirements.
+This file exists only to avoid breaking old references while the memory architecture is being closed.
