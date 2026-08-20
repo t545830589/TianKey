@@ -38,6 +38,14 @@ project_memory/FEATURE_PROGRESS.md
 
 project_memory/MISSING_FEATURES.md
 
+## APP开发映射
+
+project_memory/APP_DEVELOPMENT_MAP.md
+
+用于连接：
+
+需求 → 功能 → 页面 → 代码 → 状态
+
 ## 代码映射
 
 project_memory/CODE_AUDIT_MAP.md
