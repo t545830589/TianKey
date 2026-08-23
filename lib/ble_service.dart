@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class BleScanItem {
-  const BleScanItem({required this.device, required this.name, required this.remoteId});
+  const BleScanItem({this.device, required this.name, required this.remoteId});
 
-  final BluetoothDevice device;
+  final BluetoothDevice? device;
   final String name;
   final String remoteId;
 }

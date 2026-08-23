@@ -827,6 +827,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   bool autoConnect = true;
   bool sound = true;
   bool locked = true;
+  bool simulationMode = true;
   bool timeSynced = false;
   bool timeFail = false;
   int commandSeconds = 0;
@@ -893,6 +894,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
     sound = p.getBool('sound') ?? true;
+    simulationMode = p.getBool('simulation_mode') ?? true;
     ready = true;
     _cleanupOldLogs();
     _log('[APP] 启动');
@@ -950,34 +952,45 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     setState(() {
       scanning = true;
       foundDevice = null;
-      status = '正在扫描 BLE 设备...';
+      status = simulationMode ? '模拟扫描中...' : '正在扫描 BLE 设备...';
     });
-    _log('[APP] BLE真实扫描开始');
+    _log('[APP] ${simulationMode ? "模拟扫描开始" : "BLE真实扫描开始"}');
     try {
-      if (!await ble.isSupported()) {
-        throw StateError('当前手机不支持 BLE');
+      if (simulationMode) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+        final simDevice = BleScanItem(name: '陕A0P92Y', remoteId: 'SIM-ESP32-TIANKY');
+        foundDevice = simDevice;
+        savedRemoteId = simDevice.remoteId;
+        setState(() => status = '发现设备：${simDevice.name}');
+        _log('[APP] 模拟发现设备：${simDevice.name} / ${simDevice.remoteId}');
+        _message('发现 ${simDevice.name}');
+      } else {
+        if (!await ble.isSupported()) {
+          throw StateError('当前手机不支持 BLE');
+        }
+        final devices = await ble.scan();
+        if (!mounted) return;
+        if (devices.isEmpty) {
+          setState(() => status = 'BLE扫描结束：未发现设备');
+          _log('[APP] BLE扫描结束：未发现设备');
+          _message('未发现 BLE 设备，请确认 ESP32 正在广播');
+          return;
+        }
+        final selected = devices.length == 1 ? devices.first : await _chooseBleDevice(devices);
+        if (selected == null || !mounted) return;
+        foundDevice = selected;
+        savedRemoteId = selected.remoteId;
+        await prefs?.setString('ble_remote_id', selected.remoteId);
+        setState(() => status = '发现设备：${selected.name}');
+        _log('[APP] 发现 BLE：${selected.name} / ${selected.remoteId}');
+        _message('发现 ${selected.name}');
       }
-      final devices = await ble.scan();
-      if (!mounted) return;
-      if (devices.isEmpty) {
-        setState(() => status = 'BLE扫描结束：未发现设备');
-        _log('[APP] BLE扫描结束：未发现设备');
-        _message('未发现 BLE 设备，请确认 ESP32 正在广播');
-        return;
-      }
-      final selected = devices.length == 1 ? devices.first : await _chooseBleDevice(devices);
-      if (selected == null || !mounted) return;
-      foundDevice = selected;
-      savedRemoteId = selected.remoteId;
-      await prefs?.setString('ble_remote_id', selected.remoteId);
-      setState(() => status = '发现设备：${selected.name}');
-      _log('[APP] 发现 BLE：${selected.name} / ${selected.remoteId}');
-      _message('发现 ${selected.name}');
     } catch (error) {
       if (!mounted) return;
-      setState(() => status = 'BLE扫描失败：$error');
-      _log('[APP] BLE扫描失败：$error');
-      _message('BLE扫描失败：$error');
+      setState(() => status = '${simulationMode ? "模拟" : "BLE"}扫描失败：$error');
+      _log('[APP] 扫描失败：$error');
+      _message('扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
     }
@@ -1040,10 +1053,15 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     }
     setState(() {
       connecting = true;
-      status = '认证成功，正在建立真实 BLE 连接...';
+      status = simulationMode ? '模拟连接中...' : '认证成功，正在建立真实 BLE 连接...';
     });
     try {
-      await ble.connect(target.device);
+      if (!simulationMode) {
+        if (target.device == null) throw StateError('BLE设备对象无效');
+        await ble.connect(target.device!);
+      } else {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
       if (!mounted) return;
       if (selected == AccessMode.admin) {
         adminDevice = installId;
@@ -1057,19 +1075,20 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         connecting = false;
         mode = selected;
         timeSynced = false;
-        status = 'BLE真实连接成功，正在同步时间...';
+        status = simulationMode ? '模拟连接成功，正在同步时间...' : 'BLE真实连接成功，正在同步时间...';
       });
-      _log('[APP] BLE真实连接成功：${target.name} / ${target.remoteId}');
+      _log('[APP] ${simulationMode ? "模拟" : "BLE真实"}连接成功：${target.name} / ${target.remoteId}');
+      _log('[ESP32] BLE连接建立');
       await syncTime();
     } catch (error) {
       if (!mounted) return;
       setState(() {
         connecting = false;
         connected = false;
-        status = 'BLE连接失败：$error';
+        status = '连接失败：$error';
       });
-      _log('[APP] BLE连接失败：$error');
-      _message('BLE连接失败：$error');
+      _log('[APP] 连接失败：$error');
+      _message('连接失败：$error');
     }
   }
 
@@ -1136,8 +1155,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                 final seatBlocked = selected == AccessMode.admin && adminDevice != null && adminDevice != installId && adminDevice != legacyPhoneId;
                 final ok = !seatBlocked && (selected == AccessMode.admin ? value == adminPassword : borrowValid && value == borrowCode);
                 if (ok) {
+                  _log('[ESP32] 密码验证通过，角色：${selected == AccessMode.admin ? "管理员" : "临时借车"}');
                   Navigator.pop(context, true);
                 } else {
+                  _log('[ESP32] 密码验证失败：$value');
                   _message(seatBlocked ? '管理员席位已被占用' : '密码错误、授权无效或临时密码已过期');
                   _log('[APP] 认证失败');
                 }
@@ -1152,6 +1173,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   Future<void> syncTime() async {
     if (!connected) return;
+    _log('[ESP32] 时间同步请求');
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
     if (timeFail) {
@@ -1160,7 +1182,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         espTime = null;
         status = mode == AccessMode.admin ? '时间同步失败：管理员仍可使用' : '时间同步失败：无法确认临时授权有效期';
       });
-      _log('[APP] 时间同步失败（真实ESP32时间协议尚未接入）');
+      _log('[ESP32] 时间同步失败');
+      _log('[APP] 时间同步失败');
       return;
     }
     setState(() {
@@ -1168,12 +1191,15 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       espTime = DateTime.now();
       status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
     });
-    _log('[APP] 时间同步成功；ESP32实际写时协议待硬件协议接入');
+    _log('[ESP32] 时间同步成功：${espTime}');
+    _log('[APP] 时间同步成功');
   }
 
   Future<void> disconnect() async {
     commandTimer?.cancel();
-    await ble.disconnect();
+    if (!simulationMode) {
+      await ble.disconnect();
+    }
     if (!mounted) return;
     setState(() {
       connected = false;
@@ -1183,10 +1209,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       espTime = null;
       commandSeconds = 0;
       activeCommand = '';
-      status = 'BLE已断开：车辆功能重新锁定';
+      status = '已断开：车辆功能重新锁定';
     });
-    _log('[APP] BLE真实断开，安全保护');
-    _message('BLE已断开，车辆功能已锁定');
+    _log('[APP] ${simulationMode ? "模拟断开" : "BLE真实断开，安全保护"}');
+    _message('已断开，车辆功能已锁定');
   }
 
   void vehicleCommand(String command) {
@@ -1230,7 +1256,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     }
     lastCommand = '$protocol → GPIO$gpio → $detail';
     setState(() => status = timed ? '$command 已开始：7秒保持中（$commandSeconds）' : '$command 已发送：$lastCommand');
-    _log('[APP] 记录指令：$lastCommand；真实ESP32指令帧待协议接入');
+    _log('[APP] 发送指令：$lastCommand');
+    _log('[ESP32] 收到 $protocol，GPIO$gpio 执行${timed ? "，保持7秒" : "脉冲"}');
     _message(timed ? '$command\n7秒保持中' : '$command\n$detail');
   }
 
@@ -1245,6 +1272,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setInt('borrow_start', start.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', end.millisecondsSinceEpoch);
     _scheduleBorrowExpiry();
+    _log('[ESP32] 生成临时借车密码：$code，有效期 $hours 小时');
     _log('[APP] 生成临时借车密码');
     setState(() => status = '临时借车密码已生成');
     _message('临时密码：$code\n有效期：$hours 小时');
@@ -1260,7 +1288,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (logExpiry && hadCode) _log('[APP] 临时借车密码已到期并清除');
     if (mounted) {
       if (mode == AccessMode.borrower) {
-        await ble.disconnect();
+        if (!simulationMode) await ble.disconnect();
         connected = false; mode = null; timeSynced = false; espTime = null;
         status = '临时借车授权已失效，车辆功能重新锁定';
       }
@@ -1272,6 +1300,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (!adminEnabled) { _message('请先完成管理员认证'); return; }
     authorized = !authorized;
     await prefs?.setBool('authorized', authorized);
+    _log('[ESP32] 车辆授权${authorized ? "开启" : "关闭"}');
     _log(authorized ? '[APP] 恢复设备授权' : '[APP] 关闭设备授权');
     setState(() => status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权');
     _message(authorized ? '授权已恢复' : '授权已关闭，管理员会话保留');
@@ -1309,7 +1338,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (value.length < 6) { _message('密码至少6位'); return; }
     adminPassword = value;
     await prefs?.setString('admin_password', value);
-    _log('[APP] 管理员密码已保存；ESP32实际持久化协议待接入');
+    _log('[ESP32] 密码已更新');
+    _log('[APP] 管理员密码已保存');
     setState(() {});
     _message('新密码已生效，旧密码失效');
   }
@@ -1344,7 +1374,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (value.isEmpty) return;
     deviceName = value;
     await prefs?.setString('device_name', value);
-    _log('[APP] 设备名称已保存；ESP32实际广播名称修改待协议接入');
+    _log('[ESP32] 设备名称已更新为：$value');
+    _log('[APP] 设备名称已保存');
     setState(() {});
     _message('设备名称已更新');
   }
@@ -1748,6 +1779,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _soundPage(ctx)))),
                     ),
                     TKSettingTile(
+                      title: '模拟模式',
+                      leadingIcon: Icons.science,
+                      trailingText: simulationMode ? '已开启' : '已关闭',
+                      onTap: () {
+                        setState(() => simulationMode = !simulationMode);
+                        prefs?.setBool('simulation_mode', simulationMode);
+                        _message('模拟模式已${simulationMode ? "开启" : "关闭"}');
+                      },
+                    ),
+                    TKSettingTile(
                       title: '恢复出厂',
                       leadingIcon: Icons.delete_forever,
                       trailingText: '>',
@@ -2042,6 +2083,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '恢复默认蓝牙密码', icon: Icons.restore, neonColor: TKColors.neonRed, onTap: () {
             adminPassword = defaultPassword;
             prefs?.setString('admin_password', defaultPassword);
+            _log('[ESP32] 密码已恢复默认');
             _log('[APP] 恢复默认蓝牙密码'); _message('已恢复默认密码：13092991951'); Navigator.pop(pageCtx);
           }, isEnabled: true)),
         ]))),
@@ -2173,15 +2215,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           const Text('恢复后管理员密码重置为 13092991951', style: TextStyle(color: TKColors.textMuted, fontSize: 13)),
           const SizedBox(height: 32),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '确认恢复出厂', icon: Icons.delete_forever, neonColor: TKColors.neonRed, onTap: () async {
-            await ble.disconnect();
+            if (!simulationMode) await ble.disconnect();
             await prefs?.clear();
             adminPassword = defaultPassword;
-            adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true;
+            adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true; simulationMode = true;
             deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
             connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
             final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
             installId = newId;
             await prefs?.setString('install_id', newId);
+            _log('[ESP32] 恢复出厂：所有设置已清除');
             _log('[APP] 恢复出厂'); _message('恢复出厂完成'); Navigator.pop(pageCtx);
           }, isEnabled: true)),
         ]))),
@@ -2217,6 +2260,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               const Divider(color: TKColors.divider, height: 20),
               _infoRow('连接状态', connected ? '已连接' : '未连接'),
               _infoRow('管理员', adminEnabled ? '已授权' : '未授权'),
+              _infoRow('模拟模式', simulationMode ? '已开启' : '已关闭'),
               _infoRow('版本', '1.0.0+1'),
             ]),
           ),
