@@ -1744,12 +1744,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                 ),
               ),
 
-              // 汽车图片区域（缩小，不遮挡底部）
+              // 汽车图片区域（固定高度220px）
               SizedBox(
                 height: 220,
                 width: double.infinity,
                 child: Stack(
-                  alignment: Alignment.bottomCenter,
                   children: [
                     // 背景图
                     Positioned.fill(
@@ -1759,20 +1758,21 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                         alignment: Alignment.center,
                       ),
                     ),
-                    // 车牌 - 定位在车头前保险杠位置（图片底部偏上约18%）
+                    // 车牌 - 贴合车头中网位置（left 18%, bottom 24%）
                     Positioned(
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0A1628),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1),
-                          boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.15), blurRadius: 3)],
-                        ),
-                        child: const Text(
-                          '陕A·0P92Y',
-                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+                      left: 0, right: 0,
+                      bottom: 52,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1B55B8),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '陕A·0P92Y',
+                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+                          ),
                         ),
                       ),
                     ),
@@ -1780,15 +1780,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                 ),
               ),
 
-              // ===== 下半部分：状态卡片+功能按钮（可滚动区域） =====
+              // 状态卡片 + 功能按钮（可滚动区域）
               Expanded(
-                flex: 5,
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      // 5 个状态卡片
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         child: Row(
                           children: [
                             TKStatusCard(icon: Icons.bluetooth, title: '设备', status: connected ? '已连接' : '未连接', statusColor: connected ? TKColors.neonBlue : TKColors.textMuted),
@@ -1799,8 +1797,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                           ],
                         ),
                       ),
-
-                      // 8 个功能按钮：2 列 4 行
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         child: Column(
@@ -1831,8 +1827,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                           ],
                         ),
                       ),
-
-                      // 系统日志按钮
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         child: TKNeonButton(label: '系统日志', icon: Icons.receipt_long, neonColor: TKColors.neonBlue, onTap: () => showLogs(), isEnabled: true),
@@ -1845,6 +1839,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             ],
           ),
         ),
+        bottomNavigationBar: TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
       );
 
   Widget borrowPage() => Scaffold(
