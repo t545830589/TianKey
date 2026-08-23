@@ -1077,20 +1077,31 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     final simDevice = BleScanItem(name: esp32.deviceName, remoteId: 'SIM-ESP32-TIANKY');
     foundDevice = simDevice;
     savedRemoteId = simDevice.remoteId;
-    adminSession = true;
-    mode = AccessMode.admin;
-    await prefs?.setBool('authorized', true);
-    authorized = true;
+    final esp32HasAdmin = esp32.adminDevice != null && esp32.adminDevice!.isNotEmpty;
+    final isCurrentAdmin = esp32.adminDevice == installId || (!esp32HasAdmin && adminDevice == installId);
+    if (isCurrentAdmin) {
+      adminSession = true;
+      mode = AccessMode.admin;
+      await prefs?.setBool('authorized', true);
+      authorized = true;
+      _log('[ESP32] 管理员自动认证通过');
+    } else {
+      adminSession = false;
+      mode = AccessMode.normal;
+      await prefs?.setBool('authorized', false);
+      authorized = false;
+      _log('[ESP32] 管理员席位已被其他设备占用：${esp32.adminDevice}');
+      _log('[APP] 自动连接降级为普通模式，需重新输入密码');
+    }
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
-    _log('[ESP32] 管理员授权验证通过');
     setState(() {
       connected = true;
       connecting = false;
       timeSynced = false;
-      status = '自动连接成功，正在同步时间...';
+      status = adminSession ? '自动连接成功，管理员模式' : '自动连接成功，非管理员模式，需输入密码';
     });
-    _log('[APP] BLE自动连接成功');
+    _log('[APP] BLE自动连接成功${adminSession ? "（管理员）" : "（非管理员）"}');
     await syncTime();
   }
 
@@ -1235,9 +1246,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   Future<void> _connectBle(BleScanItem target, AccessMode selected, {bool skipPassword = false}) async {
     if (connecting || connected) return;
-    if (selected == AccessMode.admin && !skipPassword && adminDevice != null && adminDevice != installId && adminDevice != legacyPhoneId) {
+    final esp32AdminDevice = esp32.adminDevice;
+    if (selected == AccessMode.admin && !skipPassword && esp32AdminDevice != null && esp32AdminDevice.isNotEmpty && esp32AdminDevice != installId && esp32AdminDevice != legacyPhoneId) {
       _message('当前管理员席位已被其他设备占用');
-      _log('[APP] 管理员席位拒绝：${adminDevice!}');
+      _log('[APP] 管理员席位拒绝：ESP32记录管理员=$esp32AdminDevice，当前设备=$installId');
       return;
     }
     setState(() {
@@ -1345,9 +1357,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                 final value = passwordController.text.trim();
                 bool ok;
                 if (selected == AccessMode.admin) {
-                  final seatBlocked = adminDevice != null && adminDevice != installId && adminDevice != legacyPhoneId;
+                  final esp32Admin = esp32.adminDevice;
+                  final seatBlocked = esp32Admin != null && esp32Admin.isNotEmpty && esp32Admin != installId && esp32Admin != legacyPhoneId;
                   if (seatBlocked) {
-                    _log('[ESP32] 管理员席位已被占用：$adminDevice');
+                    _log('[ESP32] 管理员席位已被占用：$esp32Admin');
                     _message('管理员席位已被其他设备占用');
                     return;
                   }
@@ -1619,6 +1632,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     adminDevice = null;
     adminSession = false;
     authorized = false;
+    esp32.adminDevice = null;
     await prefs?.remove('admin_device_id');
     _log('[APP] 管理员席位已释放（迁移）');
     _message('管理员席位已释放\n其他设备可重新绑定');
@@ -2330,16 +2344,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               ),
               const SizedBox(height: 20),
               TKNeonButton(label: '确认授权', icon: Icons.verified_user, neonColor: TKColors.neonOrange, onTap: () {
-                if (adminDevice != null && adminDevice != installId) {
-                  _message('管理员席位已被其他设备占用，请先释放');
-                  _log('[APP] 管理员席位被占用：$adminDevice');
-                  return;
-                }
                 if (ctrl.text.trim() == adminPassword) {
                   Navigator.pop(context);
                   setState(() { adminSession = true; adminDevice = installId; });
+                  esp32.adminDevice = installId;
                   prefs?.setString('admin_device_id', installId!);
-                  _log('[APP] 管理员认证成功');
+                  _log('[APP] 管理员认证成功，当前管理员：$installId');
                   _message('管理员授权成功');
                 } else {
                   _log('[APP] 管理员认证失败：密码错误');
