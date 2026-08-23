@@ -193,7 +193,6 @@ class TKBottomNav extends StatelessWidget {
         children: [
           _NavItem(icon: Icons.home, label: '首页', selected: currentTab == PageTab.vehicle, onTap: () => onTabChanged(PageTab.vehicle)),
           _NavItem(icon: Icons.people, label: '临时借车', selected: currentTab == PageTab.borrow, onTap: () => onTabChanged(PageTab.borrow)),
-          _NavItem(icon: Icons.admin_panel_settings, label: '管理员', selected: currentTab == PageTab.admin, onTap: () => onTabChanged(PageTab.admin)),
           _NavItem(icon: Icons.settings, label: '设置', selected: currentTab == PageTab.settings, onTap: () => onTabChanged(PageTab.settings)),
         ],
       ),
@@ -572,16 +571,16 @@ class TKLicensePlate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1.5),
-        boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)],
+        color: Colors.black.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: TKColors.neonBlue.withOpacity(0.8), width: 2),
+        boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.4), blurRadius: 12, spreadRadius: 2)],
       ),
       child: Text(
         plate,
-        style: const TextStyle(color: TKColors.neonBlue, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 2),
+        style: const TextStyle(color: TKColors.neonBlue, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 3),
       ),
     );
   }
@@ -1697,6 +1696,29 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     _message('恢复出厂完成，管理员初始密码恢复为13092991951');
   }
 
+  Future<void> _requireAdminAuth(VoidCallback onVerified) async {
+    final ctrl = TextEditingController();
+    final obscure = ValueNotifier(true);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TKColors.bgCard,
+        title: const Text('验证管理员密码', style: TextStyle(color: TKColors.textPrimary)),
+        content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number, style: const TextStyle(color: TKColors.textPrimary), decoration: const InputDecoration(hintText: '请输入管理员密码', hintStyle: TextStyle(color: TKColors.textMuted))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim() == adminPassword), child: const Text('确认')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _log('[APP] 管理员密码验证通过');
+      onVerified();
+    } else {
+      _message('密码错误或已取消');
+    }
+  }
+
   void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '[APP] 自动连接开启' : '[APP] 自动连接关闭'); setState(() {}); }
 
   Widget vehiclePage() => Scaffold(
@@ -1719,21 +1741,24 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
               // 汽车背景区域
               Expanded(
-                flex: 5,
+                flex: 6,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     // 背景图：home_car_bg.png
-                    Image.asset(
-                      'assets/home_car_bg.png',
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.contain,
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Image.asset(
+                        'assets/home_car_bg.png',
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
                     ),
-                    // 车牌号
+                    // 车牌号 - 定位在汽车图片的车牌位置
                     Positioned(
-                      bottom: 30,
-                      child: TKLicensePlate(plate: '陕A·0P92Y'),
+                      bottom: 20,
+                      child: TKLicensePlate(plate: deviceName),
                     ),
                   ],
                 ),
@@ -1821,8 +1846,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(child: TKNeonButton(label: '管理员', icon: Icons.admin_panel_settings, neonColor: TKColors.neonOrange, onTap: () => setState(() => tab = PageTab.admin), isEnabled: true)),
-                        const SizedBox(width: 12),
                         Expanded(child: TKNeonButton(label: '系统日志', icon: Icons.receipt_long, neonColor: TKColors.neonBlue, onTap: () => showLogs(), isEnabled: true)),
                       ],
                     ),
@@ -2068,31 +2091,31 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       title: '修改蓝牙密码',
                       leadingIcon: Icons.lock,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changePasswordPage(ctx)))) : () => _showAdminAuthDialog(),
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changePasswordPage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '修改管理员密码',
                       leadingIcon: Icons.admin_panel_settings,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changeAdminPasswordPage(ctx)))) : () => _showAdminAuthDialog(),
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changeAdminPasswordPage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '恢复默认蓝牙密码',
                       leadingIcon: Icons.restore,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _resetPasswordPage(ctx)))) : () => _showAdminAuthDialog(),
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _resetPasswordPage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '设备名称',
                       leadingIcon: Icons.device_hub,
                       trailingText: deviceName,
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deviceNamePage(ctx)))) : () => _showAdminAuthDialog(),
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deviceNamePage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '时间同步设置',
                       leadingIcon: Icons.access_time,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx)))) : () => _showAdminAuthDialog(),
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '自动连接设置',
@@ -2120,17 +2143,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       title: '自动落锁',
                       leadingIcon: Icons.lock_outline,
                       trailingText: esp32.autoLockEnabled ? '已开启' : '已关闭',
-                      onTap: adminEnabled ? () {
+                      onTap: () => _requireAdminAuth(() {
                         setState(() => esp32.autoLockEnabled = !esp32.autoLockEnabled);
                         prefs?.setBool('auto_lock', esp32.autoLockEnabled);
                         _message('自动落锁已${esp32.autoLockEnabled ? "开启" : "关闭"}');
-                      } : () => _showAdminAuthDialog(),
+                      }),
                     ),
                     TKSettingTile(
                       title: '恢复出厂',
                       leadingIcon: Icons.delete_forever,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _factoryResetPage(ctx)))) : () => _showAdminAuthDialog(),
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _factoryResetPage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '关于系统',
@@ -2795,7 +2818,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       case PageTab.vehicle: return vehiclePage();
       case PageTab.borrow: return borrowPage();
       case PageTab.settings: return settingsPage();
-      case PageTab.admin: return adminPage();
+      default: return vehiclePage();
     }
   }
 }
