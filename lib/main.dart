@@ -837,7 +837,7 @@ class SimulatedEsp32 {
       _logEsp32('临时密码已过期');
       return false;
     }
-    _logEsp32('临时密码验证通过');
+    _logEsp32('临时密码验证通过，有效至：$borrowEnd');
     return true;
   }
 
@@ -883,11 +883,14 @@ class SimulatedEsp32 {
   }
 
   String generateBorrowCode(int hours) {
-    // 与ESP32相同的哈希算法生成6位临时码
+    // 哈希基于密码+过期时间戳，不再依赖6小时窗口
     final now = DateTime.now();
-    final tempValid = 6 * 3600; // 与ESP32一致
-    final window = now.millisecondsSinceEpoch ~/ 1000 ~/ tempValid;
-    final secret = '$adminPassword$window';
+    borrowStart = now;
+    borrowEnd = hours == 0
+        ? now.add(const Duration(minutes: 5))
+        : now.add(Duration(hours: hours));
+    final expiryEpoch = borrowEnd!.millisecondsSinceEpoch ~/ 1000;
+    final secret = '$adminPassword$expiryEpoch';
     final bytes = Uint8List.fromList(utf8.encode(secret));
     final digest = sha256.convert(bytes);
     final hashBytes = digest.bytes;
@@ -895,11 +898,7 @@ class SimulatedEsp32 {
     final code = (val % 1000000).toString().padLeft(6, '0');
     
     borrowCode = code;
-    borrowStart = now;
-    borrowEnd = hours == 0
-        ? now.add(const Duration(minutes: 5))
-        : now.add(Duration(hours: hours));
-    _logEsp32('生成临时借车密码：$code，有效期 ${hours == 0 ? "5分钟" : "$hours 小时"}');
+    _logEsp32('生成临时借车密码：$code，有效期 ${hours == 0 ? "5分钟" : "$hours 小时"}，过期时间戳：$expiryEpoch');
     return code;
   }
 
@@ -1565,9 +1564,15 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     borrowCode = esp32.borrowCode;
     borrowStart = esp32.borrowStart;
     borrowEnd = esp32.borrowEnd;
+    final expiryEpoch = borrowEnd!.millisecondsSinceEpoch ~/ 1000;
     await prefs?.setString('borrow_code', code);
     await prefs?.setInt('borrow_start', borrowStart!.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
+    // 真实模式：发送 !BORROW 命令到ESP32
+    if (!simulationMode && bleGateway.readyForWrite) {
+      bleGateway.writeCommand(utf8.encode('!BORROW $code $expiryEpoch'));
+      _log('[BLE] 已发送临时密码到ESP32：$code 过期时间戳：$expiryEpoch');
+    }
     _scheduleBorrowExpiry();
     setState(() => status = '临时借车密码已生成');
     _message('临时密码：$code\n有效期：$duration');
@@ -1581,6 +1586,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
     if (logExpiry && hadCode) _log('[APP] 临时借车密码已到期并清除');
+    // 真实模式：通知ESP32清除临时密码
+    if (!simulationMode && bleGateway.readyForWrite) {
+      bleGateway.writeCommand(utf8.encode('!BORROWCLEAR'));
+      _log('[BLE] 已通知ESP32清除临时密码');
+    }
     if (mounted) {
       if (mode == AccessMode.borrower) {
         if (!simulationMode) {
