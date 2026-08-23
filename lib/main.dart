@@ -883,8 +883,10 @@ class SimulatedEsp32 {
     final code = (100000 + Random().nextInt(900000)).toString();
     borrowCode = code;
     borrowStart = DateTime.now();
-    borrowEnd = DateTime.now().add(Duration(hours: hours));
-    _logEsp32('生成临时借车密码：$code，有效期 $hours 小时');
+    borrowEnd = hours == 0
+        ? DateTime.now().add(const Duration(minutes: 5))
+        : DateTime.now().add(Duration(hours: hours));
+    _logEsp32('生成临时借车密码：$code，有效期 ${hours == 0 ? "5分钟" : "$hours 小时"}');
     return code;
   }
 
@@ -1479,8 +1481,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   Future<void> generateBorrowCode() async {
     if (!adminEnabled) { _message('请先完成管理员认证'); return; }
-    final hours = (int.tryParse(hoursController.text.trim()) ?? 2).clamp(1, 24).toInt();
-    _log('[APP] 生成临时借车密码，有效期 $hours 小时');
+    final hours = (int.tryParse(hoursController.text.trim()) ?? 24).clamp(0, 168).toInt();
+    final duration = hours == 0 ? '5分钟' : hours < 24 ? '$hours小时' : '${hours ~/ 24}天';
+    _log('[APP] 生成临时借车密码，有效期 $duration');
     final code = esp32.generateBorrowCode(hours);
     borrowCode = esp32.borrowCode;
     borrowStart = esp32.borrowStart;
@@ -1490,7 +1493,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
     _scheduleBorrowExpiry();
     setState(() => status = '临时借车密码已生成');
-    _message('临时密码：$code\n有效期：$hours 小时');
+    _message('临时密码：$code\n有效期：$duration');
   }
 
   Future<void> _clearBorrow({bool logExpiry = false}) async {
@@ -1596,6 +1599,30 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     _log('[APP] 设备名称已保存');
     setState(() {});
     _message('设备名称已更新');
+  }
+
+  Future<void> _migrateAdmin() async {
+    final ctrl = TextEditingController();
+    final passOk = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TKColors.bgCard,
+        title: const Text('验证管理员密码', style: TextStyle(color: TKColors.textPrimary)),
+        content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number, style: const TextStyle(color: TKColors.textPrimary), decoration: const InputDecoration(hintText: '请输入管理员密码', hintStyle: TextStyle(color: TKColors.textMuted))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim() == adminPassword), child: const Text('确认')),
+        ],
+      ),
+    );
+    if (passOk != true) { _message('密码错误或已取消'); return; }
+    adminDevice = null;
+    adminSession = false;
+    authorized = false;
+    await prefs?.remove('admin_device_id');
+    _log('[APP] 管理员席位已释放（迁移）');
+    _message('管理员席位已释放\n其他设备可重新绑定');
+    setState(() {});
   }
 
   Future<void> factoryReset() async {
@@ -1894,14 +1921,14 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        _buildTimeSelectButton('1小时', 1),
-                        _buildTimeSelectButton('2小时', 2),
-                        _buildTimeSelectButton('4小时', 4),
-                        _buildTimeSelectButton('8小时', 8),
-                        _buildTimeSelectButton('12小时', 12),
-                        _buildTimeSelectButton('16小时', 16),
-                        _buildTimeSelectButton('20小时', 20),
-                        _buildTimeSelectButton('24小时', 24),
+                        _buildTimeSelectButton('5分钟', 0),
+                        _buildTimeSelectButton('1天', 24),
+                        _buildTimeSelectButton('2天', 48),
+                        _buildTimeSelectButton('3天', 72),
+                        _buildTimeSelectButton('4天', 96),
+                        _buildTimeSelectButton('5天', 120),
+                        _buildTimeSelectButton('6天', 144),
+                        _buildTimeSelectButton('7天', 168),
                       ],
                     ),
                   ],
@@ -2176,6 +2203,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                     _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? () => syncTime() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '统一日志', icon: Icons.receipt_long, onTap: () => showLogs()),
                     _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: () { _toggleAutoConnect(autoConnect); }),
+                    _AdminActionTile(title: '管理员迁移', icon: Icons.swap_horiz, onTap: adminEnabled ? () => _migrateAdmin() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '恢复出厂', icon: Icons.delete_forever, onTap: adminEnabled ? () => factoryReset() : () => _message('请先完成管理员认证'), isDanger: true),
                     const SizedBox(height: 20),
 
@@ -2302,6 +2330,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               ),
               const SizedBox(height: 20),
               TKNeonButton(label: '确认授权', icon: Icons.verified_user, neonColor: TKColors.neonOrange, onTap: () {
+                if (adminDevice != null && adminDevice != installId) {
+                  _message('管理员席位已被其他设备占用，请先释放');
+                  _log('[APP] 管理员席位被占用：$adminDevice');
+                  return;
+                }
                 if (ctrl.text.trim() == adminPassword) {
                   Navigator.pop(context);
                   setState(() { adminSession = true; adminDevice = installId; });
