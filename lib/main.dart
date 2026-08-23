@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ble_service.dart';
+import 'ble_characteristic_gateway.dart';
 
 // ==================== Tian Key V4 视觉常量 ====================
 class TKColors {
@@ -942,6 +945,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   static const defaultName = '陕A0P92Y';
 
   final TianKeyBleService ble = TianKeyBleService();
+  final BleCharacteristicGateway bleGateway = BleCharacteristicGateway();
   late final SimulatedEsp32 esp32 = SimulatedEsp32(onLog: _log);
   final List<String> logs = <String>[];
   final TextEditingController passwordController = TextEditingController();
@@ -1009,6 +1013,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     newPasswordController.dispose();
     nameController.dispose();
     hoursController.dispose();
+    unawaited(bleGateway.dispose());
     unawaited(ble.dispose());
     super.dispose();
   }
@@ -1260,6 +1265,24 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       if (!simulationMode) {
         if (target.device == null) throw StateError('BLE设备对象无效');
         await ble.connect(target.device!);
+        // 发现服务，绑定NUS写入/通知通道
+        final services = await ble.discoverServices();
+        for (final service in services) {
+          if (service.serviceUuid.str.toUpperCase().contains('6E400001')) {
+            BluetoothCharacteristic? writeChar;
+            BluetoothCharacteristic? notifyChar;
+            for (final c in service.characteristics) {
+              final uuid = c.characteristicUuid.str.toUpperCase();
+              if (uuid.contains('6E400002')) writeChar = c;
+              if (uuid.contains('6E400003')) notifyChar = c;
+            }
+            if (writeChar != null) {
+              bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
+              _log('[APP] NUS通道绑定成功，可以发送指令');
+            }
+            break;
+          }
+        }
       } else {
         await Future.delayed(const Duration(milliseconds: 500));
         _log('[ESP32] BLE连接建立');
@@ -1363,6 +1386,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                     _message('管理员席位已被其他设备占用');
                     return;
                   }
+                  // 真实模式：发送密码给ESP32验证
+                  if (!simulationMode && bleGateway.readyForWrite) {
+                    bleGateway.writeCommand(utf8.encode(value));
+                    _log('[BLE] 已发送密码给ESP32验证');
+                  }
                   ok = esp32.verifyAdminPassword(value, installId ?? '');
                   if (ok) {
                     _log('[ESP32] 管理员密码验证通过');
@@ -1372,6 +1400,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                     _message('密码错误');
                   }
                 } else {
+                  if (!simulationMode && bleGateway.readyForWrite) {
+                    bleGateway.writeCommand(utf8.encode(value));
+                    _log('[BLE] 已发送临时密码给ESP32验证');
+                  }
                   ok = esp32.verifyBorrowPassword(value);
                   if (ok) {
                     _log('[ESP32] 临时密码验证通过');
@@ -1393,6 +1425,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   Future<void> syncTime() async {
     if (!connected) return;
     _log('[APP] 自动同步时间...');
+    // 真实模式：发送时间给ESP32
+    if (!simulationMode && bleGateway.readyForWrite) {
+      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      bleGateway.writeCommand(utf8.encode('!TIME $ts'));
+      _log('[BLE] 已发送时间同步：$ts');
+    }
     _log('[ESP32] 收到时间同步请求');
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
@@ -1421,6 +1459,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   Future<void> disconnect() async {
     commandTimer?.cancel();
     if (!simulationMode) {
+      await bleGateway.dispose();
       await ble.disconnect();
     } else {
       esp32.disconnect();
@@ -1466,6 +1505,14 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         protocol = 'houbeixiang'; gpio = 4; detail = 'GPIO4 保持7秒';
     }
     _log('[APP] 发送指令：$protocol');
+    // 真实模式：通过BLE发送指令给ESP32
+    if (!simulationMode && bleGateway.readyForWrite) {
+      bleGateway.writeCommand(utf8.encode(protocol));
+      _log('[BLE] 已发送：$protocol');
+    } else if (!simulationMode && !bleGateway.readyForWrite) {
+      _message('BLE通道未就绪，请重新连接');
+      return;
+    }
     final espDetail = esp32.executeCommand(protocol);
     _log('[ESP32] $espDetail');
     commandTimer?.cancel();
