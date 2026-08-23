@@ -1494,7 +1494,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   Future<void> generateBorrowCode() async {
     if (!adminEnabled) { _message('请先完成管理员认证'); return; }
     final hours = (int.tryParse(hoursController.text.trim()) ?? 24).clamp(0, 168).toInt();
-    final duration = hours == 0 ? '5分钟' : hours < 24 ? '$hours小时' : '${hours ~/ 24}天';
+    final duration = hours == 0 ? '5分钟' : '$hours小时';
     _log('[APP] 生成临时借车密码，有效期 $duration');
     final code = esp32.generateBorrowCode(hours);
     borrowCode = esp32.borrowCode;
@@ -1725,74 +1725,54 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         body: SafeArea(
           child: Column(
             children: [
-              // ===== 上半部分：Stack全屏布局（背景图+Header+车牌） =====
-              Expanded(
-                flex: 5,
-                child: Stack(
+              // 顶部栏
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // 底层：背景图全幅填充
+                    GestureDetector(
+                      onTap: () => setState(() => tab = PageTab.settings),
+                      child: Icon(Icons.settings, color: TKColors.neonBlue, size: 22),
+                    ),
+                    TKLogoText(fontSize: 20),
+                    GestureDetector(
+                      onTap: () => _message('帮助：长按按钮查看功能说明'),
+                      child: Icon(Icons.help_outline, color: TKColors.textMuted, size: 22),
+                    ),
+                  ],
+                ),
+              ),
+
+              // 汽车图片区域（缩小，不遮挡底部）
+              SizedBox(
+                height: 220,
+                width: double.infinity,
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    // 背景图
                     Positioned.fill(
                       child: Image.asset(
                         'assets/home_car_bg.png',
-                        fit: BoxFit.fitWidth,
+                        fit: BoxFit.contain,
                         alignment: Alignment.center,
                       ),
                     ),
-                    // 左上角设置图标
+                    // 车牌 - 定位在车头前保险杠位置（图片底部偏上约18%）
                     Positioned(
-                      top: 8, left: 12,
-                      child: GestureDetector(
-                        onTap: () => setState(() => tab = PageTab.settings),
-                        child: Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black.withOpacity(0.5),
-                            border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1),
-                          ),
-                          child: Icon(Icons.settings, color: TKColors.neonBlue, size: 18),
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A1628),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1),
+                          boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.15), blurRadius: 3)],
                         ),
-                      ),
-                    ),
-                    // 正中标题
-                    Positioned(
-                      top: 12,
-                      left: 0, right: 0,
-                      child: Center(child: TKLogoText(fontSize: 18)),
-                    ),
-                    // 右上角帮助图标
-                    Positioned(
-                      top: 8, right: 12,
-                      child: GestureDetector(
-                        onTap: () => _message('帮助：长按按钮查看功能说明'),
-                        child: Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black.withOpacity(0.5),
-                            border: Border.all(color: TKColors.textMuted.withOpacity(0.4), width: 1),
-                          ),
-                          child: Icon(Icons.help_outline, color: TKColors.textMuted, size: 18),
-                        ),
-                      ),
-                    ),
-                    // 车牌 - 贴合车头前保险杠位置
-                    Positioned(
-                      bottom: 16,
-                      left: 0, right: 0,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0A1628),
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1.2),
-                            boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.2), blurRadius: 4)],
-                          ),
-                          child: const Text(
-                            '陕A·0P92Y',
-                            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 2),
-                          ),
+                        child: const Text(
+                          '陕A·0P92Y',
+                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
                         ),
                       ),
                     ),
@@ -1939,13 +1919,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       runSpacing: 10,
                       children: [
                         _buildTimeSelectButton('5分钟', 0),
-                        _buildTimeSelectButton('1天', 24),
-                        _buildTimeSelectButton('2天', 48),
-                        _buildTimeSelectButton('3天', 72),
-                        _buildTimeSelectButton('4天', 96),
-                        _buildTimeSelectButton('5天', 120),
-                        _buildTimeSelectButton('6天', 144),
-                        _buildTimeSelectButton('7天', 168),
+                        _buildTimeSelectButton('24小时', 24),
+                        _buildTimeSelectButton('48小时', 48),
+                        _buildTimeSelectButton('72小时', 72),
+                        _buildTimeSelectButton('96小时', 96),
+                        _buildTimeSelectButton('120小时', 120),
+                        _buildTimeSelectButton('144小时', 144),
+                        _buildTimeSelectButton('168小时', 168),
                       ],
                     ),
                   ],
