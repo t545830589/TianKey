@@ -1671,7 +1671,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
 // 时间选择按钮
   Widget _buildTimeSelectButton(String label, Duration duration) {
-    final int minutes = duration.inMinutes;
 
     return SizedBox(
       width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
