@@ -1485,7 +1485,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       children: [
                         Expanded(child: TKNeonButton(label: '连接设备', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
                         const SizedBox(width: 12),
-                        Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? () => toggleAuthorization() : () => _message('请先完成管理员认证'), isEnabled: true)),
+                        Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? () => toggleAuthorization() : () => _showAdminAuthDialog(), isEnabled: true)),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -1712,56 +1712,47 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
-                    // 修改蓝牙密码
                     TKSettingTile(
                       title: '修改蓝牙密码',
                       leadingIcon: Icons.lock,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => changePassword() : () => _message('请先完成管理员认证'),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _changePasswordPage())) : () => _showAdminAuthDialog(),
                     ),
-                    // 恢复默认蓝牙密码
                     TKSettingTile(
                       title: '恢复默认蓝牙密码',
                       leadingIcon: Icons.restore,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => _showFactoryResetDialog() : () => _message('请先完成管理员认证'),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resetPasswordPage())) : () => _showAdminAuthDialog(),
                     ),
-                    // 设备名称
                     TKSettingTile(
                       title: '设备名称',
                       leadingIcon: Icons.device_hub,
                       trailingText: deviceName,
-                      onTap: adminEnabled ? () => changeDeviceName() : () => _message('请先完成管理员认证'),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _deviceNamePage())) : () => _showAdminAuthDialog(),
                     ),
-                    // 时间同步设置
                     TKSettingTile(
                       title: '时间同步设置',
                       leadingIcon: Icons.access_time,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => _showTimeSyncDialog() : () => _message('请先完成管理员认证'),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _timeSyncPage())) : () => _showAdminAuthDialog(),
                     ),
-                    // 自动连接设置
-                    TKSwitchTile(
+                    TKSettingTile(
                       title: '自动连接设置',
-                      subtitle: '开启后，APP启动时将自动连接已配对设备',
-                      value: autoConnect,
-                      onChanged: _toggleAutoConnect,
                       leadingIcon: Icons.bluetooth_connected,
+                      trailingText: autoConnect ? '已开启' : '已关闭',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _autoConnectPage())),
                     ),
-                    // 提示音设置
-                    TKSwitchTile(
+                    TKSettingTile(
                       title: '提示音设置',
-                      subtitle: '开启后，操作时播放提示音',
-                      value: sound,
-                      onChanged: _toggleSound,
                       leadingIcon: Icons.volume_up,
+                      trailingText: sound ? '已开启' : '已关闭',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _soundPage())),
                     ),
-                    // 关于系统
                     TKSettingTile(
                       title: '关于系统',
                       leadingIcon: Icons.info_outline,
                       trailingText: '>',
-                      onTap: () => _showAboutDialog(),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _aboutPage())),
                     ),
                   ],
                 ),
@@ -1925,77 +1916,282 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     );
   }
 
-  // 设置页子弹窗
-  void _showFactoryResetDialog() => showDialog(
-        context: context,
-        builder: (context) => TKDialog(
-          borderColor: TKColors.neonRed,
+  // ==================== 管理员授权弹窗 ====================
+  void _showAdminAuthDialog() {
+    final ctrl = TextEditingController();
+    bool obscure = true;
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => TKDialog(
+          borderColor: TKColors.neonOrange,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const TKPageTitle(title: '恢复默认蓝牙密码'),
-              const SizedBox(height: 16),
-              const Icon(Icons.restart_alt, color: TKColors.neonRed, size: 48),
-              const SizedBox(height: 16),
-              const Text('恢复后蓝牙密码将重置为出厂默认密码 13092991951', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
-                  const SizedBox(width: 12),
-                  Expanded(child: TKNeonButton(label: '恢复默认蓝牙密码', icon: Icons.restore, neonColor: TKColors.neonRed, onTap: () { Navigator.pop(context); factoryReset(); }, isEnabled: true)),
-                ],
+              Container(
+                width: 100, height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: TKColors.neonOrange.withOpacity(0.4), blurRadius: 20, spreadRadius: 3)],
+                ),
+                child: const Icon(Icons.shield, color: TKColors.neonOrange, size: 60),
               ),
-            ],
-          ),
-        ),
-      );
-
-  void _showTimeSyncDialog() => showDialog(
-        context: context,
-        builder: (context) => TKDialog(
-          borderColor: TKColors.neonBlue,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const TKPageTitle(title: '时间同步设置'),
               const SizedBox(height: 16),
-              TKBigIcon(icon: Icons.access_time, color: TKColors.neonBlue, size: 80),
-              const SizedBox(height: 16),
-              Text('当前状态', style: const TextStyle(color: TKColors.textSecondary, fontSize: 14)),
-              const SizedBox(height: 4),
-              Text(timeSynced ? '已同步' : '未同步', style: TextStyle(color: timeSynced ? TKColors.neonBlue : TKColors.neonOrange, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('请输入管理员密码进行授权', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
               const SizedBox(height: 20),
-              TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: () => syncTime(), isEnabled: connected),
+              TextField(
+                controller: ctrl,
+                obscureText: obscure,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: TKColors.textPrimary, fontSize: 18),
+                decoration: InputDecoration(
+                  hintText: '请输入管理员密码',
+                  hintStyle: const TextStyle(color: TKColors.textMuted),
+                  filled: true, fillColor: TKColors.bgCard,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.borderSubtle, width: 1.5)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.neonOrange, width: 2)),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: TKColors.textSecondary, size: 20),
+                    onPressed: () => setDialogState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TKNeonButton(label: '确认授权', icon: Icons.verified_user, neonColor: TKColors.neonOrange, onTap: () {
+                if (ctrl.text.trim() == adminPassword) {
+                  Navigator.pop(context);
+                  setState(() { adminSession = true; adminDevice = installId; });
+                  prefs?.setString('admin_device_id', installId!);
+                  _message('管理员授权成功');
+                } else {
+                  _message('密码错误');
+                }
+              }, isEnabled: true),
               const SizedBox(height: 12),
-              const Text('点击按钮将手机时间同步至车辆 ESP32', style: TextStyle(color: TKColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
+              const Text('授权后可使用全部管理功能', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 
-  void _showAboutDialog() => showDialog(
-        context: context,
-        builder: (context) => TKDialog(
-          borderColor: TKColors.neonBlue,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TKBigIcon(icon: Icons.directions_car_filled, color: TKColors.neonBlue, size: 100),
-              const SizedBox(height: 16),
-              const TKLogoText(text: 'Tian Key V11', fontSize: 28),
-              const SizedBox(height: 8),
-              const Text('马自达昂克赛拉 个人 BLE 手机车钥匙系统', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              const Divider(color: TKColors.divider),
-              const SizedBox(height: 16),
-              const Text('版本 1.0.0+1', style: TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-              const SizedBox(height: 8),
-              const Text('© 2026 Tian Key Team', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-            ],
+  // ==================== 设置二级子页面 ====================
+
+  // 1. 修改蓝牙密码
+  Widget _changePasswordPage() {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '修改蓝牙密码'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+          const SizedBox(height: 24),
+          TKBigIcon(icon: Icons.lock_reset, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          TKTextField(controller: currentCtrl, label: '当前蓝牙密码', hint: '请输入当前蓝牙密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+          const SizedBox(height: 16),
+          TKTextField(controller: newCtrl, label: '新蓝牙密码', hint: '请输入新蓝牙密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+          const SizedBox(height: 16),
+          TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+          const SizedBox(height: 32),
+          TKNeonButton(label: '保存新密码', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () {
+            if (currentCtrl.text.trim() != adminPassword) { _message('当前密码错误'); return; }
+            if (newCtrl.text.trim().length < 6) { _message('新密码至少6位'); return; }
+            if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
+            adminPassword = newCtrl.text.trim();
+            prefs?.setString('admin_password', adminPassword);
+            _message('密码已更新'); Navigator.pop(context);
+          }, isEnabled: true),
+        ])),
+      ])),
+    );
+  }
+
+  // 2. 恢复默认蓝牙密码
+  Widget _resetPasswordPage() {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '恢复默认蓝牙密码'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.restart_alt, color: TKColors.neonRed, size: 80),
+          const SizedBox(height: 24),
+          const Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          const Text('默认密码：13092991951', style: TextStyle(color: TKColors.textMuted, fontSize: 13)),
+          const SizedBox(height: 32),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '恢复默认蓝牙密码', icon: Icons.restore, neonColor: TKColors.neonRed, onTap: () {
+            adminPassword = defaultPassword;
+            prefs?.setString('admin_password', defaultPassword);
+            _message('已恢复默认密码：13092991951'); Navigator.pop(context);
+          }, isEnabled: true)),
+        ]))),
+      ])),
+    );
+  }
+
+  // 3. 设备名称
+  Widget _deviceNamePage() {
+    final ctrl = TextEditingController(text: deviceName);
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '设备名称'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+          const SizedBox(height: 24),
+          TKBigIcon(icon: Icons.device_hub, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          TKTextField(controller: ctrl, label: '设备名称', hint: '输入设备名称'),
+          const SizedBox(height: 12),
+          const Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+          const SizedBox(height: 32),
+          TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () {
+            final v = ctrl.text.trim();
+            if (v.isEmpty) { _message('名称不能为空'); return; }
+            deviceName = v;
+            prefs?.setString('device_name', v);
+            _message('设备名称已更新'); Navigator.pop(context);
+          }, isEnabled: true),
+        ])),
+      ])),
+    );
+  }
+
+  // 4. 时间同步设置
+  Widget _timeSyncPage() {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '时间同步设置'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TKBigIcon(icon: Icons.access_time, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          const Text('当前状态', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
+          const SizedBox(height: 8),
+          Text(timeSynced ? '已同步' : '未同步', style: TextStyle(color: timeSynced ? TKColors.neonBlue : TKColors.neonOrange, fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 32),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: connected ? () async { await syncTime(); if (mounted) setState(() {}); } : null, isEnabled: connected)),
+          const SizedBox(height: 16),
+          const Text('同步后将自动校准设备时间', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+        ]))),
+      ])),
+    );
+  }
+
+  // 5. 自动连接设置
+  Widget _autoConnectPage() {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '自动连接设置'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TKBigIcon(icon: Icons.bluetooth_connected, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          TKSwitchTile(
+            title: '自动连接',
+            subtitle: '开启后，APP启动时将自动连接已配对设备',
+            value: autoConnect,
+            onChanged: (v) { setState(() { autoConnect = v; }); prefs?.setBool('auto_connect', v); _log(v ? '自动连接开启' : '自动连接关闭'); },
+            leadingIcon: Icons.bluetooth,
           ),
-        ),
-      );
+        ]))),
+      ])),
+    );
+  }
+
+  // 6. 提示音设置
+  Widget _soundPage() {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '提示音设置'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TKBigIcon(icon: Icons.volume_up, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          TKSwitchTile(
+            title: '提示音',
+            subtitle: '开启后，操作时播放提示音',
+            value: sound,
+            onChanged: (v) { setState(() { sound = v; }); prefs?.setBool('sound', v); _log(v ? '声音反馈开启' : '声音反馈关闭'); },
+            leadingIcon: Icons.volume_up,
+          ),
+        ]))),
+      ])),
+    );
+  }
+
+  // 7. 关于系统
+  Widget _aboutPage() {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          const TKPageTitle(title: '关于系统'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TKBigIcon(icon: Icons.directions_car_filled, color: TKColors.neonBlue, size: 100),
+          const SizedBox(height: 16),
+          const TKLogoText(text: 'Tian Key', fontSize: 28),
+          const SizedBox(height: 8),
+          const Text('Tian Key 智能车钥匙控制系统', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
+          const SizedBox(height: 32),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: TKColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: TKColors.borderSubtle)),
+            child: Column(children: [
+              _infoRow('车型', '马自达昂克赛拉'),
+              _infoRow('车牌', deviceName),
+              _infoRow('设备ID', installId ?? '未知'),
+              const Divider(color: TKColors.divider, height: 20),
+              _infoRow('连接状态', connected ? '已连接' : '未连接'),
+              _infoRow('管理员', adminEnabled ? '已授权' : '未授权'),
+              _infoRow('版本', '1.0.0+1'),
+            ]),
+          ),
+          const SizedBox(height: 24),
+          const Text('© 2026 Tian Key Team', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+        ]))),
+      ])),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: const TextStyle(color: TKColors.textSecondary, fontSize: 13)),
+      Text(value, style: const TextStyle(color: TKColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+    ]));
+  }
 
   // 管理员操作列表项
   Widget _AdminActionTile({
