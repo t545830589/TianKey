@@ -1725,9 +1725,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         body: SafeArea(
           child: Column(
             children: [
-              // 顶部栏
+              // 顶部栏（图片自带Tian Key文字，只保留设置/帮助图标）
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1735,7 +1735,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       onTap: () => setState(() => tab = PageTab.settings),
                       child: Icon(Icons.settings, color: TKColors.neonBlue, size: 22),
                     ),
-                    TKLogoText(fontSize: 20),
+                    const SizedBox(width: 48),
                     GestureDetector(
                       onTap: () => _message('帮助：长按按钮查看功能说明'),
                       child: Icon(Icons.help_outline, color: TKColors.textMuted, size: 22),
@@ -1744,39 +1744,14 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                 ),
               ),
 
-              // 汽车图片区域（固定高度220px）
+              // 汽车图片区域（图片自带Tian Key文字+车牌号）
               SizedBox(
-                height: 220,
+                height: 170,
                 width: double.infinity,
-                child: Stack(
-                  children: [
-                    // 背景图
-                    Positioned.fill(
-                      child: Image.asset(
-                        'assets/home_car_bg.png',
-                        fit: BoxFit.contain,
-                        alignment: Alignment.center,
-                      ),
-                    ),
-                    // 车牌 - 贴合车头中网位置（left 18%, bottom 24%）
-                    Positioned(
-                      left: 0, right: 0,
-                      bottom: 52,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1B55B8),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            '陕A·0P92Y',
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Image.asset(
+                  'assets/home_car_bg.jpg',
+                  fit: BoxFit.cover,
+                  alignment: const Alignment(0, 0.1),
                 ),
               ),
 

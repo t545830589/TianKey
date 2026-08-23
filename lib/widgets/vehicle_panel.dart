@@ -6,7 +6,7 @@ class VehiclePanel extends StatelessWidget {
 
   const VehiclePanel({
     super.key,
-    this.imageAsset = 'assets/home_car_bg.png',
+    this.imageAsset = 'assets/home_car_bg.jpg',
     this.height = 240,
   });
 
