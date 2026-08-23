@@ -17,6 +17,7 @@ class TianKeyBleService {
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
   StreamSubscription<void>? _servicesResetSubscription;
   List<BluetoothService> _services = <BluetoothService>[];
+  VoidCallback? onDisconnect;
 
   bool get isConnected => device?.isConnected ?? false;
   String? get connectedRemoteId => device?.remoteId.str;
@@ -106,6 +107,7 @@ class TianKeyBleService {
       if (state == BluetoothConnectionState.disconnected) {
         device = null;
         _services = <BluetoothService>[];
+        onDisconnect?.call();
       }
     });
 

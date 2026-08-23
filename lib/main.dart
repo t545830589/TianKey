@@ -1294,6 +1294,23 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       if (!simulationMode) {
         if (target.device == null) throw StateError('BLE设备对象无效');
         await ble.connect(target.device!);
+        ble.onDisconnect = () {
+          if (mounted && connected) {
+            setState(() {
+              connected = false;
+              mode = null;
+              adminSession = false;
+              timeSynced = false;
+              espTime = null;
+              borrowTimeConfirmed = false;
+              commandSeconds = 0;
+              activeCommand = '';
+              status = 'BLE连接已断开，车辆功能锁定';
+            });
+            _log('[APP] BLE非主动断开，车辆功能锁定');
+            _message('BLE连接已断开');
+          }
+        };
         // 发现服务，绑定NUS写入/通知通道
         final services = await ble.discoverServices();
         for (final service in services) {
@@ -1307,6 +1324,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             }
             if (writeChar != null) {
               bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
+              if (notifyChar != null) {
+                await bleGateway.startNotify();
+                _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
+              }
               _log('[APP] NUS通道绑定成功，可以发送指令');
             }
             break;
@@ -1480,84 +1501,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     return result;
   }
 
-  Future<bool> _verify(AccessMode selected) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => TKDialog(
-        borderColor: TKColors.neonOrange,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(height: 110, width: double.infinity, child: Image.asset('assets/popup_admin_auth.png', fit: BoxFit.contain)),
-            Text(selected == AccessMode.admin ? '管理员密码' : '临时借车密码', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: TKColors.textPrimary)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: TKColors.textPrimary, fontSize: 18),
-              decoration: InputDecoration(
-                hintText: '请输入密码',
-                hintStyle: const TextStyle(color: TKColors.textMuted),
-                filled: true,
-                fillColor: TKColors.bgCard,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.borderSubtle, width: 1.5)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.neonBlue, width: 2)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TKNeonButton(
-              label: '验证并连接',
-              icon: Icons.link,
-              neonColor: TKColors.neonBlue,
-              onTap: () {
-                final value = passwordController.text.trim();
-                bool ok;
-                if (selected == AccessMode.admin) {
-                  final esp32Admin = esp32.adminDevice;
-                  final seatBlocked = esp32Admin != null && esp32Admin.isNotEmpty && esp32Admin != installId && esp32Admin != legacyPhoneId;
-                  if (seatBlocked) {
-                    _log('[ESP32] 管理员席位已被占用：$esp32Admin');
-                    _message('管理员席位已被其他设备占用');
-                    return;
-                  }
-                  // 真实模式：发送密码给ESP32验证
-                  if (!simulationMode && bleGateway.readyForWrite) {
-                    bleGateway.writeCommand(utf8.encode('!AUTH $value $installId'));
-                    _log('[BLE] 已发送管理员认证：!AUTH *** $installId');
-                  }
-                  ok = esp32.verifyAdminPassword(value, installId ?? '');
-                  if (ok) {
-                    _log('[ESP32] 管理员密码验证通过');
-                    Navigator.pop(context, true);
-                  } else {
-                    _log('[ESP32] 管理员密码验证失败');
-                    _message('密码错误');
-                  }
-                } else {
-                  if (!simulationMode && bleGateway.readyForWrite) {
-                    bleGateway.writeCommand(utf8.encode('!VERIFYBORROW $value'));
-                    _log('[BLE] 已发送临时密码验证：!VERIFYBORROW ***');
-                  }
-                  ok = esp32.verifyBorrowPassword(value);
-                  if (ok) {
-                    _log('[ESP32] 临时密码验证通过');
-                    Navigator.pop(context, true);
-                  } else {
-                    _log('[ESP32] 临时密码验证失败');
-                    _message('密码错误或临时密码已过期');
-                  }
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-    return result ?? false;
-  }
 
   Future<void> syncTime() async {
     if (!connected) return;
@@ -1907,7 +1850,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     esp32.factoryReset();
     await prefs?.clear();
     adminPassword = defaultPassword;
-    adminDevice = null; savedRemoteId = null; authorized = true; autoConnect = true; sound = true; simulationMode = true;
+    adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true; simulationMode = true;
     deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
     connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
     final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
@@ -2531,41 +2474,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   // ==================== 设置二级子页面 ====================
 
   // 1. 修改蓝牙密码
-  Widget _changePasswordPage(BuildContext pageCtx) {
-    final currentCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '修改蓝牙密码'),
-          const SizedBox(width: 48),
-        ])),
-        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-          const SizedBox(height: 24),
-          TKBigIcon(icon: Icons.lock_reset, color: TKColors.neonBlue, size: 80),
-          const SizedBox(height: 24),
-          TKTextField(controller: currentCtrl, label: '当前蓝牙密码', hint: '请输入当前蓝牙密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 16),
-          TKTextField(controller: newCtrl, label: '新蓝牙密码', hint: '请输入新蓝牙密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 16),
-          TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 32),
-          TKNeonButton(label: '保存新密码', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () {
-            if (currentCtrl.text.trim() != adminPassword) { _message('当前密码错误'); return; }
-            if (newCtrl.text.trim().length < 6) { _message('新密码至少6位'); return; }
-            if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
-            adminPassword = newCtrl.text.trim();
-            esp32.changePassword(adminPassword);
-            prefs?.setString('admin_password', adminPassword);
-            _log('[ESP32] 蓝牙密码已更新'); _log('[APP] 管理员密码已修改'); _message('密码已更新'); Navigator.pop(pageCtx);
-          }, isEnabled: true),
-        ])),
-      ])),
-    );
-  }
 
   Widget _changeAdminPasswordPage(BuildContext pageCtx) {
     final currentCtrl = TextEditingController();
@@ -2596,6 +2504,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             adminPassword = newCtrl.text.trim();
             esp32.changePassword(adminPassword);
             prefs?.setString('admin_password', adminPassword);
+            if (!simulationMode && bleGateway.readyForWrite) {
+              bleGateway.writeCommand(utf8.encode('!PWD ${newCtrl.text.trim()}'));
+              _log('[BLE] 已发送密码修改到ESP32');
+            }
             _log('[ESP32] 管理员密码已更新'); _log('[APP] 管理员密码已修改'); _message('管理员密码已更新'); Navigator.pop(pageCtx);
           }, isEnabled: true),
         ])),
@@ -2603,47 +2515,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     );
   }
 
-  // 2. 恢复默认蓝牙密码
-  Widget _resetPasswordPage(BuildContext pageCtx) {
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '恢复默认蓝牙密码'),
-          const SizedBox(width: 48),
-        ])),
-        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.restart_alt, color: TKColors.neonRed, size: 80),
-          const SizedBox(height: 24),
-          const Text('恢复后蓝牙密码将重置为出厂默认值', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '恢复默认蓝牙密码', icon: Icons.restore, neonColor: TKColors.neonRed, onTap: () async {
-            final ctrl = TextEditingController();
-            final ok = await showDialog<bool>(context: pageCtx, builder: (ctx) => AlertDialog(
-              backgroundColor: TKColors.bgCard,
-              title: const Text('验证管理员密码', style: TextStyle(color: TKColors.textPrimary)),
-              content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number, style: const TextStyle(color: TKColors.textPrimary), decoration: const InputDecoration(hintText: '请输入管理员密码', hintStyle: TextStyle(color: TKColors.textMuted))),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-                TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim() == adminPassword), child: const Text('确认')),
-              ],
-            ));
-            if (ok == true) {
-              adminPassword = defaultPassword;
-              esp32.resetPassword();
-              prefs?.setString('admin_password', defaultPassword);
-              _log('[ESP32] 蓝牙密码已恢复默认'); _log('[APP] 恢复默认蓝牙密码'); _message('已恢复默认密码'); Navigator.pop(pageCtx);
-            } else {
-              _message('密码错误或已取消');
-            }
-          }, isEnabled: true)),
-        ]))),
-      ])),
-    );
-  }
 
-  // 3. 设备名称
+  // 设备名称
   Widget _deviceNamePage(BuildContext pageCtx) {
     final ctrl = TextEditingController(text: deviceName);
     return Scaffold(
@@ -2667,6 +2540,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             if (v.isEmpty) { _message('名称不能为空'); return; }
             deviceName = v;
             prefs?.setString('device_name', v);
+            if (!simulationMode && bleGateway.readyForWrite) {
+              bleGateway.writeCommand(utf8.encode('!NAME $v'));
+              _log('[BLE] 已发送设备名修改到ESP32');
+            }
             _log('[APP] 设备名称已修改为 $v'); _message('设备名称已更新'); Navigator.pop(pageCtx);
           }, isEnabled: true),
         ])),
