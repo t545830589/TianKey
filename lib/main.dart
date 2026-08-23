@@ -571,16 +571,16 @@ class TKLicensePlate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: TKColors.neonBlue.withOpacity(0.8), width: 2),
-        boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.4), blurRadius: 12, spreadRadius: 2)],
+        color: const Color(0xFF0A1628),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: TKColors.neonBlue.withOpacity(0.7), width: 1.5),
+        boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.25), blurRadius: 6, spreadRadius: 1)],
       ),
       child: Text(
         plate,
-        style: const TextStyle(color: TKColors.neonBlue, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 3),
+        style: const TextStyle(color: TKColors.neonBlue, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2),
       ),
     );
   }
@@ -1727,13 +1727,27 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             children: [
               // 顶部栏：设置 | Tian Key | 帮助
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TKIconButton(icon: Icons.settings, color: TKColors.neonBlue, onTap: () => setState(() => tab = PageTab.settings)),
+                    GestureDetector(
+                      onTap: () => setState(() => tab = PageTab.settings),
+                      child: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: TKColors.bgCard, border: Border.all(color: TKColors.neonBlue.withOpacity(0.4), width: 1.5)),
+                        child: Icon(Icons.settings, color: TKColors.neonBlue, size: 20),
+                      ),
+                    ),
                     TKLogoText(),
-                    TKIconButton(icon: Icons.help_outline, color: TKColors.textMuted, onTap: () => _message('帮助：长按按钮查看功能说明')),
+                    GestureDetector(
+                      onTap: () => _message('帮助：长按按钮查看功能说明'),
+                      child: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: TKColors.bgCard, border: Border.all(color: TKColors.textMuted.withOpacity(0.3), width: 1)),
+                        child: Icon(Icons.help_outline, color: TKColors.textMuted, size: 20),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1746,7 +1760,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   children: [
                     // 背景图：home_car_bg.png
                     Padding(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       child: Image.asset(
                         'assets/home_car_bg.png',
                         width: double.infinity,
@@ -1754,9 +1768,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                         fit: BoxFit.contain,
                       ),
                     ),
-                    // 车牌号 - 定位在汽车图片的车牌位置
+                    // 车牌号 - 小尺寸，定位在车头前保险杠位置
                     Positioned(
-                      bottom: 20,
+                      bottom: 12,
                       child: TKLicensePlate(plate: deviceName),
                     ),
                   ],
@@ -2114,7 +2128,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       title: '时间同步设置',
                       leadingIcon: Icons.access_time,
                       trailingText: '>',
-                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx))))),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx)))),
                     ),
                     TKSettingTile(
                       title: '自动连接设置',
@@ -2142,11 +2156,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       title: '自动落锁',
                       leadingIcon: Icons.lock_outline,
                       trailingText: esp32.autoLockEnabled ? '已开启' : '已关闭',
-                      onTap: () => _requireAdminAuth(() {
+                      onTap: () {
                         setState(() => esp32.autoLockEnabled = !esp32.autoLockEnabled);
                         prefs?.setBool('auto_lock', esp32.autoLockEnabled);
                         _message('自动落锁已${esp32.autoLockEnabled ? "开启" : "关闭"}');
-                      }),
+                      },
                     ),
                     TKSettingTile(
                       title: '恢复出厂',
