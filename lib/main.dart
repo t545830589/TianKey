@@ -979,6 +979,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   DateTime? espTime;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   String lastCommand = '';
+  bool splashDone = false;
 
   bool get borrowValid {
     if (borrowCode == null || borrowStart == null || borrowEnd == null) return false;
@@ -1032,6 +1033,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     sound = p.getBool('sound') ?? true;
     simulationMode = p.getBool('simulation_mode') ?? true;
     timeFail = p.getBool('time_fail') ?? false;
+    esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1047,6 +1049,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
       await _clearBorrow(logExpiry: true);
     }
+
+    if (mounted) setState(() {});
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => splashDone = true);
 
     if (simulationMode && autoConnect && adminDevice != null && adminDevice == installId) {
       _log('[APP] 自动连接：检测到已授权管理员设备');
@@ -2019,6 +2025,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       },
                     ),
                     TKSettingTile(
+                      title: '自动落锁',
+                      leadingIcon: Icons.lock_outline,
+                      trailingText: esp32.autoLockEnabled ? '已开启' : '已关闭',
+                      onTap: adminEnabled ? () {
+                        setState(() => esp32.autoLockEnabled = !esp32.autoLockEnabled);
+                        prefs?.setBool('auto_lock', esp32.autoLockEnabled);
+                        _message('自动落锁已${esp32.autoLockEnabled ? "开启" : "关闭"}');
+                      } : () => _showAdminAuthDialog(),
+                    ),
+                    TKSettingTile(
                       title: '恢复出厂',
                       leadingIcon: Icons.delete_forever,
                       trailingText: '>',
@@ -2531,6 +2547,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               _infoRow('连接状态', connected ? '已连接' : '未连接'),
               _infoRow('管理员', adminEnabled ? '已授权' : '未授权'),
               _infoRow('模拟模式', simulationMode ? '已开启' : '已关闭'),
+              _infoRow('自动落锁', esp32.autoLockEnabled ? '已开启' : '已关闭'),
               _infoRow('版本', '1.0.0+1'),
             ]),
           ),
@@ -2625,6 +2642,32 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   @override
   Widget build(BuildContext context) {
     if (!ready) return const Scaffold(backgroundColor: Color(0xFF02060D), body: Center(child: CircularProgressIndicator()));
+    if (!splashDone) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF080B10),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 120, height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.4), blurRadius: 30, spreadRadius: 5)],
+                ),
+                child: const Icon(Icons.directions_car_filled, color: TKColors.neonBlue, size: 80),
+              ),
+              const SizedBox(height: 24),
+              const Text('TIAN KEY', style: TextStyle(color: TKColors.neonBlue, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 4)),
+              const SizedBox(height: 8),
+              const Text('智能车钥匙控制系统', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
+              const SizedBox(height: 40),
+              const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: TKColors.neonBlue)),
+            ],
+          ),
+        ),
+      );
+    }
     switch (tab) {
       case PageTab.vehicle: return vehiclePage();
       case PageTab.borrow: return borrowPage();
