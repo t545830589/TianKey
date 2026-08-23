@@ -1523,9 +1523,9 @@ Future<void> changeDeviceName() async {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: TKNeonButton(label: '连接设备', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? disconnect : connect, isEnabled: true)),
+                        Expanded(child: TKNeonButton(label: '连接设备', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
                         const SizedBox(width: 12),
-                        Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? toggleAuthorization : () => _message('请先完成管理员认证'), isEnabled: true)),
+                        Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? () => toggleAuthorization() : () => _message('请先完成管理员认证'), isEnabled: true)),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -1796,7 +1796,7 @@ Future<void> changeDeviceName() async {
                         label: '生成临时密码',
                         icon: Icons.vpn_key,
                         neonColor: TKColors.neonBlue,
-                        onTap: adminEnabled ? generateBorrowCode : () => _message('请先完成管理员认证'),
+                        onTap: adminEnabled ? () => generateBorrowCode() : () => _message('请先完成管理员认证'),
                         isEnabled: adminEnabled,
                         height: 56,
                         fontSize: 16,
@@ -1810,7 +1810,7 @@ Future<void> changeDeviceName() async {
                         label: '取消借车',
                         icon: Icons.cancel,
                         neonColor: TKColors.neonRed,
-                        onTap: borrowValid ? _clearBorrow : null,
+                        onTap: borrowValid ? () => _clearBorrow() : null,
                         isEnabled: borrowValid,
                       ),
                     ),
@@ -1920,7 +1920,7 @@ Future<void> changeDeviceName() async {
                       title: '修改蓝牙密码',
                       leadingIcon: Icons.lock,
                       trailingText: '>',
-                      onTap: adminEnabled ? changePassword : () => _message('请先完成管理员认证'),
+                      onTap: adminEnabled ? () => changePassword() : () => _message('请先完成管理员认证'),
                     ),
                     // 恢复默认蓝牙密码
                     TKSettingTile(
@@ -1934,7 +1934,7 @@ Future<void> changeDeviceName() async {
                       title: '设备名称',
                       leadingIcon: Icons.device_hub,
                       trailingText: deviceName,
-                      onTap: adminEnabled ? changeDeviceName : () => _message('请先完成管理员认证'),
+                      onTap: adminEnabled ? () => changeDeviceName() : () => _message('请先完成管理员认证'),
                     ),
                     // 时间同步设置
                     TKSettingTile(
@@ -2038,14 +2038,14 @@ Future<void> changeDeviceName() async {
                     const SizedBox(height: 16),
 
                     // 操作列表
-                    _AdminActionTile(title: '修改管理员/蓝牙密码', icon: Icons.password, onTap: adminEnabled ? changePassword : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '修改设备名称', icon: Icons.edit, onTap: adminEnabled ? changeDeviceName : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '生成临时借车密码', icon: Icons.key, onTap: adminEnabled ? generateBorrowCode : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: authorized ? '关闭授权' : '恢复授权', icon: Icons.verified_user, onTap: adminEnabled ? toggleAuthorization : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? syncTime : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '统一日志', icon: Icons.receipt_long, onTap: showLogs),
+                    _AdminActionTile(title: '修改管理员/蓝牙密码', icon: Icons.password, onTap: adminEnabled ? () => changePassword() : () => _message('请先完成管理员认证')),
+                    _AdminActionTile(title: '修改设备名称', icon: Icons.edit, onTap: adminEnabled ? () => changeDeviceName() : () => _message('请先完成管理员认证')),
+                    _AdminActionTile(title: '生成临时借车密码', icon: Icons.key, onTap: adminEnabled ? () => generateBorrowCode() : () => _message('请先完成管理员认证')),
+                    _AdminActionTile(title: authorized ? '关闭授权' : '恢复授权', icon: Icons.verified_user, onTap: adminEnabled ? () => toggleAuthorization() : () => _message('请先完成管理员认证')),
+                    _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? () => syncTime() : () => _message('请先完成管理员认证')),
+                    _AdminActionTile(title: '统一日志', icon: Icons.receipt_long, onTap: () => showLogs()),
                     _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: _toggleAutoConnect),
-                    _AdminActionTile(title: '恢复出厂', icon: Icons.delete_forever, onTap: adminEnabled ? factoryReset : () => _message('请先完成管理员认证'), isDanger: true),
+                    _AdminActionTile(title: '恢复出厂', icon: Icons.delete_forever, onTap: adminEnabled ? () => factoryReset() : () => _message('请先完成管理员认证'), isDanger: true),
                     const SizedBox(height: 20),
 
                     // 关键状态卡
