@@ -36,6 +36,28 @@ class BleCharacteristicGateway {
     );
   }
 
+  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 2)}) async {
+    final characteristic = _writeCharacteristic;
+    if (characteristic == null) {
+      throw StateError('未绑定可写 characteristic');
+    }
+
+    String? response;
+    final sub = _notifyController?.stream.listen((value) {
+      response = String.fromCharCodes(value);
+    });
+
+    await characteristic.write(data, withoutResponse: false);
+
+    final deadline = DateTime.now().add(timeout);
+    while (response == null && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+
+    sub?.cancel();
+    return response;
+  }
+
   Future<Stream<List<int>>> startNotify() async {
     final characteristic = _notifyCharacteristic;
     if (characteristic == null) {

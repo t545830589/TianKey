@@ -99,6 +99,16 @@ class BLE:
                 self._ble.gatts_notify(self._conn_handle, self._tx_handle, data)
             except Exception as e:
                 print('[BLE] 发送失败:', e)
+    def reset(self):
+        try:
+            self._ble.active(False)
+            time.sleep_ms(200)
+            self._connected = False
+            self._conn_handle = None
+            self._services_registered = False
+            print('[BLE] BLE协议栈已重置')
+        except Exception as e:
+            print('[BLE] 重置失败:', e)
 
 # ==================== 配置 ====================
 CONFIG_FILE = 'config.json'
@@ -113,8 +123,12 @@ WDT_TIMEOUT_MS = 30000
 admin_password = DEFAULT_PASSWORD
 admin_device = None
 admin_last_seen = 0
+device_name = DEFAULT_DEVICE_NAME
+auto_lock = True
 borrow_code = None
 borrow_expiry_epoch = 0
+ble_error_count = 0
+last_ble_error = 0
 
 # ==================== GPIO ====================
 try:
@@ -153,6 +167,7 @@ def feed_wdt():
 # ==================== 配置持久化 ====================
 def load_config():
     global admin_password, admin_device, borrow_code, borrow_expiry_epoch
+    global device_name, auto_lock
     try:
         with open(CONFIG_FILE, 'r') as f:
             cfg = ujson.load(f)
@@ -160,6 +175,8 @@ def load_config():
         admin_device = cfg.get('admin_device', None)
         borrow_code = cfg.get('borrow_code', None)
         borrow_expiry_epoch = cfg.get('borrow_expiry_epoch', 0)
+        device_name = cfg.get('device_name', DEFAULT_DEVICE_NAME)
+        auto_lock = cfg.get('auto_lock', True)
         print('[CONFIG] 加载成功')
     except:
         print('[CONFIG] 无配置或损坏，使用默认值')
@@ -172,6 +189,8 @@ def save_config():
             'admin_device': admin_device,
             'borrow_code': borrow_code,
             'borrow_expiry_epoch': borrow_expiry_epoch,
+            'device_name': device_name,
+            'auto_lock': auto_lock,
         }
         with open(CONFIG_FILE, 'w') as f:
             ujson.dump(cfg, f)
@@ -179,22 +198,46 @@ def save_config():
     except Exception as e:
         print('[CONFIG] 保存失败:', e)
 
-# ==================== 日志 ====================
-LOG_MAX = 30
-log_lines = []
+# ==================== 日志（问题2: 200条+2天清理） ====================
+LOG_MAX = 200
+LOG_MAX_AGE = 2 * 24 * 3600
+log_entries = []
+
 def log(msg):
-    ts = time.localtime()
-    t = '{:02d}:{:02d}:{:02d}'.format(ts[3], ts[4], ts[5])
-    line = '[{}] {}'.format(t, msg)
-    log_lines.append(line)
-    if len(log_lines) > LOG_MAX:
-        log_lines.pop(0)
-    print(line)
+    ts = time.time()
+    t = time.localtime()
+    tstr = '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}'.format(t[0], t[1], t[2], t[3], t[4], t[5])
+    log_entries.append({'time': ts, 'text': '[{}] {}'.format(tstr, msg)})
+    _clean_logs()
+    print('[{}] {}'.format(tstr, msg))
     gc.collect()
+
+def _clean_logs():
+    now = time.time()
+    log_entries[:] = [e for e in log_entries if now - e['time'] < LOG_MAX_AGE]
+    while len(log_entries) > LOG_MAX:
+        log_entries.pop(0)
 
 def log_get_all():
     gc.collect()
-    return '\n'.join(log_lines) if log_lines else '无日志'
+    return '\n'.join(['[{}] {}'.format(e['text'].split('] ')[0] + ']', e['text'].split('] ')[1] if '] ' in e['text'] else e['text']) for e in log_entries[-50:]]) if log_entries else '无日志'
+
+# ==================== 安全保护 ====================
+def safety_lock_all():
+    try:
+        gpio_lock.value(0)
+        gpio_unlock.value(0)
+        gpio_trunk.value(0)
+        log('安全保护: 所有GPIO已锁定')
+    except Exception as e:
+        log('安全保护失败: ' + str(e))
+
+def auto_lock_action():
+    if auto_lock:
+        safety_lock_all()
+        log('自动落锁: 已执行')
+    else:
+        log('自动落锁: 未开启，跳过')
 
 # ==================== GPIO控制 ====================
 def gpio_pulse(pin, ms=500):
@@ -215,6 +258,7 @@ def gpio_hold(pin, seconds=7):
 def process_command(cmd_str):
     global admin_password, admin_device, admin_last_seen
     global borrow_code, borrow_expiry_epoch
+    global device_name, auto_lock
     cmd = cmd_str.strip()
     log('处理命令: ' + cmd)
 
@@ -226,7 +270,6 @@ def process_command(cmd_str):
         return 'OK jiesuo'
     elif cmd == 'xunche':
         gpio_pulse(gpio_lock, 300)
-        time.sleep_ms(200)
         gpio_pulse(gpio_lock, 300)
         return 'OK xunche'
     elif cmd == 'chuangsheng':
@@ -279,6 +322,8 @@ def process_command(cmd_str):
             return 'OK TIME'
         except Exception as e:
             return 'ERR TIME: ' + str(e)
+    elif cmd == '!TIMEREQ':
+        return 'OK TIMEREQ'
     elif cmd.startswith('!PWD '):
         pwd = cmd.split(' ', 1)[1]
         if len(pwd) >= 6:
@@ -289,6 +334,11 @@ def process_command(cmd_str):
         return 'ERR PWD_LEN'
     elif cmd.startswith('!NAME '):
         name = cmd.split(' ', 1)[1]
+        device_name = name
+        try:
+            ble._ble.config(gap_name=name)
+        except:
+            pass
         save_config()
         log('设备名已更新: ' + name)
         return 'OK NAME'
@@ -324,7 +374,6 @@ def process_command(cmd_str):
             borrow_expiry_epoch = 0
             save_config()
             return 'ERR BORROW_EXPIRED'
-        admin_last_seen = time.time()
         log('临时密码验证通过')
         return 'OK VERIFYBORROW'
     elif cmd == '!RESET':
@@ -337,6 +386,8 @@ def process_command(cmd_str):
         admin_device = None
         borrow_code = None
         borrow_expiry_epoch = 0
+        device_name = DEFAULT_DEVICE_NAME
+        auto_lock = True
         save_config()
         log('已恢复出厂设置')
         return 'OK RESET'
@@ -358,12 +409,21 @@ def on_rx(data):
         log('命令处理异常: ' + str(e))
 
 def on_connect():
+    global ble_error_count
+    ble_error_count = 0
     led_blink(2, 100)
     led_on()
     log('BLE已连接')
+    if ble_client and ble_client.is_connected():
+        try:
+            ble_client.send(b'!TIMEREQ')
+            log('已请求APP同步时间')
+        except:
+            pass
 
 def on_disconnect():
     led_off()
+    auto_lock_action()
     log('BLE已断开，执行安全保护')
 
 # ==================== 主程序 ====================
@@ -372,7 +432,7 @@ log('系统启动')
 log('管理员密码: ' + admin_password[:4] + '****')
 log('管理员设备: ' + str(admin_device))
 
-ble = BLE(DEFAULT_DEVICE_NAME)
+ble = BLE(device_name)
 ble_client = BLEClient(ble)
 ble.on_connect(on_connect)
 ble.on_disconnect(on_disconnect)
@@ -398,5 +458,21 @@ while True:
         break
     except Exception as e:
         print('[MAIN] 主循环异常:', e)
+        ble_error_count += 1
+        last_ble_error = time.time()
+        if ble_error_count >= 5:
+            log('BLE异常次数过多，重置BLE协议栈')
+            try:
+                ble.reset()
+                time.sleep_ms(500)
+                ble = BLE(device_name)
+                ble_client = BLEClient(ble)
+                ble.on_connect(on_connect)
+                ble.on_disconnect(on_disconnect)
+                ble.on_rx(on_rx)
+                ble_error_count = 0
+                log('BLE协议栈已恢复')
+            except Exception as e2:
+                print('[MAIN] BLE恢复失败:', e2)
         time.sleep(1)
         gc.collect()

@@ -993,6 +993,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   DateTime? borrowStart;
   DateTime? borrowEnd;
   DateTime? espTime;
+  bool borrowTimeConfirmed = false;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   String lastCommand = '';
   bool splashDone = false;
@@ -1007,7 +1008,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   bool get vehicleEnabled => connected && authorized &&
       ((mode == AccessMode.admin && adminSession) ||
-          (mode == AccessMode.borrower && borrowValid));
+          (mode == AccessMode.borrower && borrowValid && borrowTimeConfirmed));
 
   @override
   void initState() {
@@ -1074,6 +1075,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (simulationMode && autoConnect && adminDevice != null && adminDevice == installId) {
       _log('[APP] 自动连接：检测到已授权管理员设备');
       await _autoConnectSimulation();
+    } else if (!simulationMode && autoConnect && authorized && adminDevice != null && adminDevice == installId && savedRemoteId != null) {
+      _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
+      await _autoConnectReal();
     }
 
     if (mounted) setState(() {});
@@ -1117,6 +1121,27 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     });
     _log('[APP] BLE自动连接成功${adminSession ? "（管理员）" : "（非管理员）"}');
     await syncTime();
+  }
+
+  Future<void> _autoConnectReal() async {
+    if (simulationMode || connected || connecting) return;
+    setState(() {
+      connecting = true;
+      status = '正在自动连接...';
+    });
+    _log('[APP] 真实BLE自动连接开始');
+    try {
+      await scan();
+      if (foundDevice == null) {
+        setState(() { connecting = false; status = '自动连接失败：未找到车辆'; });
+        _log('[APP] 自动连接失败：未找到车辆');
+        return;
+      }
+      await _connectBle(foundDevice!, AccessMode.admin, skipPassword: true);
+    } catch (e) {
+      setState(() { connecting = false; status = '自动连接失败：$e'; });
+      _log('[APP] 自动连接失败：$e');
+    }
   }
 
   void _log(String message) {
@@ -1253,22 +1278,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     );
     if (selected == null || !mounted) return;
     passwordController.clear();
-    final ok = await _verify(selected);
-    if (!ok || !mounted) return;
-    await _connectBle(target, selected);
+    final pwd = await _askPassword(selected);
+    if (pwd == null || !mounted) return;
+    await _connectBle(target, selected, password: pwd);
   }
 
-  Future<void> _connectBle(BleScanItem target, AccessMode selected, {bool skipPassword = false}) async {
+  Future<void> _connectBle(BleScanItem target, AccessMode selected, {bool skipPassword = false, String? password}) async {
     if (connecting || connected) return;
-    final esp32AdminDevice = esp32.adminDevice;
-    if (selected == AccessMode.admin && !skipPassword && esp32AdminDevice != null && esp32AdminDevice.isNotEmpty && esp32AdminDevice != installId && esp32AdminDevice != legacyPhoneId) {
-      _message('当前管理员席位已被其他设备占用');
-      _log('[APP] 管理员席位拒绝：ESP32记录管理员=$esp32AdminDevice，当前设备=$installId');
-      return;
-    }
     setState(() {
       connecting = true;
-      status = simulationMode ? '模拟连接中...' : '认证成功，正在建立真实 BLE 连接...';
+      status = simulationMode ? '模拟连接中...' : '正在建立 BLE 连接...';
     });
     _log('[APP] 开始建立${simulationMode ? "模拟" : "真实"}BLE连接');
     try {
@@ -1297,6 +1316,71 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         await Future.delayed(const Duration(milliseconds: 500));
         _log('[ESP32] BLE连接建立');
       }
+
+      if (!skipPassword && password != null) {
+        // 真实模式：BLE连上后，发送密码给ESP32验证
+        if (!simulationMode && bleGateway.readyForWrite) {
+          setState(() => status = 'BLE已连接，正在验证密码...');
+          String? reply;
+          if (selected == AccessMode.admin) {
+            final esp32Admin = esp32.adminDevice;
+            final seatBlocked = esp32Admin != null && esp32Admin.isNotEmpty && esp32Admin != installId && esp32Admin != legacyPhoneId;
+            if (seatBlocked) {
+              await ble.disconnect();
+              setState(() { connecting = false; status = '管理员席位已被其他设备占用'; });
+              _message('管理员席位已被其他设备占用');
+              return;
+            }
+            reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'));
+            _log('[BLE] ESP32回复: $reply');
+            if (reply != null && reply.contains('OK')) {
+              esp32.verifyAdminPassword(password, installId ?? '');
+              adminDevice = installId;
+              adminSession = true;
+              esp32.adminDevice = installId;
+              await prefs?.setString('admin_device_id', installId!);
+              _log('[APP] 管理员密码验证通过');
+            } else {
+              await ble.disconnect();
+              setState(() { connecting = false; status = '密码错误'; });
+              _message('密码错误');
+              return;
+            }
+          } else {
+            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'));
+            _log('[BLE] ESP32回复: $reply');
+            if (reply != null && reply.contains('OK')) {
+              esp32.verifyBorrowPassword(password);
+              _log('[APP] 临时密码验证通过');
+            } else {
+              await ble.disconnect();
+              setState(() { connecting = false; status = '密码错误或已过期'; });
+              _message('密码错误或临时密码已过期');
+              return;
+            }
+          }
+        } else {
+          // 模拟模式：本地验证
+          if (selected == AccessMode.admin) {
+            if (!esp32.verifyAdminPassword(password, installId ?? '')) {
+              setState(() { connecting = false; status = '密码错误'; });
+              _message('密码错误');
+              return;
+            }
+            adminDevice = installId;
+            adminSession = true;
+            esp32.adminDevice = installId;
+            await prefs?.setString('admin_device_id', installId!);
+          } else {
+            if (!esp32.verifyBorrowPassword(password)) {
+              setState(() { connecting = false; status = '密码错误或已过期'; });
+              _message('密码错误或临时密码已过期');
+              return;
+            }
+          }
+        }
+      }
+
       if (!mounted) return;
       if (selected == AccessMode.admin) {
         adminDevice = installId;
@@ -1352,6 +1436,49 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           ],
         ),
       );
+
+  Future<String?> _askPassword(AccessMode selected) async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => TKDialog(
+        borderColor: TKColors.neonOrange,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 110, width: double.infinity, child: Image.asset('assets/popup_admin_auth.png', fit: BoxFit.contain)),
+            Text(selected == AccessMode.admin ? '管理员密码' : '临时借车密码', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: TKColors.textPrimary)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: TKColors.textPrimary, fontSize: 18),
+              decoration: InputDecoration(
+                hintText: '请输入密码',
+                hintStyle: const TextStyle(color: TKColors.textMuted),
+                filled: true,
+                fillColor: TKColors.bgCard,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.borderSubtle, width: 1.5)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.neonBlue, width: 2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TKNeonButton(
+              label: '确认',
+              icon: Icons.link,
+              neonColor: TKColors.neonBlue,
+              onTap: () => Navigator.pop(context, passwordController.text.trim()),
+              height: 52,
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || result.isEmpty) return null;
+    return result;
+  }
 
   Future<bool> _verify(AccessMode selected) async {
     final result = await showDialog<bool>(
@@ -1452,8 +1579,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       });
       _log('[ESP32] 时间同步失败');
       _log('[APP] 时间同步失败');
+      if (mode == AccessMode.admin) {
+        authorized = true;
+        await prefs?.setBool('authorized', true);
+        _log('[APP] 管理员时间同步失败，但仍开放权限');
+      } else {
+        borrowTimeConfirmed = false;
+        _log('[APP] 临时借车时间同步失败，授权未确认');
+      }
       return;
     }
+    borrowTimeConfirmed = mode == AccessMode.borrower;
     esp32.syncTime(DateTime.now());
     setState(() {
       timeSynced = true;
@@ -1481,6 +1617,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       adminSession = false;
       timeSynced = false;
       espTime = null;
+      borrowTimeConfirmed = false;
       commandSeconds = 0;
       activeCommand = '';
       status = '已断开：车辆功能重新锁定';
@@ -2103,22 +2240,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
                     TKSettingTile(
-                      title: '修改蓝牙密码',
+                      title: '修改密码',
                       leadingIcon: Icons.lock,
                       trailingText: '>',
-                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changePasswordPage(ctx))))),
-                    ),
-                    TKSettingTile(
-                      title: '修改管理员密码',
-                      leadingIcon: Icons.admin_panel_settings,
-                      trailingText: '>',
                       onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changeAdminPasswordPage(ctx))))),
-                    ),
-                    TKSettingTile(
-                      title: '恢复默认蓝牙密码',
-                      leadingIcon: Icons.restore,
-                      trailingText: '>',
-                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _resetPasswordPage(ctx))))),
                     ),
                     TKSettingTile(
                       title: '设备名称',
