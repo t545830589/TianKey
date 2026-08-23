@@ -140,6 +140,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     autoConnect = p.getBool('auto_connect') ?? true;
     sound = p.getBool('sound') ?? true;
     ready = true;
+    _cleanupOldLogs();
     _log('APP启动');
     _scheduleBorrowExpiry();
     if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
@@ -150,6 +151,21 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   void _log(String message) {
     logs.add('${DateTime.now()} $message');
+    while (logs.length > 200) logs.removeAt(0);
+    _cleanupOldLogs();
+  }
+
+  void _cleanupOldLogs() {
+    if (logs.isEmpty) return;
+    final now = DateTime.now();
+    logs.removeWhere((entry) {
+      try {
+        final entryDate = DateTime.parse(entry.split(' ').first);
+        return entryDate.isBefore(now.subtract(const Duration(days: 7)));
+      } catch (_) {
+        return false;
+      }
+    });
     while (logs.length > 200) logs.removeAt(0);
   }
 
