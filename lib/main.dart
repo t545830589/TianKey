@@ -854,23 +854,23 @@ class SimulatedEsp32 {
     String detail;
     switch (command) {
       case 'suoche':
-        detail = 'GPIO12 锁车脉冲';
-        _logEsp32('收到suoche，GPIO12 执行脉冲');
+        detail = 'GPIO14 锁车脉冲';
+        _logEsp32('收到suoche，GPIO14 执行脉冲');
       case 'jiesuo':
-        detail = 'GPIO13 解锁脉冲';
-        _logEsp32('收到jiesuo，GPIO13 执行脉冲');
+        detail = 'GPIO33 解锁脉冲';
+        _logEsp32('收到jiesuo，GPIO33 执行脉冲');
       case 'xunche':
-        detail = 'GPIO12 连续两次锁车脉冲';
-        _logEsp32('收到xunche，GPIO12 连续两次脉冲');
+        detail = 'GPIO14 连续两次锁车脉冲';
+        _logEsp32('收到xunche，GPIO14 连续两次脉冲');
       case 'chuangsheng':
-        detail = 'GPIO12 保持7秒';
-        _logEsp32('收到chuangsheng，GPIO12 保持7秒');
-      case 'chuangjiang':
-        detail = 'GPIO13 保持7秒';
-        _logEsp32('收到chuangjiang，GPIO13 保持7秒');
-      case 'houbeixiang':
         detail = 'GPIO14 保持7秒';
-        _logEsp32('收到houbeixiang，GPIO14 保持7秒');
+        _logEsp32('收到chuangsheng，GPIO14 保持7秒');
+      case 'chuangjiang':
+        detail = 'GPIO33 保持7秒';
+        _logEsp32('收到chuangjiang，GPIO33 保持7秒');
+      case 'houbeixiang':
+        detail = 'GPIO4 保持7秒';
+        _logEsp32('收到houbeixiang，GPIO4 保持7秒');
       default:
         detail = '未知命令';
         _logEsp32('收到未知命令：$command');
@@ -1453,17 +1453,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     final timed = command == '车窗升' || command == '车窗降' || command == '后备箱';
     switch (command) {
       case '锁车':
-        protocol = 'suoche'; gpio = 12; detail = 'GPIO12 锁车脉冲'; locked = true;
+        protocol = 'suoche'; gpio = 14; detail = 'GPIO14 锁车脉冲'; locked = true;
       case '解锁':
-        protocol = 'jiesuo'; gpio = 13; detail = 'GPIO13 解锁脉冲'; locked = false;
+        protocol = 'jiesuo'; gpio = 33; detail = 'GPIO33 解锁脉冲'; locked = false;
       case '寻车':
-        protocol = 'xunche'; gpio = 12; detail = 'GPIO12 连续两次锁车脉冲';
+        protocol = 'xunche'; gpio = 14; detail = 'GPIO14 连续两次锁车脉冲';
       case '车窗升':
-        protocol = 'chuangsheng'; gpio = 12; detail = 'GPIO12 保持7秒';
+        protocol = 'chuangsheng'; gpio = 14; detail = 'GPIO14 保持7秒';
       case '车窗降':
-        protocol = 'chuangjiang'; gpio = 13; detail = 'GPIO13 保持7秒';
+        protocol = 'chuangjiang'; gpio = 33; detail = 'GPIO33 保持7秒';
       default:
-        protocol = 'houbeixiang'; gpio = 14; detail = 'GPIO14 保持7秒';
+        protocol = 'houbeixiang'; gpio = 4; detail = 'GPIO4 保持7秒';
     }
     _log('[APP] 发送指令：$protocol');
     final espDetail = esp32.executeCommand(protocol);
