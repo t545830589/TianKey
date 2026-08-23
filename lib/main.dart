@@ -20,13 +20,13 @@ class TianKeyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Tian Key V11',
       theme: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: const Color(0xFF02060D),
+        scaffoldBackgroundColor: const Color(0xFF030609),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF1595FF),
-          secondary: Color(0xFFFF8A1C),
+          primary: Color(0xFF1A98E5),
+          secondary: Color(0xFFFD9A1E),
         ),
         snackBarTheme: const SnackBarThemeData(
-          backgroundColor: Color(0xFF171A20),
+          backgroundColor: Color(0xFF0F1114),
           contentTextStyle: TextStyle(color: Colors.white),
         ),
       ),
