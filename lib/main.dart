@@ -1086,7 +1086,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       _log('[ESP32] 管理员自动认证通过');
     } else {
       adminSession = false;
-      mode = AccessMode.normal;
+      mode = AccessMode.borrower;
       await prefs?.setBool('authorized', false);
       authorized = false;
       _log('[ESP32] 管理员席位已被其他设备占用：${esp32.adminDevice}');
@@ -1698,7 +1698,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   Future<void> _requireAdminAuth(VoidCallback onVerified) async {
     final ctrl = TextEditingController();
-    final obscure = ValueNotifier(true);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
