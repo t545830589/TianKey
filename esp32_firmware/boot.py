@@ -15,7 +15,9 @@ UART_RX_CHAR_UUID = UUID('6E400002-B5A3-F393-E0A9-E50E24DCCA9E')
 class BLEClient:
     def __init__(self, ble):
         self._ble = ble
-        self.is_connected = False
+    @property
+    def is_connected(self):
+        return self._ble.is_connected
     def send(self, data):
         self._ble.send(data)
 
@@ -198,7 +200,7 @@ def save_config():
     except Exception as e:
         print('[CONFIG] 保存失败:', e)
 
-# ==================== 日志（问题2: 200条+2天清理） ====================
+# ==================== 日志（200条+7天清理） ====================
 LOG_MAX = 200
 LOG_MAX_AGE = 7 * 24 * 3600
 log_entries = []
@@ -402,7 +404,7 @@ def on_rx(data):
     try:
         cmd_str = data.decode('utf-8').strip()
         result = process_command(cmd_str)
-        if result and ble_client and ble_client.is_connected():
+        if result and ble_client and ble_client.is_connected:
             ble_client.send(result.encode('utf-8'))
             log('已回复: ' + result)
     except Exception as e:
@@ -445,7 +447,7 @@ print('[MAIN] 等待连接...')
 while True:
     try:
         feed_wdt()
-        if not ble.is_connected():
+        if not ble.is_connected:
             if ble.scanning:
                 pass
             else:
