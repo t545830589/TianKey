@@ -74,7 +74,6 @@ class TKNeonButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color effectiveColor = isEnabled ? neonColor : TKColors.disabled;
     final Color glowColor = isEnabled ? neonColor.withOpacity(0.45) : Colors.transparent;
     final Color borderColor = isEnabled ? neonColor.withOpacity(0.7) : TKColors.disabled;
 
@@ -615,12 +614,6 @@ class _DashedRectPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    final path = Path();
     final r = radius;
     final w = size.width;
     final h = size.height;
@@ -1400,41 +1393,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '自动连接开启' : '自动连接关闭'); setState(() {}); }
   void _toggleSound(bool _) async { sound = !sound; await prefs?.setBool('sound', sound); _log(sound ? '声音反馈开启' : '声音反馈关闭'); setState(() {}); }
 
-  InputDecoration _field(String label) => InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: const Color(0xFF030A13),
-        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF1595FF))),
-        focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF8A1C), width: 2)),
-      );
-
-  Widget _dialogButton(String text, IconData icon, Color color, VoidCallback onPressed) => SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: FilledButton.icon(onPressed: onPressed, icon: Icon(icon), label: Text(text), style: FilledButton.styleFrom(backgroundColor: color, foregroundColor: Colors.black)),
-      );
-
-  Widget _transparentHotspot({required VoidCallback? onTap, double radius = 12}) => Material(
-        color: Colors.transparent,
-        child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(radius), splashColor: Colors.white10, highlightColor: Colors.white10),
-      );
-
-  Widget _targetImagePage({required String asset, required double aspectRatio, required Widget Function(double width, double height) overlays}) => Scaffold(
-        backgroundColor: Colors.black,
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final height = width / aspectRatio;
-              return SingleChildScrollView(child: Center(child: SizedBox(width: width, height: height, child: Stack(fit: StackFit.expand, children: <Widget>[Image.asset(asset, fit: BoxFit.fill), overlays(width, height)]))));
-            },
-          ),
-        ),
-      );
-
   Widget vehiclePage() => Scaffold(
         backgroundColor: TKColors.bgPrimary,
         body: SafeArea(
@@ -1561,122 +1519,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               // 底部导航栏
               TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
             ],
-          ),
-        ),
-      );
-
-  Widget _neonIconButton(IconData icon, {required Color color, required VoidCallback? onTap}) => Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.5), width: 1.5),
-          boxShadow: [
-            BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, spreadRadius: 1),
-          ],
-        ),
-        child: IconButton(
-          icon: Icon(icon, color: color, size: 24),
-          onPressed: onTap,
-          splashColor: color.withOpacity(0.2),
-        ),
-      );
-
-  Widget _buildStatusCard(IconData icon, String title, String status, Color statusColor) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF07111A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: Colors.blue, size: 24),
-              const SizedBox(height: 6),
-              Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 4),
-              Text(status, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      );
-
-  Widget _buildNeonButton(String label, IconData icon, Color color, VoidCallback? onTap) => Container(
-        height: 56,
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.6), width: 2),
-          boxShadow: [
-            BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, spreadRadius: 1),
-            BoxShadow(color: color.withOpacity(0.2), blurRadius: 24, spreadRadius: 2),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            splashColor: color.withOpacity(0.2),
-            highlightColor: color.withOpacity(0.1),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: color, size: 26),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-  Widget _buildBottomNav() => Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: const Color(0xFF02060D),
-          border: Border(top: BorderSide(color: Colors.blue.withOpacity(0.3), width: 1)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(Icons.home, '首页', tab == PageTab.vehicle, () => setState(() => tab = PageTab.vehicle)),
-            _buildNavItem(Icons.people, '临时借车', tab == PageTab.borrow, () => setState(() => tab = PageTab.borrow)),
-            _buildNavItem(Icons.settings, '设置', tab == PageTab.settings, () => setState(() => tab = PageTab.settings)),
-          ],
-        ),
-      );
-
-  Widget _buildNavItem(IconData icon, String label, bool selected, VoidCallback onTap) => Expanded(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: selected ? Colors.blue : Colors.grey, size: 24),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? Colors.blue : Colors.grey,
-                    fontSize: 11,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       );
@@ -1830,7 +1672,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 // 时间选择按钮
   Widget _buildTimeSelectButton(String label, Duration duration) {
     final int minutes = duration.inMinutes;
-    final bool isSelected = hoursController.text == minutes.toString();
 
     return SizedBox(
       width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
@@ -1847,50 +1688,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         isEnabled: true,
       ),
     );
-  }
-
-  Future<void> _editBorrowHours() async {
-    final value = await showDialog<String>(
-      context: context,
-      builder: (context) => TKDialog(
-        borderColor: TKColors.neonOrange,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const TKPageTitle(title: '临时借车有效期', fontSize: 20),
-            const SizedBox(height: 16),
-            TKTextField(
-              controller: hoursController,
-              label: '有效期',
-              hint: '小时数 1-24',
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
-                const SizedBox(width: 12),
-                Expanded(child: TKNeonButton(label: '确定', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () => Navigator.pop(context, hoursController.text), isEnabled: true)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-    if (value == null || !adminEnabled) return;
-    hoursController.text = value;
-    await generateBorrowCode();
-  }
-
-  Future<void> _connectAsBorrower() async {
-    if (!borrowValid || connected) return;
-    if (foundDevice == null) { await scan(); }
-    if (foundDevice == null) return;
-    passwordController.clear();
-    final ok = await _verify(AccessMode.borrower);
-    if (!ok) return;
-    await _connectBle(foundDevice!, AccessMode.borrower);
-    if (mounted && connected) setState(() => tab = PageTab.vehicle);
   }
 
   Widget settingsPage() => Scaffold(
@@ -2129,8 +1926,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     );
   }
 
-  void _requireAdmin() => _message('请先连接车辆并使用管理员密码：$defaultPassword');
-
   // 设置页子弹窗
   void _showFactoryResetDialog() => showDialog(
         context: context,
@@ -2203,46 +1998,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         ),
       );
 
-  void _showAdminAuthDialog() => showDialog(
-        context: context,
-        builder: (context) => TKDialog(
-          borderColor: TKColors.neonOrange,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const TKPageTitle(title: '管理员授权'),
-              const SizedBox(height: 16),
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: TKColors.neonOrange.withOpacity(0.4), blurRadius: 20, spreadRadius: 3)],
-                ),
-                child: const Icon(Icons.shield, color: TKColors.neonOrange, size: 60),
-              ),
-              const SizedBox(height: 16),
-              const Text('请输入管理员密码进行授权', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              TKTextField(controller: passwordController, label: '管理员密码', hint: '请输入管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-              const SizedBox(height: 20),
-              TKNeonButton(label: '确认授权', icon: Icons.verified_user, neonColor: TKColors.neonOrange, onTap: () {
-                final value = passwordController.text.trim();
-                if (value == adminPassword) {
-                  Navigator.pop(context);
-                  setState(() => adminSession = true);
-                  _message('管理员授权成功');
-                } else {
-                  _message('密码错误');
-                }
-              }, isEnabled: true),
-              const SizedBox(height: 12),
-              const Text('授权后可使用全部控制功能', style: TextStyle(color: TKColors.textSecondary, fontSize: 12)),
-            ],
-          ),
-        ),
-      );
-
   // 管理员操作列表项
   Widget _AdminActionTile({
     required String title,
@@ -2250,7 +2005,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     required VoidCallback? onTap,
     bool isDanger = false,
   }) {
-    final Color accentColor = isDanger ? TKColors.neonRed : TKColors.neonBlue;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -2278,10 +2032,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       ),
     );
   }
-
-  Widget _adminCard(String title, String body) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xCC020A14), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF1595FF))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)), const SizedBox(height: 7), Text(body, style: const TextStyle(color: Colors.white70))]));
-
-  Widget _adminAction(String title, IconData icon, VoidCallback onTap, {bool danger = false}) { final color = danger ? const Color(0xFFFF2B1A) : const Color(0xFF19D36B); return Container(margin: const EdgeInsets.only(bottom: 9), decoration: BoxDecoration(color: const Color(0xFF09111B), borderRadius: BorderRadius.circular(15), border: Border.all(color: color)), child: ListTile(onTap: onTap, leading: Icon(icon, color: color), title: Text(title), trailing: const Icon(Icons.chevron_right))); }
 
   Future<void> showLogs() async => showModalBottomSheet<void>(
     context: context,
