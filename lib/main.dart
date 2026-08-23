@@ -1077,7 +1077,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     foundDevice = simDevice;
     savedRemoteId = simDevice.remoteId;
     final esp32HasAdmin = esp32.adminDevice != null && esp32.adminDevice!.isNotEmpty;
-    final isCurrentAdmin = esp32.adminDevice == installId || (!esp32HasAdmin && adminDevice == installId);
+    final isCurrentAdmin = esp32HasAdmin && esp32.adminDevice == installId;
     if (isCurrentAdmin) {
       adminSession = true;
       mode = AccessMode.admin;
@@ -1725,176 +1725,143 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         body: SafeArea(
           child: Column(
             children: [
-              // 顶部栏：设置 | Tian Key | 帮助
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    GestureDetector(
-                      onTap: () => setState(() => tab = PageTab.settings),
-                      child: Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: TKColors.bgCard, border: Border.all(color: TKColors.neonBlue.withOpacity(0.4), width: 1.5)),
-                        child: Icon(Icons.settings, color: TKColors.neonBlue, size: 20),
-                      ),
-                    ),
-                    TKLogoText(),
-                    GestureDetector(
-                      onTap: () => _message('帮助：长按按钮查看功能说明'),
-                      child: Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: TKColors.bgCard, border: Border.all(color: TKColors.textMuted.withOpacity(0.3), width: 1)),
-                        child: Icon(Icons.help_outline, color: TKColors.textMuted, size: 20),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 汽车背景区域
+              // ===== 上半部分：Stack全屏布局（背景图+Header+车牌） =====
               Expanded(
-                flex: 6,
+                flex: 5,
                 child: Stack(
-                  alignment: Alignment.center,
                   children: [
-                    // 背景图：home_car_bg.png
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    // 底层：背景图全幅填充
+                    Positioned.fill(
                       child: Image.asset(
                         'assets/home_car_bg.png',
-                        width: double.infinity,
-                        height: double.infinity,
-                        fit: BoxFit.contain,
+                        fit: BoxFit.fitWidth,
+                        alignment: Alignment.center,
                       ),
                     ),
-                    // 车牌号 - 小尺寸，定位在车头前保险杠位置
+                    // 左上角设置图标
                     Positioned(
-                      bottom: 12,
-                      child: TKLicensePlate(plate: deviceName),
+                      top: 8, left: 12,
+                      child: GestureDetector(
+                        onTap: () => setState(() => tab = PageTab.settings),
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withOpacity(0.5),
+                            border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1),
+                          ),
+                          child: Icon(Icons.settings, color: TKColors.neonBlue, size: 18),
+                        ),
+                      ),
+                    ),
+                    // 正中标题
+                    Positioned(
+                      top: 12,
+                      left: 0, right: 0,
+                      child: Center(child: TKLogoText(fontSize: 18)),
+                    ),
+                    // 右上角帮助图标
+                    Positioned(
+                      top: 8, right: 12,
+                      child: GestureDetector(
+                        onTap: () => _message('帮助：长按按钮查看功能说明'),
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withOpacity(0.5),
+                            border: Border.all(color: TKColors.textMuted.withOpacity(0.4), width: 1),
+                          ),
+                          child: Icon(Icons.help_outline, color: TKColors.textMuted, size: 18),
+                        ),
+                      ),
+                    ),
+                    // 车牌 - 贴合车头前保险杠位置
+                    Positioned(
+                      bottom: 16,
+                      left: 0, right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A1628),
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: TKColors.neonBlue.withOpacity(0.6), width: 1.2),
+                            boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.2), blurRadius: 4)],
+                          ),
+                          child: const Text(
+                            '陕A·0P92Y',
+                            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 2),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              // 5 个状态卡片
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
-                  children: [
-                    TKStatusCard(
-                      icon: Icons.bluetooth,
-                      title: '设备状态',
-                      status: connected ? '已连接' : '未连接',
-                      statusColor: connected ? TKColors.neonBlue : TKColors.textMuted,
-                    ),
-                    TKStatusCard(
-                      icon: Icons.shield,
-                      title: '管理员状态',
-                      status: adminEnabled ? '已授权' : '未授权',
-                      statusColor: adminEnabled ? TKColors.neonOrange : TKColors.textMuted,
-                      iconColor: TKColors.neonOrange,
-                    ),
-                    TKStatusCard(
-                      icon: Icons.bolt,
-                      title: '供电状态',
-                      status: '未知',
-                      statusColor: TKColors.textMuted,
-                      iconColor: TKColors.neonBlue,
-                    ),
-                    TKStatusCard(
-                      icon: Icons.sync,
-                      title: '时间同步',
-                      status: timeSynced ? '已同步' : '未同步',
-                      statusColor: timeSynced ? TKColors.neonBlue : TKColors.textMuted,
-                      iconColor: TKColors.neonBlue,
-                    ),
-                    TKStatusCard(
-                      icon: Icons.vpn_key,
-                      title: '临时借车',
-                      status: borrowValid ? '有效' : '无有效密码',
-                      statusColor: borrowValid ? TKColors.neonBlue : TKColors.textMuted,
-                      iconColor: TKColors.neonOrange,
-                    ),
-                  ],
-                ),
-              ),
+              // ===== 下半部分：状态卡片+功能按钮（可滚动区域） =====
+              Expanded(
+                flex: 5,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // 5 个状态卡片
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        child: Row(
+                          children: [
+                            TKStatusCard(icon: Icons.bluetooth, title: '设备', status: connected ? '已连接' : '未连接', statusColor: connected ? TKColors.neonBlue : TKColors.textMuted),
+                            TKStatusCard(icon: Icons.shield, title: '管理员', status: adminEnabled ? '已授权' : '未授权', statusColor: adminEnabled ? TKColors.neonOrange : TKColors.textMuted, iconColor: TKColors.neonOrange),
+                            TKStatusCard(icon: Icons.bolt, title: '供电', status: '未知', statusColor: TKColors.textMuted, iconColor: TKColors.neonBlue),
+                            TKStatusCard(icon: Icons.sync, title: '同步', status: timeSynced ? '已同步' : '未同步', statusColor: timeSynced ? TKColors.neonBlue : TKColors.textMuted, iconColor: TKColors.neonBlue),
+                            TKStatusCard(icon: Icons.vpn_key, title: '借车', status: borrowValid ? '有效' : '无', statusColor: borrowValid ? TKColors.neonBlue : TKColors.textMuted, iconColor: TKColors.neonOrange),
+                          ],
+                        ),
+                      ),
 
-              // 8 个功能按钮：2 列 4 行
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: TKNeonButton(label: '连接设备', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
-                        const SizedBox(width: 12),
-                        Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? () => toggleAuthorization() : () => _showAdminAuthDialog(), isEnabled: true)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: TKNeonButton(label: '锁车', icon: Icons.lock, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null, isEnabled: vehicleEnabled)),
-                        const SizedBox(width: 12),
-                        Expanded(child: TKNeonButton(label: '解锁', icon: Icons.lock_open, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null, isEnabled: vehicleEnabled)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: TKNeonButton(label: '车窗升', icon: Icons.keyboard_double_arrow_up, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('车窗升') : null, isEnabled: vehicleEnabled)),
-                        const SizedBox(width: 12),
-                        Expanded(child: TKNeonButton(label: '车窗降', icon: Icons.keyboard_double_arrow_down, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('车窗降') : null, isEnabled: vehicleEnabled)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: TKNeonButton(label: '寻车', icon: Icons.wifi_tethering, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null, isEnabled: vehicleEnabled)),
-                        const SizedBox(width: 12),
-                        Expanded(child: TKNeonButton(label: '后备箱', icon: Icons.directions_car, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null, isEnabled: vehicleEnabled)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: TKNeonButton(label: '系统日志', icon: Icons.receipt_long, neonColor: TKColors.neonBlue, onTap: () => showLogs(), isEnabled: true)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                      // 8 个功能按钮：2 列 4 行
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Column(
+                          children: [
+                            Row(children: [
+                              Expanded(child: TKNeonButton(label: '连接设备', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
+                              const SizedBox(width: 10),
+                              Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? () => toggleAuthorization() : () => _showAdminAuthDialog(), isEnabled: true)),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: TKNeonButton(label: '锁车', icon: Icons.lock, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null, isEnabled: vehicleEnabled)),
+                              const SizedBox(width: 10),
+                              Expanded(child: TKNeonButton(label: '解锁', icon: Icons.lock_open, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null, isEnabled: vehicleEnabled)),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: TKNeonButton(label: '车窗升', icon: Icons.keyboard_double_arrow_up, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('车窗升') : null, isEnabled: vehicleEnabled)),
+                              const SizedBox(width: 10),
+                              Expanded(child: TKNeonButton(label: '车窗降', icon: Icons.keyboard_double_arrow_down, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('车窗降') : null, isEnabled: vehicleEnabled)),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: TKNeonButton(label: '寻车', icon: Icons.volume_up, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null, isEnabled: vehicleEnabled)),
+                              const SizedBox(width: 10),
+                              Expanded(child: TKNeonButton(label: '后备箱', icon: Icons.open_in_new, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null, isEnabled: vehicleEnabled)),
+                            ]),
+                          ],
+                        ),
+                      ),
 
-              // ESP32模拟状态
-              if (simulationMode)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: TKColors.bgCard,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: TKColors.neonBlue.withOpacity(0.3), width: 1),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          const Icon(Icons.science, color: TKColors.neonBlue, size: 16),
-                          const SizedBox(width: 8),
-                          const Text('模拟ESP32', style: TextStyle(color: TKColors.neonBlue, fontSize: 12, fontWeight: FontWeight.bold)),
-                          const Spacer(),
-                          Text(lastCommand.isEmpty ? '待机' : lastCommand, style: const TextStyle(color: TKColors.textSecondary, fontSize: 11)),
-                        ]),
-                      ],
-                    ),
+                      // 系统日志按钮
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: TKNeonButton(label: '系统日志', icon: Icons.receipt_long, neonColor: TKColors.neonBlue, onTap: () => showLogs(), isEnabled: true),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ),
                 ),
-
-              // 底部导航栏
-              TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
+              ),
             ],
           ),
         ),
