@@ -183,7 +183,7 @@ class TKBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 60,
+      height: 56,
       decoration: BoxDecoration(
         color: TKColors.bgPrimary,
         border: Border(top: BorderSide(color: TKColors.borderSubtle, width: 1)),
@@ -193,6 +193,7 @@ class TKBottomNav extends StatelessWidget {
         children: [
           _NavItem(icon: Icons.home, label: '首页', selected: currentTab == PageTab.vehicle, onTap: () => onTabChanged(PageTab.vehicle)),
           _NavItem(icon: Icons.people, label: '临时借车', selected: currentTab == PageTab.borrow, onTap: () => onTabChanged(PageTab.borrow)),
+          _NavItem(icon: Icons.admin_panel_settings, label: '管理员', selected: currentTab == PageTab.admin, onTap: () => onTabChanged(PageTab.admin)),
           _NavItem(icon: Icons.settings, label: '设置', selected: currentTab == PageTab.settings, onTap: () => onTabChanged(PageTab.settings)),
         ],
       ),
@@ -1759,9 +1760,44 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                         Expanded(child: TKNeonButton(label: '后备箱', icon: Icons.directions_car, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null, isEnabled: vehicleEnabled)),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: TKNeonButton(label: '管理员', icon: Icons.admin_panel_settings, neonColor: TKColors.neonOrange, onTap: () => setState(() => tab = PageTab.admin), isEnabled: true)),
+                        const SizedBox(width: 12),
+                        Expanded(child: TKNeonButton(label: '系统日志', icon: Icons.receipt_long, neonColor: TKColors.neonBlue, onTap: () => showLogs(), isEnabled: true)),
+                      ],
+                    ),
                   ],
                 ),
               ),
+
+              // ESP32模拟状态
+              if (simulationMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TKColors.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: TKColors.neonBlue.withOpacity(0.3), width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.science, color: TKColors.neonBlue, size: 16),
+                          const SizedBox(width: 8),
+                          const Text('模拟ESP32', style: TextStyle(color: TKColors.neonBlue, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const Spacer(),
+                          Text(lastCommand.isEmpty ? '待机' : lastCommand, style: const TextStyle(color: TKColors.textSecondary, fontSize: 11)),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
 
               // 底部导航栏
               TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
