@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ble_service.dart';
@@ -794,6 +795,7 @@ enum AccessMode { admin, borrower }
 
 // ==================== 模拟ESP32逻辑层 ====================
 class SimulatedEsp32 {
+  final void Function(String)? onLog;
   String adminPassword = '13092991951';
   String? adminDevice;
   String? borrowCode;
@@ -803,13 +805,11 @@ class SimulatedEsp32 {
   bool timeSynced = false;
   DateTime? espTime;
   bool autoLockEnabled = true;
-  bool _connected = false;
 
-  List<String> eventLog = [];
+  SimulatedEsp32({this.onLog});
 
   void _logEsp32(String msg) {
-    eventLog.add('[ESP32] $msg');
-    if (eventLog.length > 200) eventLog.removeAt(0);
+    onLog?.call('[ESP32] $msg');
   }
 
   bool verifyAdminPassword(String password, String deviceId) {
@@ -819,7 +819,6 @@ class SimulatedEsp32 {
       return false;
     }
     adminDevice = deviceId;
-    _connected = true;
     _logEsp32('管理员密码验证通过，设备：$deviceId');
     return true;
   }
@@ -834,7 +833,6 @@ class SimulatedEsp32 {
       _logEsp32('临时密码已过期');
       return false;
     }
-    _connected = true;
     _logEsp32('临时密码验证通过');
     return true;
   }
@@ -916,12 +914,10 @@ class SimulatedEsp32 {
     deviceName = '陕A0P92Y';
     timeSynced = false;
     espTime = null;
-    _connected = false;
     _logEsp32('恢复出厂：所有设置已清除');
   }
 
   void disconnect() {
-    _connected = false;
     timeSynced = false;
     espTime = null;
     _logEsp32('BLE连接断开，执行安全保护');
@@ -944,7 +940,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   static const defaultName = '陕A0P92Y';
 
   final TianKeyBleService ble = TianKeyBleService();
-  final SimulatedEsp32 esp32 = SimulatedEsp32();
+  late final SimulatedEsp32 esp32 = SimulatedEsp32(onLog: _log);
   final List<String> logs = <String>[];
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController newPasswordController = TextEditingController();
@@ -1035,6 +1031,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     autoConnect = p.getBool('auto_connect') ?? true;
     sound = p.getBool('sound') ?? true;
     simulationMode = p.getBool('simulation_mode') ?? true;
+    timeFail = p.getBool('time_fail') ?? false;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1432,7 +1429,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     late final String protocol;
     late final String detail;
     late final int gpio;
-    final timed = command == '升窗' || command == '降窗' || command == '后备箱';
+    final timed = command == '车窗升' || command == '车窗降' || command == '后备箱';
     switch (command) {
       case '锁车':
         protocol = 'suoche'; gpio = 12; detail = 'GPIO12 锁车脉冲'; locked = true;
@@ -1440,9 +1437,9 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         protocol = 'jiesuo'; gpio = 13; detail = 'GPIO13 解锁脉冲'; locked = false;
       case '寻车':
         protocol = 'xunche'; gpio = 12; detail = 'GPIO12 连续两次锁车脉冲';
-      case '升窗':
+      case '车窗升':
         protocol = 'chuangsheng'; gpio = 12; detail = 'GPIO12 保持7秒';
-      case '降窗':
+      case '车窗降':
         protocol = 'chuangjiang'; gpio = 13; detail = 'GPIO13 保持7秒';
       default:
         protocol = 'houbeixiang'; gpio = 14; detail = 'GPIO14 保持7秒';
@@ -1808,6 +1805,19 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                           Text(borrowValid ? borrowCode! : '无有效临时密码', style: const TextStyle(color: TKColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                         ],
                       ),
+                      if (borrowValid && borrowCode != null) ...[
+                        const SizedBox(height: 12),
+                        TKNeonButton(
+                          label: '复制密码',
+                          icon: Icons.content_copy,
+                          neonColor: TKColors.neonBlue,
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: borrowCode!));
+                            _message('密码已复制到剪贴板');
+                          },
+                          isEnabled: true,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1915,7 +1925,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
 // 时间选择按钮
   Widget _buildTimeSelectButton(String label, Duration duration) {
-
+    final hours = duration.inMinutes >= 60 ? (duration.inMinutes / 60).round().clamp(1, 24) : 1;
     return SizedBox(
       width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
       height: 56,
@@ -1925,7 +1935,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         neonColor: TKColors.neonBlue,
         onTap: () {
           setState(() {
-            hoursController.text = duration.inMinutes.toString();
+            hoursController.text = hours.toString();
           });
         },
         isEnabled: true,
@@ -1961,6 +1971,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       leadingIcon: Icons.lock,
                       trailingText: '>',
                       onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changePasswordPage(ctx)))) : () => _showAdminAuthDialog(),
+                    ),
+                    TKSettingTile(
+                      title: '修改管理员密码',
+                      leadingIcon: Icons.admin_panel_settings,
+                      trailingText: '>',
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changeAdminPasswordPage(ctx)))) : () => _showAdminAuthDialog(),
                     ),
                     TKSettingTile(
                       title: '恢复默认蓝牙密码',
@@ -2269,8 +2285,41 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             if (newCtrl.text.trim().length < 6) { _message('新密码至少6位'); return; }
             if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
             adminPassword = newCtrl.text.trim();
+            esp32.changePassword(adminPassword);
             prefs?.setString('admin_password', adminPassword);
-            _log('[APP] 管理员密码已修改'); _message('密码已更新'); Navigator.pop(pageCtx);
+            _log('[ESP32] 蓝牙密码已更新'); _log('[APP] 管理员密码已修改'); _message('密码已更新'); Navigator.pop(pageCtx);
+          }, isEnabled: true),
+        ])),
+      ])),
+    );
+  }
+
+  Widget _changeAdminPasswordPage(BuildContext pageCtx) {
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+          const TKPageTitle(title: '修改管理员密码'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+          const SizedBox(height: 24),
+          TKBigIcon(icon: Icons.admin_panel_settings, color: TKColors.neonOrange, size: 80),
+          const SizedBox(height: 24),
+          TKTextField(controller: newCtrl, label: '新管理员密码', hint: '请输入新管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+          const SizedBox(height: 16),
+          TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+          const SizedBox(height: 32),
+          TKNeonButton(label: '保存新密码', icon: Icons.check, neonColor: TKColors.neonOrange, onTap: () {
+            if (newCtrl.text.trim().length < 6) { _message('新密码至少6位'); return; }
+            if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
+            adminPassword = newCtrl.text.trim();
+            esp32.changePassword(adminPassword);
+            prefs?.setString('admin_password', adminPassword);
+            _log('[ESP32] 管理员密码已更新'); _log('[APP] 管理员密码已修改'); _message('管理员密码已更新'); Navigator.pop(pageCtx);
           }, isEnabled: true),
         ])),
       ])),
@@ -2352,10 +2401,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           const Text('当前状态', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
           const SizedBox(height: 8),
           Text(timeSynced ? '已同步' : '未同步', style: TextStyle(color: timeSynced ? TKColors.neonBlue : TKColors.neonOrange, fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Text('模拟同步失败', style: TextStyle(color: TKColors.textSecondary, fontSize: 13)),
+            const SizedBox(width: 8),
+            Switch(value: timeFail, onChanged: (v) { setState(() => timeFail = v); prefs?.setBool('time_fail', v); }, activeColor: TKColors.neonOrange),
+          ]),
+          const SizedBox(height: 16),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: connected ? () async { await syncTime(); if (mounted) setState(() {}); } : null, isEnabled: connected)),
           const SizedBox(height: 16),
           const Text('同步后将自动校准设备时间', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+          const Text('开启"模拟同步失败"可测试时间同步失败场景', style: TextStyle(color: TKColors.textMuted, fontSize: 11)),
         ]))),
       ])),
     );
