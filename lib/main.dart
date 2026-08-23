@@ -190,9 +190,9 @@ class TKBottomNav extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _NavItem(icon: Icons.home, label: '首页', selected: false, onTap: () => onTabChanged(PageTab.vehicle)),
-          _NavItem(icon: Icons.people, label: '临时借车', selected: false, onTap: () => onTabChanged(PageTab.borrow)),
-          _NavItem(icon: Icons.settings, label: '设置', selected: false, onTap: () => onTabChanged(PageTab.settings)),
+          _NavItem(icon: Icons.home, label: '首页', selected: currentTab == PageTab.vehicle, onTap: () => onTabChanged(PageTab.vehicle)),
+          _NavItem(icon: Icons.people, label: '临时借车', selected: currentTab == PageTab.borrow, onTap: () => onTabChanged(PageTab.borrow)),
+          _NavItem(icon: Icons.settings, label: '设置', selected: currentTab == PageTab.settings, onTap: () => onTabChanged(PageTab.settings)),
         ],
       ),
     );
