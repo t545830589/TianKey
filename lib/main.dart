@@ -1398,15 +1398,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   }
                   // 真实模式：发送密码给ESP32验证
                   if (!simulationMode && bleGateway.readyForWrite) {
-                    bleGateway.writeCommand(utf8.encode(value));
-                    _log('[BLE] 已发送密码给ESP32验证');
-                    // 延迟300ms后发送设备ID给ESP32记录管理员席位
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (bleGateway.readyForWrite) {
-                        bleGateway.writeCommand(utf8.encode('!DEVID $installId'));
-                        _log('[BLE] 已发送设备ID：$installId');
-                      }
-                    });
+                    bleGateway.writeCommand(utf8.encode('!AUTH $value $installId'));
+                    _log('[BLE] 已发送管理员认证：!AUTH *** $installId');
                   }
                   ok = esp32.verifyAdminPassword(value, installId ?? '');
                   if (ok) {
@@ -1418,8 +1411,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   }
                 } else {
                   if (!simulationMode && bleGateway.readyForWrite) {
-                    bleGateway.writeCommand(utf8.encode(value));
-                    _log('[BLE] 已发送临时密码给ESP32验证');
+                    bleGateway.writeCommand(utf8.encode('!VERIFYBORROW $value'));
+                    _log('[BLE] 已发送临时密码验证：!VERIFYBORROW ***');
                   }
                   ok = esp32.verifyBorrowPassword(value);
                   if (ok) {
