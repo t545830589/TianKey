@@ -890,12 +890,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     final end = p.getInt('borrow_end');
     borrowStart = start == null ? null : DateTime.fromMillisecondsSinceEpoch(start);
     borrowEnd = end == null ? null : DateTime.fromMillisecondsSinceEpoch(end);
-    authorized = p.getBool('authorized') ?? true;
+    authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
     sound = p.getBool('sound') ?? true;
     ready = true;
     _cleanupOldLogs();
-    _log('APP启动');
+    _log('[APP] 启动');
     _scheduleBorrowExpiry();
     if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
       await _clearBorrow(logExpiry: true);
@@ -952,7 +952,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       foundDevice = null;
       status = '正在扫描 BLE 设备...';
     });
-    _log('BLE真实扫描开始');
+    _log('[APP] BLE真实扫描开始');
     try {
       if (!await ble.isSupported()) {
         throw StateError('当前手机不支持 BLE');
@@ -961,7 +961,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       if (!mounted) return;
       if (devices.isEmpty) {
         setState(() => status = 'BLE扫描结束：未发现设备');
-        _log('BLE扫描结束：未发现设备');
+        _log('[APP] BLE扫描结束：未发现设备');
         _message('未发现 BLE 设备，请确认 ESP32 正在广播');
         return;
       }
@@ -971,12 +971,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       savedRemoteId = selected.remoteId;
       await prefs?.setString('ble_remote_id', selected.remoteId);
       setState(() => status = '发现设备：${selected.name}');
-      _log('发现 BLE：${selected.name} / ${selected.remoteId}');
+      _log('[APP] 发现 BLE：${selected.name} / ${selected.remoteId}');
       _message('发现 ${selected.name}');
     } catch (error) {
       if (!mounted) return;
       setState(() => status = 'BLE扫描失败：$error');
-      _log('BLE扫描失败：$error');
+      _log('[APP] BLE扫描失败：$error');
       _message('BLE扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
@@ -1035,7 +1035,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (connecting || connected) return;
     if (selected == AccessMode.admin && !skipPassword && adminDevice != null && adminDevice != installId && adminDevice != legacyPhoneId) {
       _message('当前管理员席位已被其他设备占用');
-      _log('管理员席位拒绝：${adminDevice!}');
+      _log('[APP] 管理员席位拒绝：${adminDevice!}');
       return;
     }
     setState(() {
@@ -1059,7 +1059,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         timeSynced = false;
         status = 'BLE真实连接成功，正在同步时间...';
       });
-      _log('BLE真实连接成功：${target.name} / ${target.remoteId}');
+      _log('[APP] BLE真实连接成功：${target.name} / ${target.remoteId}');
       await syncTime();
     } catch (error) {
       if (!mounted) return;
@@ -1068,7 +1068,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         connected = false;
         status = 'BLE连接失败：$error';
       });
-      _log('BLE连接失败：$error');
+      _log('[APP] BLE连接失败：$error');
       _message('BLE连接失败：$error');
     }
   }
@@ -1139,7 +1139,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   Navigator.pop(context, true);
                 } else {
                   _message(seatBlocked ? '管理员席位已被占用' : '密码错误、授权无效或临时密码已过期');
-                  _log('认证失败');
+                  _log('[APP] 认证失败');
                 }
               },
             ),
@@ -1160,7 +1160,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         espTime = null;
         status = mode == AccessMode.admin ? '时间同步失败：管理员仍可使用' : '时间同步失败：无法确认临时授权有效期';
       });
-      _log('时间同步失败（真实ESP32时间协议尚未接入）');
+      _log('[APP] 时间同步失败（真实ESP32时间协议尚未接入）');
       return;
     }
     setState(() {
@@ -1168,7 +1168,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       espTime = DateTime.now();
       status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
     });
-    _log('APP时间状态已同步；ESP32实际写时协议待硬件协议接入');
+    _log('[APP] 时间同步成功；ESP32实际写时协议待硬件协议接入');
   }
 
   Future<void> disconnect() async {
@@ -1185,14 +1185,14 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       activeCommand = '';
       status = 'BLE已断开：车辆功能重新锁定';
     });
-    _log('BLE真实断开，安全保护');
+    _log('[APP] BLE真实断开，安全保护');
     _message('BLE已断开，车辆功能已锁定');
   }
 
   void vehicleCommand(String command) {
     if (!vehicleEnabled) {
       _message('当前没有车辆控制权限');
-      _log('拒绝车辆指令 $command');
+      _log('[APP] 拒绝车辆指令 $command');
       return;
     }
     late final String protocol;
@@ -1222,7 +1222,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         if (commandSeconds <= 1) {
           timer.cancel();
           setState(() { commandSeconds = 0; activeCommand = ''; status = '$command 7秒动作完成：$detail'; });
-          _log('$protocol 7秒 APP动作完成；真实GPIO发送待协议接入');
+          _log('[ESP32] $protocol 7秒动作完成；真实GPIO发送待协议接入');
           return;
         }
         setState(() => commandSeconds -= 1);
@@ -1230,7 +1230,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     }
     lastCommand = '$protocol → GPIO$gpio → $detail';
     setState(() => status = timed ? '$command 已开始：7秒保持中（$commandSeconds）' : '$command 已发送：$lastCommand');
-    _log('APP记录指令：$lastCommand；真实ESP32指令帧待协议接入');
+    _log('[APP] 记录指令：$lastCommand；真实ESP32指令帧待协议接入');
     _message(timed ? '$command\n7秒保持中' : '$command\n$detail');
   }
 
@@ -1245,7 +1245,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setInt('borrow_start', start.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', end.millisecondsSinceEpoch);
     _scheduleBorrowExpiry();
-    _log('生成临时借车密码');
+    _log('[APP] 生成临时借车密码');
     setState(() => status = '临时借车密码已生成');
     _message('临时密码：$code\n有效期：$hours 小时');
   }
@@ -1257,7 +1257,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
-    if (logExpiry && hadCode) _log('临时借车密码已到期并清除');
+    if (logExpiry && hadCode) _log('[APP] 临时借车密码已到期并清除');
     if (mounted) {
       if (mode == AccessMode.borrower) {
         await ble.disconnect();
@@ -1272,7 +1272,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (!adminEnabled) { _message('请先完成管理员认证'); return; }
     authorized = !authorized;
     await prefs?.setBool('authorized', authorized);
-    _log(authorized ? '恢复设备授权' : '关闭设备授权');
+    _log(authorized ? '[APP] 恢复设备授权' : '[APP] 关闭设备授权');
     setState(() => status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权');
     _message(authorized ? '授权已恢复' : '授权已关闭，管理员会话保留');
   }
@@ -1309,7 +1309,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (value.length < 6) { _message('密码至少6位'); return; }
     adminPassword = value;
     await prefs?.setString('admin_password', value);
-    _log('管理员密码已保存到APP状态；ESP32实际持久化协议待接入');
+    _log('[APP] 管理员密码已保存；ESP32实际持久化协议待接入');
     setState(() {});
     _message('新密码已生效，旧密码失效');
   }
@@ -1344,7 +1344,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (value.isEmpty) return;
     deviceName = value;
     await prefs?.setString('device_name', value);
-    _log('设备名称已保存到APP状态；ESP32实际广播名称修改待协议接入');
+    _log('[APP] 设备名称已保存；ESP32实际广播名称修改待协议接入');
     setState(() {});
     _message('设备名称已更新');
   }
@@ -1385,13 +1385,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
     installId = newId;
     await prefs?.setString('install_id', newId);
-    _log('恢复出厂');
+    _log('[APP] 恢复出厂');
     if (mounted) setState(() { status = '已恢复未绑定初始状态'; tab = PageTab.vehicle; });
     _message('恢复出厂完成，管理员初始密码恢复为13092991951');
   }
 
-  void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '自动连接开启' : '自动连接关闭'); setState(() {}); }
-  void _toggleSound(bool _) async { sound = !sound; await prefs?.setBool('sound', sound); _log(sound ? '声音反馈开启' : '声音反馈关闭'); setState(() {}); }
+  void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '[APP] 自动连接开启' : '[APP] 自动连接关闭'); setState(() {}); }
 
   Widget vehiclePage() => Scaffold(
         backgroundColor: TKColors.bgPrimary,
@@ -1716,37 +1715,43 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                       title: '修改蓝牙密码',
                       leadingIcon: Icons.lock,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _changePasswordPage())) : () => _showAdminAuthDialog(),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changePasswordPage(ctx)))) : () => _showAdminAuthDialog(),
                     ),
                     TKSettingTile(
                       title: '恢复默认蓝牙密码',
                       leadingIcon: Icons.restore,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resetPasswordPage())) : () => _showAdminAuthDialog(),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _resetPasswordPage(ctx)))) : () => _showAdminAuthDialog(),
                     ),
                     TKSettingTile(
                       title: '设备名称',
                       leadingIcon: Icons.device_hub,
                       trailingText: deviceName,
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _deviceNamePage())) : () => _showAdminAuthDialog(),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deviceNamePage(ctx)))) : () => _showAdminAuthDialog(),
                     ),
                     TKSettingTile(
                       title: '时间同步设置',
                       leadingIcon: Icons.access_time,
                       trailingText: '>',
-                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => _timeSyncPage())) : () => _showAdminAuthDialog(),
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx)))) : () => _showAdminAuthDialog(),
                     ),
                     TKSettingTile(
                       title: '自动连接设置',
                       leadingIcon: Icons.bluetooth_connected,
                       trailingText: autoConnect ? '已开启' : '已关闭',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _autoConnectPage())),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
                     ),
                     TKSettingTile(
                       title: '提示音设置',
                       leadingIcon: Icons.volume_up,
                       trailingText: sound ? '已开启' : '已关闭',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _soundPage())),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _soundPage(ctx)))),
+                    ),
+                    TKSettingTile(
+                      title: '恢复出厂',
+                      leadingIcon: Icons.delete_forever,
+                      trailingText: '>',
+                      onTap: adminEnabled ? () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _factoryResetPage(ctx)))) : () => _showAdminAuthDialog(),
                     ),
                     TKSettingTile(
                       title: '关于系统',
@@ -1980,7 +1985,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   // ==================== 设置二级子页面 ====================
 
   // 1. 修改蓝牙密码
-  Widget _changePasswordPage() {
+  Widget _changePasswordPage(BuildContext pageCtx) {
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
@@ -1988,7 +1993,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
           const TKPageTitle(title: '修改蓝牙密码'),
           const SizedBox(width: 48),
         ])),
@@ -2008,7 +2013,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
             adminPassword = newCtrl.text.trim();
             prefs?.setString('admin_password', adminPassword);
-            _message('密码已更新'); Navigator.pop(context);
+            _log('[APP] 管理员密码已修改'); _message('密码已更新'); Navigator.pop(pageCtx);
           }, isEnabled: true),
         ])),
       ])),
@@ -2016,12 +2021,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   // 2. 恢复默认蓝牙密码
-  Widget _resetPasswordPage() {
+  Widget _resetPasswordPage(BuildContext pageCtx) {
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
           const TKPageTitle(title: '恢复默认蓝牙密码'),
           const SizedBox(width: 48),
         ])),
@@ -2035,7 +2040,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '恢复默认蓝牙密码', icon: Icons.restore, neonColor: TKColors.neonRed, onTap: () {
             adminPassword = defaultPassword;
             prefs?.setString('admin_password', defaultPassword);
-            _message('已恢复默认密码：13092991951'); Navigator.pop(context);
+            _log('[APP] 恢复默认蓝牙密码'); _message('已恢复默认密码：13092991951'); Navigator.pop(pageCtx);
           }, isEnabled: true)),
         ]))),
       ])),
@@ -2043,13 +2048,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   // 3. 设备名称
-  Widget _deviceNamePage() {
+  Widget _deviceNamePage(BuildContext pageCtx) {
     final ctrl = TextEditingController(text: deviceName);
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
           const TKPageTitle(title: '设备名称'),
           const SizedBox(width: 48),
         ])),
@@ -2066,7 +2071,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             if (v.isEmpty) { _message('名称不能为空'); return; }
             deviceName = v;
             prefs?.setString('device_name', v);
-            _message('设备名称已更新'); Navigator.pop(context);
+            _log('[APP] 设备名称已修改为 $v'); _message('设备名称已更新'); Navigator.pop(pageCtx);
           }, isEnabled: true),
         ])),
       ])),
@@ -2074,12 +2079,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   // 4. 时间同步设置
-  Widget _timeSyncPage() {
+  Widget _timeSyncPage(BuildContext pageCtx) {
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
           const TKPageTitle(title: '时间同步设置'),
           const SizedBox(width: 48),
         ])),
@@ -2099,12 +2104,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   // 5. 自动连接设置
-  Widget _autoConnectPage() {
+  Widget _autoConnectPage(BuildContext pageCtx) {
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
           const TKPageTitle(title: '自动连接设置'),
           const SizedBox(width: 48),
         ])),
@@ -2115,7 +2120,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             title: '自动连接',
             subtitle: '开启后，APP启动时将自动连接已配对设备',
             value: autoConnect,
-            onChanged: (v) { setState(() { autoConnect = v; }); prefs?.setBool('auto_connect', v); _log(v ? '自动连接开启' : '自动连接关闭'); },
+            onChanged: (v) { setState(() { autoConnect = v; }); prefs?.setBool('auto_connect', v); _log(v ? '[APP] 自动连接开启' : '[APP] 自动连接关闭'); },
             leadingIcon: Icons.bluetooth,
           ),
         ]))),
@@ -2124,12 +2129,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   // 6. 提示音设置
-  Widget _soundPage() {
+  Widget _soundPage(BuildContext pageCtx) {
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(context)),
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
           const TKPageTitle(title: '提示音设置'),
           const SizedBox(width: 48),
         ])),
@@ -2140,7 +2145,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             title: '提示音',
             subtitle: '开启后，操作时播放提示音',
             value: sound,
-            onChanged: (v) { setState(() { sound = v; }); prefs?.setBool('sound', v); _log(v ? '声音反馈开启' : '声音反馈关闭'); },
+            onChanged: (v) { setState(() { sound = v; }); prefs?.setBool('sound', v); _log(v ? '[APP] 声音反馈开启' : '[APP] 声音反馈关闭'); },
             leadingIcon: Icons.volume_up,
           ),
         ]))),
@@ -2148,7 +2153,41 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     );
   }
 
-  // 7. 关于系统
+  // 7. 恢复出厂
+  Widget _factoryResetPage(BuildContext pageCtx) {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+          const TKPageTitle(title: '恢复出厂'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.warning_amber_rounded, color: TKColors.neonRed, size: 80),
+          const SizedBox(height: 24),
+          const Text('此操作将清除所有管理员绑定、授权状态、\n临时借车授权和已保存 BLE 设备，\n并恢复为未绑定初始状态。', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          const Text('恢复后管理员密码重置为 13092991951', style: TextStyle(color: TKColors.textMuted, fontSize: 13)),
+          const SizedBox(height: 32),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '确认恢复出厂', icon: Icons.delete_forever, neonColor: TKColors.neonRed, onTap: () async {
+            await ble.disconnect();
+            await prefs?.clear();
+            adminPassword = defaultPassword;
+            adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true;
+            deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
+            connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
+            final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
+            installId = newId;
+            await prefs?.setString('install_id', newId);
+            _log('[APP] 恢复出厂'); _message('恢复出厂完成'); Navigator.pop(pageCtx);
+          }, isEnabled: true)),
+        ]))),
+      ])),
+    );
+  }
+
+  // 8. 关于系统
   Widget _aboutPage() {
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
