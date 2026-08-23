@@ -849,7 +849,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     return !now.isBefore(borrowStart!) && now.isBefore(borrowEnd!);
   }
 
-  bool get adminEnabled => connected && mode == AccessMode.admin && adminSession;
+  bool get adminEnabled => adminSession;
 
   bool get vehicleEnabled => connected && authorized &&
       ((mode == AccessMode.admin && adminSession) ||
@@ -1968,8 +1968,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   Navigator.pop(context);
                   setState(() { adminSession = true; adminDevice = installId; });
                   prefs?.setString('admin_device_id', installId!);
+                  _log('[APP] 管理员认证成功');
                   _message('管理员授权成功');
                 } else {
+                  _log('[APP] 管理员认证失败：密码错误');
                   _message('密码错误');
                 }
               }, isEnabled: true),
