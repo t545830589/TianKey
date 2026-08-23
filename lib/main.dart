@@ -2172,7 +2172,7 @@ Future<void> changeDeviceName() async {
               const SizedBox(height: 4),
               Text(timeSynced ? '已同步' : '未同步', style: TextStyle(color: timeSynced ? TKColors.neonBlue : TKColors.neonOrange, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
-              TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: syncTime, isEnabled: connected),
+              TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: () => syncTime(), isEnabled: connected),
               const SizedBox(height: 12),
               const Text('点击按钮将手机时间同步至车辆 ESP32', style: TextStyle(color: TKColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
             ],
