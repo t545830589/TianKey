@@ -125,6 +125,7 @@ class TKNeonButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
     );
   }
 }
@@ -762,7 +763,7 @@ ThemeData _buildTKTheme() {
       errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.neonRed, width: 2)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
-    dialogTheme: DialogThemeData(
+    dialogTheme: DialogTheme(
       backgroundColor: TKColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: TKColors.neonBlue, width: 2)),
       titleTextStyle: const TextStyle(color: TKColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
@@ -1396,8 +1397,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     _message('恢复出厂完成，管理员初始密码恢复为13092991951');
   }
 
-  void _toggleAutoConnect() async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '自动连接开启' : '自动连接关闭'); setState(() {}); }
-  void _toggleSound() async { sound = !sound; await prefs?.setBool('sound', sound); _log(sound ? '声音反馈开启' : '声音反馈关闭'); setState(() {}); }
+  void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '自动连接开启' : '自动连接关闭'); setState(() {}); }
+  void _toggleSound(bool _) async { sound = !sound; await prefs?.setBool('sound', sound); _log(sound ? '声音反馈开启' : '声音反馈关闭'); setState(() {}); }
 
   InputDecoration _field(String label) => InputDecoration(
         labelText: label,
@@ -2044,7 +2045,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                     _AdminActionTile(title: authorized ? '关闭授权' : '恢复授权', icon: Icons.verified_user, onTap: adminEnabled ? () => toggleAuthorization() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? () => syncTime() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '统一日志', icon: Icons.receipt_long, onTap: () => showLogs()),
-                    _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: _toggleAutoConnect),
+                    _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: () { _toggleAutoConnect(autoConnect); }),
                     _AdminActionTile(title: '恢复出厂', icon: Icons.delete_forever, onTap: adminEnabled ? () => factoryReset() : () => _message('请先完成管理员认证'), isDanger: true),
                     const SizedBox(height: 20),
 
@@ -2274,7 +2275,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   Widget _adminCard(String title, String body) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xCC020A14), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF1595FF))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)), const SizedBox(height: 7), Text(body, style: const TextStyle(color: Colors.white70))]));
