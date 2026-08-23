@@ -8,39 +8,39 @@ import os
 import machine
 
 # ===================== 配置区 =====================
-PIN_LOCK       = 14    # 锁车
-PIN_UNLOCK     = 33    # 解锁
-PIN_TRUNK      = 4     # 后备箱
-PIN_LED        = 2     # 指示灯
+PIN_LOCK       = 14
+PIN_UNLOCK     = 33
+PIN_TRUNK      = 4
+PIN_LED        = 2
 
 DEFAULT_NAME   = "陕A0P92Y"
 DEFAULT_PWD    = "13092991951"
-AUTH_TIMEOUT   = 10    # 认证超时(秒)
-AUTH_FAILURE   = 10000 # 认证失败锁定(毫秒)
+AUTH_TIMEOUT   = 10
+AUTH_FAILURE   = 10000
 
-LOCK_PULSE_MS  = 200   # 锁车脉冲
-UNLOCK_PULSE_MS = 200  # 解锁脉冲
-TRUNK_HOLD_MS  = 7000  # 后备箱保持7秒
-WINDOW_HOLD_MS = 7000  # 车窗保持7秒
-FIND_CAR_PULSE_MS = 200 # 寻车脉冲宽度
-FIND_CAR_GAP_MS   = 200 # 寻车两次脉冲间隔
+LOCK_PULSE_MS  = 200
+UNLOCK_PULSE_MS = 200
+TRUNK_HOLD_MS  = 7000
+WINDOW_HOLD_MS = 7000
+FIND_CAR_PULSE_MS = 200
+FIND_CAR_GAP_MS   = 200
 
-TEMP_VALID     = 6 * 3600  # 临时码有效期(秒)
+TEMP_VALID     = 6 * 3600
 CONFIG_FILE    = "tiankey.cfg"
 LOG_FILE       = "tiankey.log"
-MAX_LOG_LINES  = 200       # 日志最大条数
-LOG_MAX_AGE_DAYS = 7       # 日志保留天数
+MAX_LOG_LINES  = 200
+LOG_MAX_AGE_DAYS = 7
 # =================================================
 
 wdt = WDT(timeout=8000)
 
-# 引脚对象
 lock_pin   = None
 unlock_pin = None
 trunk_pin  = None
 led_pin    = Pin(PIN_LED, Pin.OUT, value=0)
 
 AUTO_LOCK_ENABLED = 1
+ADMIN_DEVICE = ""
 pending_actions = []
 
 
@@ -57,6 +57,48 @@ def init_pins():
     trunk_pin  = Pin(PIN_TRUNK, Pin.OUT, value=1)
 
 
+# ===================== LED状态指示 =====================
+def led_blink(count, interval_ms):
+    """LED闪烁指定次数"""
+    for _ in range(count):
+        led_pin.value(1)
+        time.sleep_ms(interval_ms)
+        led_pin.value(0)
+        time.sleep_ms(interval_ms)
+
+
+def led_connected():
+    """连接成功：快闪3次"""
+    led_blink(3, 100)
+
+
+def led_command():
+    """指令执行：闪1次"""
+    led_pin.value(1)
+    time.sleep_ms(200)
+    led_pin.value(0)
+
+
+def led_auth_ok():
+    """认证通过：常亮1秒后灭"""
+    led_pin.value(1)
+    time.sleep_ms(1000)
+    led_pin.value(0)
+
+
+def led_auth_fail():
+    """认证失败：快闪5次"""
+    led_blink(5, 80)
+
+
+def led_advertising():
+    """广播中：每秒闪1次（非阻塞，在主循环调用）"""
+    led_pin.value(1)
+    time.sleep_ms(50)
+    led_pin.value(0)
+
+
+# ===================== GPIO动作 =====================
 def act_lock():
     lock_pin.value(0)
     time.sleep_ms(LOCK_PULSE_MS)
@@ -97,15 +139,8 @@ def act_window_down():
     unlock_pin.value(1)
 
 
-def act_led():
-    led_pin.value(1)
-    time.sleep_ms(200)
-    led_pin.value(0)
-
-
 # ===================== 日志系统 =====================
 def log_add(msg):
-    """添加日志条目，自动清理超限和过期"""
     ts = _get_timestamp()
     line = "[{}] {}".format(ts, msg)
     try:
@@ -114,10 +149,8 @@ def log_add(msg):
             with open(LOG_FILE, "r") as f:
                 lines = f.read().strip().split("\n")
         lines.append(line)
-        # 超过上限，删除最旧的
         if len(lines) > MAX_LOG_LINES:
             lines = lines[-MAX_LOG_LINES:]
-        # 清理超过7天的日志
         cleaned = []
         cutoff = time.time() - LOG_MAX_AGE_DAYS * 86400
         for l in lines:
@@ -150,9 +183,8 @@ def _parse_timestamp(s):
         parts = s.strip().split(" ")
         d = parts[0].split("-")
         t = parts[1].split(":")
-        import time as _time
-        return _time.mktime((int(d[0]), int(d[1]), int(d[2]),
-                             int(t[0]), int(t[1]), int(t[2]), 0, 0, 0))
+        return time.mktime((int(d[0]), int(d[1]), int(d[2]),
+                            int(t[0]), int(t[1]), int(t[2]), 0, 0, 0))
     except:
         return 0
 
@@ -177,7 +209,7 @@ def log_clear():
 
 # ===================== 配置持久化 =====================
 def load_config():
-    global AUTO_LOCK_ENABLED
+    global AUTO_LOCK_ENABLED, ADMIN_DEVICE
     name = DEFAULT_NAME
     pwd = DEFAULT_PWD
     try:
@@ -191,6 +223,7 @@ def load_config():
                 name = cfg.get("name", DEFAULT_NAME)
                 pwd = cfg.get("pwd", DEFAULT_PWD)
                 AUTO_LOCK_ENABLED = int(cfg.get("auto_lock", "1"))
+                ADMIN_DEVICE = cfg.get("admin_device", "")
     except Exception as e:
         print("[ERR] load_config:", e)
     return name, pwd
@@ -199,8 +232,8 @@ def load_config():
 def save_config(name, pwd):
     try:
         with open(CONFIG_FILE, "w") as f:
-            f.write("name={}\npwd={}\nauto_lock={}\n".format(
-                name, pwd, AUTO_LOCK_ENABLED))
+            f.write("name={}\npwd={}\nauto_lock={}\nadmin_device={}\n".format(
+                name, pwd, AUTO_LOCK_ENABLED, ADMIN_DEVICE))
     except Exception as e:
         print("[ERR] save_config:", e)
 
@@ -224,6 +257,7 @@ auth_start = 0
 lock_until = 0
 tx = None
 rx = None
+led_blink_timer = 0
 
 
 def process_pending_actions():
@@ -255,7 +289,7 @@ def disconnect_and_cleanup():
         except:
             pass
     if authenticated:
-        act_led()
+        led_connected()
         if AUTO_LOCK_ENABLED:
             act_lock()
             log_add("断开连接，自动落锁")
@@ -334,6 +368,7 @@ def _temp_code_for_window(window):
 def ble_cb(event, data):
     global connected, authenticated, conn_handle, auth_start, lock_until, tx, rx
     global temp_auth, temp_expire, DEVICE_NAME, PASSWORD, AUTO_LOCK_ENABLED
+    global ADMIN_DEVICE
     try:
         if event == 1:  # 连接
             if len(data) < 1:
@@ -352,6 +387,7 @@ def ble_cb(event, data):
             temp_auth = False
             temp_expire = 0
             auth_start = now_ticks
+            led_connected()
             log_add("设备已连接")
 
         elif event == 2:  # 断开
@@ -378,7 +414,7 @@ def ble_cb(event, data):
                         authenticated = True
                         temp_auth = True
                         temp_expire = expire_time
-                        act_led()
+                        led_auth_ok()
                         log_add("临时密码验证通过")
                         pending_actions.append(("notify_only", "AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode()))
                         return
@@ -387,12 +423,14 @@ def ble_cb(event, data):
                     authenticated = True
                     temp_auth = False
                     temp_expire = 0
-                    act_led()
+                    # 记录管理员设备ID（从后续!DEVID命令获取）
+                    led_auth_ok()
                     log_add("管理员验证通过")
                     pending_actions.append(("notify_only", "AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode()))
                     return
                 # 验证失败
-                log_add("密码验证失败")
+                log_add("密码验证失败：{}".format(cmd))
+                led_auth_fail()
                 lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
                 disconnect_and_cleanup()
                 return
@@ -400,7 +438,7 @@ def ble_cb(event, data):
             # ===== 已认证：检查临时码过期 =====
             if temp_auth and time.time() > temp_expire:
                 log_add("临时密码已过期")
-                act_led()
+                led_auth_fail()
                 act_lock()
                 disconnect_and_cleanup()
                 return
@@ -408,28 +446,28 @@ def ble_cb(event, data):
             # ===== 车辆控制指令 =====
             if cmd == "suoche":
                 act_lock()
-                act_led()
-                log_add("执行：锁车")
+                led_command()
+                log_add("执行：锁车 → GPIO{} 脉冲".format(PIN_LOCK))
             elif cmd == "jiesuo":
                 act_unlock()
-                act_led()
-                log_add("执行：解锁")
+                led_command()
+                log_add("执行：解锁 → GPIO{} 脉冲".format(PIN_UNLOCK))
             elif cmd == "xunche":
                 act_find_car()
-                act_led()
-                log_add("执行：寻车")
+                led_command()
+                log_add("执行：寻车 → GPIO{} 双脉冲".format(PIN_LOCK))
             elif cmd == "chuangsheng":
                 act_window_up()
-                act_led()
-                log_add("执行：车窗升")
+                led_command()
+                log_add("执行：车窗升 → GPIO{} 保持7秒".format(PIN_LOCK))
             elif cmd == "chuangjiang":
                 act_window_down()
-                act_led()
-                log_add("执行：车窗降")
+                led_command()
+                log_add("执行：车窗降 → GPIO{} 保持7秒".format(PIN_UNLOCK))
             elif cmd == "houbeixiang":
                 act_trunk()
-                act_led()
-                log_add("执行：后备箱")
+                led_command()
+                log_add("执行：后备箱 → GPIO{} 保持7秒".format(PIN_TRUNK))
 
             # ===== 管理指令（仅管理员） =====
             elif cmd.startswith("!NAME "):
@@ -454,6 +492,7 @@ def ble_cb(event, data):
                 DEVICE_NAME = DEFAULT_NAME
                 PASSWORD = DEFAULT_PWD
                 AUTO_LOCK_ENABLED = 1
+                ADMIN_DEVICE = ""
                 log_add("恢复出厂设置")
                 pending_actions.append(("save_and_notify", b"RESET OK"))
             elif cmd.startswith("!TIME "):
@@ -490,6 +529,16 @@ def ble_cb(event, data):
                 log_clear()
                 log_add("日志已清除")
                 pending_actions.append(("notify_only", b"LOGCLEAR OK"))
+            elif cmd.startswith("!DEVID "):
+                if temp_auth:
+                    return
+                new_id = cmd[7:].strip()
+                if new_id:
+                    ADMIN_DEVICE = new_id
+                    log_add("管理员设备ID已记录：{}".format(new_id))
+                    pending_actions.append(("save_and_notify", b"DEVID OK"))
+            elif cmd == "!DEVID?":
+                pending_actions.append(("notify_only", "DEVID:{}".format(ADMIN_DEVICE).encode()))
 
     except Exception as e:
         print("[ERR] ble_cb:", e)
@@ -520,6 +569,7 @@ last_adv_ok = time.ticks_ms() if adv_success else 0
 adv_fail_count = 0 if adv_success else 1
 RESET_THRESHOLD = 3
 last_gc = time.ticks_ms()
+last_led_blink = time.ticks_ms()
 
 log_add("ESP32 TianKey 固件启动")
 log_add("设备名称：{}".format(DEVICE_NAME))
@@ -529,6 +579,12 @@ while True:
     now = time.ticks_ms()
 
     process_pending_actions()
+
+    # 广播中LED慢闪指示
+    if not connected:
+        if time.ticks_diff(now, last_led_blink) > 1000:
+            led_advertising()
+            last_led_blink = now
 
     if not connected and time.ticks_diff(now, last_gc) > 30000:
         gc.collect()
@@ -560,6 +616,7 @@ while True:
     if connected and not authenticated:
         if time.ticks_diff(now, auth_start) >= AUTH_TIMEOUT * 1000:
             log_add("认证超时，断开连接")
+            led_auth_fail()
             lock_until = time.ticks_add(now, AUTH_FAILURE)
             disconnect_and_cleanup()
 

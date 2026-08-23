@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -882,12 +884,22 @@ class SimulatedEsp32 {
   }
 
   String generateBorrowCode(int hours) {
-    final code = (100000 + Random().nextInt(900000)).toString();
+    // 与ESP32相同的哈希算法生成6位临时码
+    final now = DateTime.now();
+    final tempValid = 6 * 3600; // 与ESP32一致
+    final window = now.millisecondsSinceEpoch ~/ 1000 ~/ tempValid;
+    final secret = '$adminPassword$window';
+    final bytes = Uint8List.fromList(utf8.encode(secret));
+    final digest = sha256.convert(bytes);
+    final hashBytes = digest.bytes;
+    final val = ((hashBytes[0] << 24) | (hashBytes[1] << 16) | (hashBytes[2] << 8) | hashBytes[3]) & 0x7FFFFFFF;
+    final code = (val % 1000000).toString().padLeft(6, '0');
+    
     borrowCode = code;
-    borrowStart = DateTime.now();
+    borrowStart = now;
     borrowEnd = hours == 0
-        ? DateTime.now().add(const Duration(minutes: 5))
-        : DateTime.now().add(Duration(hours: hours));
+        ? now.add(const Duration(minutes: 5))
+        : now.add(Duration(hours: hours));
     _logEsp32('生成临时借车密码：$code，有效期 ${hours == 0 ? "5分钟" : "$hours 小时"}');
     return code;
   }
@@ -1390,6 +1402,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   if (!simulationMode && bleGateway.readyForWrite) {
                     bleGateway.writeCommand(utf8.encode(value));
                     _log('[BLE] 已发送密码给ESP32验证');
+                    // 发送设备ID给ESP32记录管理员席位
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    bleGateway.writeCommand(utf8.encode('!DEVID $installId'));
+                    _log('[BLE] 已发送设备ID：$installId');
                   }
                   ok = esp32.verifyAdminPassword(value, installId ?? '');
                   if (ok) {
@@ -1619,6 +1635,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     adminPassword = value;
     esp32.changePassword(value);
     await prefs?.setString('admin_password', value);
+    // 真实模式：发送密码修改到ESP32
+    if (!simulationMode && bleGateway.readyForWrite) {
+      bleGateway.writeCommand(utf8.encode('!PWD $value'));
+      _log('[BLE] 已发送密码修改到ESP32');
+    }
     _log('[APP] 管理员密码已保存');
     setState(() {});
     _message('新密码已生效，旧密码失效');
@@ -1655,6 +1676,11 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     deviceName = value;
     esp32.changeDeviceName(value);
     await prefs?.setString('device_name', value);
+    // 真实模式：发送名称修改到ESP32
+    if (!simulationMode && bleGateway.readyForWrite) {
+      bleGateway.writeCommand(utf8.encode('!NAME $value'));
+      _log('[BLE] 已发送设备名称修改到ESP32');
+    }
     _log('[APP] 设备名称已保存');
     setState(() {});
     _message('设备名称已更新');
@@ -1727,6 +1753,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     );
     if (ok != true) return;
     if (!simulationMode) {
+      // 真实模式：发送恢复出厂到ESP32
+      if (bleGateway.readyForWrite) {
+        bleGateway.writeCommand(utf8.encode('!RESET'));
+        _log('[BLE] 已发送恢复出厂到ESP32');
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      await bleGateway.dispose();
       await ble.disconnect();
     }
     esp32.factoryReset();
