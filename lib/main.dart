@@ -602,69 +602,249 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         ),
       );
 
-  Widget vehiclePage() => _targetImagePage(
-        asset: 'assets/home_controls_bg.png',
-        aspectRatio: 448 / 580,
-        overlays: (w, h) {
-          final children = <Widget>[
-            Positioned(left: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
-            Positioned(right: w * .055, top: h * .045, width: w * .13, height: h * .085, child: _transparentHotspot(onTap: () => _message(connected ? 'BLE：已连接' : 'BLE：未连接'))),
-            Positioned(left: w * .035, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? disconnect : connect)),
-            Positioned(left: w * .215, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: adminEnabled ? toggleAuthorization : null)),
-            Positioned(left: w * .405, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: () => _message('车辆状态：${locked ? '锁定' : '解锁'}'))),
-            Positioned(left: w * .595, top: h * .445, width: w * .19, height: h * .075, child: _transparentHotspot(onTap: connected ? syncTime : null)),
-            Positioned(right: w * .035, top: h * .445, width: w * .18, height: h * .075, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.admin))),
-            Positioned(left: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null)),
-            Positioned(right: w * .045, top: h * .535, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null)),
-            Positioned(left: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null)),
-            Positioned(right: w * .045, top: h * .62, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('升窗') : null)),
-            Positioned(left: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('降窗') : null)),
-            Positioned(right: w * .045, top: h * .705, width: w * .43, height: h * .075, child: _transparentHotspot(onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null)),
-            Positioned(left: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.vehicle))),
-            Positioned(left: w / 3, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.borrow))),
-            Positioned(right: 0, bottom: 0, width: w / 3, height: h * .085, child: _transparentHotspot(onTap: () => setState(() => tab = PageTab.settings))),
-          ];
-          if (!connected) {
-            children.add(
-              Positioned(
-                left: w * .12,
-                right: w * .12,
-                top: h * .385,
-                height: h * .055,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(color: Colors.black54),
-                    child: Center(
-                      child: Text(
-                        scanning ? '蓝牙扫描中…' : foundDevice != null ? '已发现 ${foundDevice!.name} · 点击连接' : '未连接 · 点击蓝牙键扫描',
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
+  Widget vehiclePage() => Scaffold(
+        backgroundColor: const Color(0xFF030609),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 顶部栏：设置 | Tian Key | 帮助
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _neonIconButton(Icons.settings, color: Colors.blue, onTap: () => setState(() => tab = PageTab.settings)),
+                    Text(
+                      'Tian Key',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                        shadows: [
+                          Shadow(color: Colors.blue.withOpacity(0.8), blurRadius: 12),
+                          Shadow(color: Colors.blue.withOpacity(0.5), blurRadius: 24),
+                        ],
                       ),
                     ),
-                  ),
+                    _neonIconButton(Icons.help_outline, color: Colors.grey, onTap: () => _message('帮助：长按按钮查看功能说明')),
+                  ],
                 ),
               ),
-            );
-          }
-          if (commandSeconds > 0) {
-            children.add(
-              Positioned(
-                left: w * .18,
-                right: w * .18,
-                top: h * .79,
-                height: h * .055,
-                child: IgnorePointer(
-                  child: Center(
-                    child: Text(
-                      '$activeCommand：$commandSeconds 秒',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+
+              // 汽车背景区域
+              Expanded(
+                flex: 5,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 背景图：home_car_bg.png
+                    Image.asset(
+                      'assets/home_car_bg.png',
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
                     ),
-                  ),
+                    // 车牌号
+                    Positioned(
+                      bottom: 30,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.withOpacity(0.5), width: 1),
+                        ),
+                        child: Text(
+                          '陕A·0P92Y',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          }
-          return Stack(children: children);
-        },
+
+              // 5 个状态卡片
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    _buildStatusCard(Icons.bluetooth, '设备状态', '未连接', connected ? Colors.green : Colors.grey),
+                    _buildStatusCard(Icons.shield, '管理员状态', adminEnabled ? '已授权' : '未授权', adminEnabled ? Colors.orange : Colors.grey),
+                    _buildStatusCard(Icons.flash_on, '供电状态', '未知', Colors.grey),
+                    _buildStatusCard(Icons.sync, '时间同步', timeSynced ? '已同步' : '未同步', timeSynced ? Colors.green : Colors.grey),
+                    _buildStatusCard(Icons.key, '临时借车', borrowValid ? '有效' : '无有效密码', borrowValid ? Colors.blue : Colors.grey),
+                  ],
+                ),
+              ),
+
+              // 8 个功能按钮：2 列 4 行
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _buildNeonButton('连接设备', Icons.bluetooth, Colors.blue, connected ? disconnect : connect)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildNeonButton('管理员授权', Icons.shield, Colors.orange, adminEnabled ? toggleAuthorization : () => _message('请先完成管理员认证'))),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _buildNeonButton('锁车', Icons.lock, Colors.blue, vehicleEnabled ? () => vehicleCommand('锁车') : null)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildNeonButton('解锁', Icons.lock_open, Colors.blue, vehicleEnabled ? () => vehicleCommand('解锁') : null)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _buildNeonButton('车窗升', Icons.keyboard_double_arrow_up, Colors.orange, vehicleEnabled ? () => vehicleCommand('车窗升') : null)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildNeonButton('车窗降', Icons.keyboard_double_arrow_down, Colors.orange, vehicleEnabled ? () => vehicleCommand('车窗降') : null)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _buildNeonButton('寻车', Icons.wifi_tethering, Colors.blue, vehicleEnabled ? () => vehicleCommand('寻车') : null)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildNeonButton('后备箱', Icons.directions_car, Colors.blue, vehicleEnabled ? () => vehicleCommand('后备箱') : null)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // 底部导航栏
+              _buildBottomNav(),
+            ],
+          ),
+        ),
+      );
+
+  Widget _neonIconButton(IconData icon, {required Color color, required VoidCallback? onTap}) => Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, spreadRadius: 1),
+          ],
+        ),
+        child: IconButton(
+          icon: Icon(icon, color: color, size: 24),
+          onPressed: onTap,
+          splashColor: color.withOpacity(0.2),
+        ),
+      );
+
+  Widget _buildStatusCard(IconData icon, String title, String status, Color statusColor) => Expanded(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF07111A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.blue, size: 24),
+              const SizedBox(height: 6),
+              Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 4),
+              Text(status, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildNeonButton(String label, IconData icon, Color color, VoidCallback? onTap) => Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.6), width: 2),
+          boxShadow: [
+            BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, spreadRadius: 1),
+            BoxShadow(color: color.withOpacity(0.2), blurRadius: 24, spreadRadius: 2),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            splashColor: color.withOpacity(0.2),
+            highlightColor: color.withOpacity(0.1),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 26),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _buildBottomNav() => Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: const Color(0xFF02060D),
+          border: Border(top: BorderSide(color: Colors.blue.withOpacity(0.3), width: 1)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(Icons.home, '首页', tab == PageTab.vehicle, () => setState(() => tab = PageTab.vehicle)),
+            _buildNavItem(Icons.people, '临时借车', tab == PageTab.borrow, () => setState(() => tab = PageTab.borrow)),
+            _buildNavItem(Icons.settings, '设置', tab == PageTab.settings, () => setState(() => tab = PageTab.settings)),
+          ],
+        ),
+      );
+
+  Widget _buildNavItem(IconData icon, String label, bool selected, VoidCallback onTap) => Expanded(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: selected ? Colors.blue : Colors.grey, size: 24),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? Colors.blue : Colors.grey,
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
 
   Widget borrowPage() => _targetImagePage(
