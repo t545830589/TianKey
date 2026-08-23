@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -1402,10 +1401,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   if (!simulationMode && bleGateway.readyForWrite) {
                     bleGateway.writeCommand(utf8.encode(value));
                     _log('[BLE] 已发送密码给ESP32验证');
-                    // 发送设备ID给ESP32记录管理员席位
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    bleGateway.writeCommand(utf8.encode('!DEVID $installId'));
-                    _log('[BLE] 已发送设备ID：$installId');
+                    // 延迟300ms后发送设备ID给ESP32记录管理员席位
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (bleGateway.readyForWrite) {
+                        bleGateway.writeCommand(utf8.encode('!DEVID $installId'));
+                        _log('[BLE] 已发送设备ID：$installId');
+                      }
+                    });
                   }
                   ok = esp32.verifyAdminPassword(value, installId ?? '');
                   if (ok) {
