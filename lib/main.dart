@@ -308,6 +308,7 @@ class TKAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
     );
+  }
 
   @override
   Size get preferredSize => Size.fromHeight(height);
@@ -1300,7 +1301,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true, neonColor: TKColors.textMuted)),
+                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
                 const SizedBox(width: 12),
                 Expanded(child: TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () => Navigator.pop(context, true), isEnabled: true)),
               ],
@@ -1319,7 +1320,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     _message('新密码已生效，旧密码失效');
   }
 
-Future<void> changeDeviceName() async {
+  Future<void> changeDeviceName() async {
     if (!adminEnabled) { _message('请先完成管理员认证'); return; }
     nameController.text = deviceName;
     final ok = await showDialog<bool>(
@@ -1335,7 +1336,7 @@ Future<void> changeDeviceName() async {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true, neonColor: TKColors.textMuted)),
+                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
                 const SizedBox(width: 12),
                 Expanded(child: TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () => Navigator.pop(context, true), isEnabled: true)),
               ],
@@ -1371,7 +1372,7 @@ Future<void> changeDeviceName() async {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true, neonColor: TKColors.textMuted)),
+                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
                 const SizedBox(width: 12),
                 Expanded(child: TKNeonButton(label: '确认恢复出厂', icon: Icons.delete_forever, neonColor: TKColors.neonRed, onTap: () => Navigator.pop(context, true), isEnabled: true)),
               ],
@@ -1843,7 +1844,6 @@ Future<void> changeDeviceName() async {
           });
         },
         isEnabled: true,
-        neonColor: hoursController.text == duration.inMinutes.toString() ? TKColors.neonBlue : TKColors.neonBlueDark,
       ),
     );
   }
@@ -1867,7 +1867,7 @@ Future<void> changeDeviceName() async {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true, neonColor: TKColors.textMuted)),
+                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
                 const SizedBox(width: 12),
                 Expanded(child: TKNeonButton(label: '确定', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () => Navigator.pop(context, hoursController.text), isEnabled: true)),
               ],
@@ -2146,7 +2146,7 @@ Future<void> changeDeviceName() async {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true, neonColor: TKColors.textMuted)),
+                  Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
                   const SizedBox(width: 12),
                   Expanded(child: TKNeonButton(label: '恢复默认蓝牙密码', icon: Icons.restore, neonColor: TKColors.neonRed, onTap: () { Navigator.pop(context); factoryReset(); }, isEnabled: true)),
                 ],
@@ -2155,7 +2155,6 @@ Future<void> changeDeviceName() async {
           ),
         ),
       );
-  }
 
   void _showTimeSyncDialog() => showDialog(
         context: context,
@@ -2179,7 +2178,6 @@ Future<void> changeDeviceName() async {
           ),
         ),
       );
-  }
 
   void _showAboutDialog() => showDialog(
         context: context,
@@ -2203,7 +2201,6 @@ Future<void> changeDeviceName() async {
           ),
         ),
       );
-  }
 
   void _showAdminAuthDialog() => showDialog(
         context: context,
@@ -2244,7 +2241,6 @@ Future<void> changeDeviceName() async {
           ),
         ),
       );
-  }
 
   // 管理员操作列表项
   Widget _AdminActionTile({
