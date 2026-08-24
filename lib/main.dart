@@ -1059,6 +1059,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
     esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
+    final savedAccessMode = p.getString('access_mode');
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1082,9 +1083,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (simulationMode && autoConnect && adminDevice != null && adminDevice == installId) {
       _log('[APP] 自动连接：检测到已授权管理员设备');
       await _autoConnectSimulation();
-    } else if (!simulationMode && autoConnect && authorized && adminDevice != null && adminDevice == installId && savedRemoteId != null) {
-      _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
-      await _autoConnectReal();
+    } else if (simulationMode && autoConnect && authorized && savedAccessMode == 'borrower' && borrowCode != null) {
+      _log('[APP] 自动连接：检测到已授权临时借车');
+      await _autoConnectSimulation();
+    } else if (!simulationMode && autoConnect && authorized && savedRemoteId != null) {
+      // 管理员或临时借车都支持自动连接
+      final isAdminDevice = adminDevice != null && adminDevice == installId;
+      final isBorrower = savedAccessMode == 'borrower';
+      if (isAdminDevice || isBorrower) {
+        _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
+        await _autoConnectReal();
+      }
     }
 
     if (backgroundScan) {
@@ -1148,7 +1157,20 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         _log('[APP] 自动连接失败：未找到车辆');
         return;
       }
-      await _connectBle(foundDevice!, AccessMode.admin, autoConnectVerify: true);
+      // 根据保存的访问模式决定连接方式
+      final savedMode = prefs?.getString('access_mode');
+      if (savedMode == 'borrower') {
+        // 临时借车自动连接
+        final savedCode = prefs?.getString('borrow_code');
+        if (savedCode == null || savedCode.isEmpty) {
+          setState(() { connecting = false; status = '借车授权已失效，请重新认证'; });
+          return;
+        }
+        await _connectBle(foundDevice!, AccessMode.borrower, password: savedCode, autoConnectVerify: true);
+      } else {
+        // 管理员自动连接
+        await _connectBle(foundDevice!, AccessMode.admin, autoConnectVerify: true);
+      }
     } catch (e) {
       setState(() { connecting = false; status = '自动连接失败：$e'; });
       _log('[APP] 自动连接失败：$e');
@@ -1273,15 +1295,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (connecting || connected) return;
     var target = foundDevice;
     if (target == null) {
-      // 没有已保存设备，先扫描
-      setState(() { connecting = true; status = '正在扫描设备...'; });
+      // 没有已保存设备，先扫描（不设connecting，否则scan()会跳过）
+      setState(() { status = '正在扫描设备...'; });
       await scan();
-      if (foundDevice == null || !mounted) {
-        setState(() { connecting = false; status = '未发现设备，请确认ESP32已开启'; });
+      if (!mounted) return;
+      if (scannedDevices.isEmpty) {
+        setState(() { status = '未发现设备，请确认ESP32已开启'; });
         _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
-      target = foundDevice!;
+      // 扫到了让用户选设备
+      return;
     }
     if (autoConnect && authorized && adminDevice != null && adminDevice == installId) {
       await _connectBle(target, AccessMode.admin, autoConnectVerify: true);
@@ -1378,22 +1402,50 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         _log('[ESP32] BLE连接建立');
       }
 
-      // 自动连接验证：真实BLE模式发!DEVID检查管理员席位
+      // 自动连接验证：根据身份发送不同验证命令
       if (autoConnectVerify && !simulationMode && bleGateway.readyForWrite) {
-        setState(() => status = 'BLE已连接，正在验证管理员席位...');
-        String? reply;
-        for (int retry = 0; retry < 3; retry++) {
-          reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
-          _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
-          if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
-          if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
-        }
-        if (reply != null && reply.contains('OK')) {
-          _log('[APP] 管理员席位验证通过');
-          adminSession = true;
-          adminDevice = installId;
-          await prefs?.setString('admin_device_id', installId!);
-        } else if (reply != null && reply.contains('NO_ADMIN')) {
+        final savedMode = prefs?.getString('access_mode');
+        if (savedMode == 'borrower') {
+          // 临时借车自动连接：发送!VERIFYBORROW验证
+          final savedCode = prefs?.getString('borrow_code');
+          if (savedCode == null || savedCode.isEmpty) {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '借车授权已失效，请重新认证'; });
+            return;
+          }
+          setState(() => status = 'BLE已连接，正在验证临时借车授权...');
+          String? reply;
+          for (int retry = 0; retry < 3; retry++) {
+            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $savedCode'));
+            _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+            if (reply != null && reply.contains('OK')) break;
+            if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+          }
+          if (reply != null && reply.contains('OK')) {
+            esp32.verifyBorrowPassword(savedCode);
+            _log('[APP] 临时借车授权验证通过');
+          } else {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '临时借车授权已过期或无效'; });
+            _message('临时借车授权已过期，请联系管理员重新授权');
+            return;
+          }
+        } else {
+          // 管理员自动连接：发送!DEVID检查管理员席位
+          setState(() => status = 'BLE已连接，正在验证管理员席位...');
+          String? reply;
+          for (int retry = 0; retry < 3; retry++) {
+            reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
+            _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+            if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
+            if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+          }
+          if (reply != null && reply.contains('OK')) {
+            _log('[APP] 管理员席位验证通过');
+            adminSession = true;
+            adminDevice = installId;
+            await prefs?.setString('admin_device_id', installId!);
+          } else if (reply != null && reply.contains('NO_ADMIN')) {
           // ESP32没有绑定管理员，弹密码框认证
           adminSession = false;
           authorized = false;
@@ -1438,7 +1490,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         }
       }
 
-      if (!skipPassword && password != null) {
+      if (!skipPassword && password != null && !autoConnectVerify) {
         // 真实模式：BLE连上后，发送密码给ESP32验证
         if (!simulationMode && bleGateway.readyForWrite) {
           setState(() => status = 'BLE已连接，正在验证密码...');
@@ -1483,6 +1535,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             if (reply != null && reply.contains('OK')) {
               esp32.verifyBorrowPassword(password);
               _log('[APP] 临时密码验证通过');
+              // 保存临时借车授权状态
+              await prefs?.setBool('authorized', true);
+              await prefs?.setString('ble_remote_id', device.remoteId);
+              await prefs?.setString('access_mode', 'borrower');
+              await prefs?.setString('borrow_code', password);
+              if (esp32.borrowEnd != null) {
+                await prefs?.setInt('borrow_end', esp32.borrowEnd!.millisecondsSinceEpoch);
+              }
+              authorized = true;
+              savedRemoteId = device.remoteId;
             } else {
               await ble.disconnect();
               setState(() { connecting = false; status = '密码错误或已过期'; });
@@ -1521,6 +1583,15 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       }
       await prefs?.setString('ble_remote_id', target.remoteId);
       savedRemoteId = target.remoteId;
+      // 保存访问模式
+      await prefs?.setString('access_mode', selected == AccessMode.admin ? 'admin' : 'borrower');
+      // 临时借车额外保存借车信息
+      if (selected == AccessMode.borrower) {
+        await prefs?.setString('borrow_code', password ?? '');
+        if (esp32.borrowEnd != null) {
+          await prefs?.setInt('borrow_end', esp32.borrowEnd!.millisecondsSinceEpoch);
+        }
+      }
       setState(() {
         connected = true;
         connecting = false;
@@ -2109,6 +2180,59 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                         child: Column(
                           children: [
                             if (!connected) ...[
+                              // 扫描结果/状态显示
+                              if (scanning) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF06101D),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFF0D3B66).withOpacity(0.5)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: TKColors.neonBlue)),
+                                      const SizedBox(width: 8),
+                                      Text('正在搜索BLE设备...', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                                    ],
+                                  ),
+                                ),
+                              ] else if (scannedDevices.isNotEmpty) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF06101D),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFF0D3B66).withOpacity(0.5)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.bluetooth_searching, color: Color(0xFF00E5FF), size: 18),
+                                          const SizedBox(width: 8),
+                                          Text('发现 ${scannedDevices.length} 个设备，点击选择', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 13, fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      ...scannedDevices.map((device) => ListTile(
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: Icon(
+                                          device.name.contains('陕A') ? Icons.directions_car : Icons.bluetooth,
+                                          color: device.name.contains('陕A') ? const Color(0xFFFF8800) : const Color(0xFF00E5FF),
+                                          size: 20,
+                                        ),
+                                        title: Text(device.name, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                        subtitle: Text(device.remoteId, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF00E5FF), size: 18),
+                                        onTap: () => connectToDevice(device),
+                                      )),
+                                    ],
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 8),
                             ],
                             Row(children: [

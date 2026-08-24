@@ -239,7 +239,7 @@ def save_config():
 
 # ==================== 日志（200条+3天清理） ====================
 LOG_MAX = 200
-LOG_MAX_AGE = 3 * 24 * 3600
+LOG_MAX_AGE = 7 * 24 * 3600  # 7天自动清理
 log_entries = []
 
 def log(msg):
