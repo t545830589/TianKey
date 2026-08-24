@@ -1319,41 +1319,29 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             _message('BLE连接已断开');
           }
         };
-        // 等待BLE协议栈稳定
-        await Future.delayed(const Duration(milliseconds: 800));
-        // 发现服务，绑定NUS写入/通知通道（带重试）
+        // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
         bool serviceFound = false;
-        for (int attempt = 1; attempt <= 3; attempt++) {
-          try {
-            final services = await ble.discoverServices();
-            for (final service in services) {
-              if (service.serviceUuid.str.toUpperCase().contains('6E400001')) {
-                BluetoothCharacteristic? writeChar;
-                BluetoothCharacteristic? notifyChar;
-                for (final c in service.characteristics) {
-                  final uuid = c.characteristicUuid.str.toUpperCase();
-                  if (uuid.contains('6E400002')) writeChar = c;
-                  if (uuid.contains('6E400003')) notifyChar = c;
-                }
-                if (writeChar != null) {
-                  bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
-                  if (notifyChar != null) {
-                    await bleGateway.startNotify();
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
-                  }
-                  _log('[APP] NUS通道绑定成功，可以发送指令');
-                }
-                serviceFound = true;
-                break;
-              }
+        final services = ble.discoveredServices;
+        for (final service in services) {
+          if (service.serviceUuid.str.toUpperCase().contains('6E400001')) {
+            BluetoothCharacteristic? writeChar;
+            BluetoothCharacteristic? notifyChar;
+            for (final c in service.characteristics) {
+              final uuid = c.characteristicUuid.str.toUpperCase();
+              if (uuid.contains('6E400002')) writeChar = c;
+              if (uuid.contains('6E400003')) notifyChar = c;
             }
-            if (serviceFound) break;
-            _log('[APP] 第${attempt}次服务发现未找到NUS，重试...');
-            await Future.delayed(const Duration(milliseconds: 500));
-          } catch (e) {
-            _log('[APP] 第${attempt}次服务发现异常：$e');
-            await Future.delayed(const Duration(milliseconds: 500));
+            if (writeChar != null) {
+              bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
+              if (notifyChar != null) {
+                await bleGateway.startNotify();
+                await Future.delayed(const Duration(milliseconds: 200));
+                _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
+              }
+              _log('[APP] NUS通道绑定成功，可以发送指令');
+            }
+            serviceFound = true;
+            break;
           }
         }
         if (!serviceFound) {
@@ -1691,7 +1679,8 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     _log('[APP] 发送指令：$protocol');
     // 真实模式：通过BLE发送指令给ESP32，等待回复确认
     if (!simulationMode && bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode(protocol));
+      final cmdTimeout = timed ? const Duration(seconds: 10) : const Duration(seconds: 5);
+      final reply = await bleGateway.sendAndWait(utf8.encode(protocol), timeout: cmdTimeout);
       _log('[BLE] ESP32回复: $reply');
       if (reply == null || !reply.contains('OK')) {
         _message('$command\n❌ ESP32未确认执行');
