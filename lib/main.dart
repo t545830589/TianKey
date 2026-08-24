@@ -1180,12 +1180,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         throw StateError('服务列表为空');
       }
       // 绑定NUS通道
+      BluetoothCharacteristic? writeChar;
+      BluetoothCharacteristic? notifyChar;
       for (final s in ble.discoveredServices) {
         for (final c in s.characteristics) {
           final uuid = c.characteristicUuid.str.toUpperCase();
-          if (uuid.contains('6E400002')) bleGateway.bind(writeCharacteristic: c);
-          if (uuid.contains('6E400003')) bleGateway.bind(notifyCharacteristic: c);
+          if (uuid.contains('6E400002')) writeChar = c;
+          if (uuid.contains('6E400003')) notifyChar = c;
         }
+      }
+      if (writeChar != null) {
+        bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
       }
       if (bleGateway.readyForWrite) {
         await bleGateway.startNotify();
