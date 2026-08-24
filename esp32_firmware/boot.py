@@ -21,7 +21,7 @@ class BLEClient:
     def send(self, data):
         self._ble.send(data)
 
-class BLE:
+class BLEServer:
     def __init__(self, name):
         self.name = name
         self._ble = BLE(0)
@@ -434,7 +434,7 @@ log('系统启动')
 log('管理员密码: ' + admin_password[:4] + '****')
 log('管理员设备: ' + str(admin_device))
 
-ble = BLE(device_name)
+ble = BLEServer(device_name)
 ble_client = BLEClient(ble)
 ble.on_connect(on_connect)
 ble.on_disconnect(on_disconnect)
@@ -467,7 +467,7 @@ while True:
             try:
                 ble.reset()
                 time.sleep_ms(500)
-                ble = BLE(device_name)
+                ble = BLEServer(device_name)
                 ble_client = BLEClient(ble)
                 ble.on_connect(on_connect)
                 ble.on_disconnect(on_disconnect)
