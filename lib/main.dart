@@ -984,7 +984,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   bool backgroundScan = false;
   bool sound = true;
   bool locked = true;
-  bool simulationMode = true;
+  bool simulationMode = false;
   bool timeSynced = false;
   bool timeFail = false;
   int commandSeconds = 0;
@@ -1056,7 +1056,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     autoConnect = p.getBool('auto_connect') ?? true;
     backgroundScan = p.getBool('background_scan') ?? false;
     sound = p.getBool('sound') ?? true;
-    simulationMode = p.getBool('simulation_mode') ?? true;
+    simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
     esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
 
@@ -1301,7 +1301,26 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     try {
       if (!simulationMode) {
         if (target.device == null) throw StateError('BLE设备对象无效');
-        await ble.connect(target.device!);
+        // 整个连接+服务发现流程带重试
+        bool bleReady = false;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await ble.connect(target.device!);
+            if (ble.discoveredServices.isEmpty) {
+              throw StateError('服务列表为空');
+            }
+            bleReady = true;
+            break;
+          } catch (e) {
+            _log('[APP] 第${attempt}次BLE连接/服务发现失败：$e');
+            if (attempt < 3) {
+              await Future.delayed(const Duration(milliseconds: 1000));
+            }
+          }
+        }
+        if (!bleReady) {
+          throw StateError('BLE连接失败，请确认设备在附近并重试');
+        }
         ble.onDisconnect = () {
           if (mounted && connected) {
             setState(() {
@@ -1436,8 +1455,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               esp32.verifyAdminPassword(password, installId ?? '');
               adminDevice = installId;
               adminSession = true;
+              authorized = true;
               esp32.adminDevice = installId;
               await prefs?.setString('admin_device_id', installId!);
+              await prefs?.setBool('authorized', true);
               _log('[APP] 管理员密码验证通过');
             } else {
               await ble.disconnect();
@@ -1941,7 +1962,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     esp32.factoryReset();
     await prefs?.clear();
     adminPassword = defaultPassword;
-    adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; backgroundScan = false; sound = true; simulationMode = true;
+    adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; backgroundScan = false; sound = true; simulationMode = false;
     deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
     connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
     backgroundScanTimer?.cancel();
@@ -2842,7 +2863,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               esp32.factoryReset();
               await prefs?.clear();
               adminPassword = defaultPassword;
-              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; backgroundScan = false; sound = true; simulationMode = true;
+              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; backgroundScan = false; sound = true; simulationMode = false;
               deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
               connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
               final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
