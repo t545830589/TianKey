@@ -456,11 +456,6 @@ while True:
                 print('[MAIN] 开始广播...')
         if ble.is_connected and pending_connect:
             pending_connect = False
-            try:
-                ble_client.send(b'!TIMEREQ')
-                print('[BLE] 已请求APP同步时间')
-            except:
-                pass
         if ble.is_connected and pending_commands:
             cmd_str = pending_commands.pop(0)
             result = process_command(cmd_str)

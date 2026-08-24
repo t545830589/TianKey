@@ -36,7 +36,7 @@ class BleCharacteristicGateway {
     );
   }
 
-  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 2)}) async {
+  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 5)}) async {
     final characteristic = _writeCharacteristic;
     if (characteristic == null) {
       throw StateError('未绑定可写 characteristic');
@@ -44,7 +44,9 @@ class BleCharacteristicGateway {
 
     String? response;
     final sub = _notifyController?.stream.listen((value) {
-      response = String.fromCharCodes(value);
+      final msg = String.fromCharCodes(value);
+      if (msg.startsWith('!TIMEREQ')) return;
+      response = msg;
     });
 
     await characteristic.write(data, withoutResponse: false);
