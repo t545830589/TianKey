@@ -214,7 +214,6 @@ def log(msg):
     log_entries.append({'time': ts, 'text': '[{}] {}'.format(tstr, msg)})
     _clean_logs()
     print('[{}] {}'.format(tstr, msg))
-    gc.collect()
 
 def _clean_logs():
     now = time.time()
@@ -399,33 +398,30 @@ def process_command(cmd_str):
         return 'ERR UNKNOWN'
 
 # ==================== BLE回调 ====================
+pending_commands = []
+pending_disconnect = False
+pending_connect = False
+
 def on_rx(data):
+    global pending_commands
     try:
         cmd_str = data.decode('utf-8').strip()
-        result = process_command(cmd_str)
-        if result and ble_client and ble_client.is_connected:
-            ble_client.send(result.encode('utf-8'))
-            log('已回复: ' + result)
+        pending_commands.append(cmd_str)
     except Exception as e:
-        log('命令处理异常: ' + str(e))
+        print('[BLE] 数据解析异常:', e)
 
 def on_connect():
-    global ble_error_count
+    global ble_error_count, pending_connect
     ble_error_count = 0
+    pending_connect = True
     led_blink(2, 100)
     led_on()
-    log('BLE已连接')
-    if ble_client and ble_client.is_connected:
-        try:
-            ble_client.send(b'!TIMEREQ')
-            log('已请求APP同步时间')
-        except:
-            pass
+    print('[BLE] 已连接')
 
 def on_disconnect():
+    global pending_disconnect
+    pending_disconnect = True
     led_off()
-    auto_lock_action()
-    log('BLE已断开，执行安全保护')
 
 # ==================== 主程序 ====================
 load_config()
@@ -447,13 +443,31 @@ while True:
     try:
         feed_wdt()
         if not ble.is_connected:
+            if pending_disconnect:
+                pending_disconnect = False
+                auto_lock_action()
+                log('BLE已断开，执行安全保护')
+                safety_lock_all()
             if ble.scanning:
                 pass
             else:
                 ble.start_advertising()
                 print('[MAIN] 开始广播...')
+        if ble.is_connected and pending_connect:
+            pending_connect = False
+            try:
+                ble_client.send(b'!TIMEREQ')
+                print('[BLE] 已请求APP同步时间')
+            except:
+                pass
+        if ble.is_connected and pending_commands:
+            cmd_str = pending_commands.pop(0)
+            result = process_command(cmd_str)
+            if result and ble_client and ble_client.is_connected:
+                ble_client.send(result.encode('utf-8'))
+                print('[BLE] 已回复:', result)
         gc.collect()
-        time.sleep_ms(100)
+        time.sleep_ms(50)
     except KeyboardInterrupt:
         print('[MAIN] 用户中断')
         break
@@ -462,7 +476,7 @@ while True:
         ble_error_count += 1
         last_ble_error = time.time()
         if ble_error_count >= 5:
-            log('BLE异常次数过多，重置BLE协议栈')
+            print('[MAIN] BLE异常次数过多，重置BLE协议栈')
             try:
                 ble.reset()
                 time.sleep_ms(500)
@@ -472,7 +486,7 @@ while True:
                 ble.on_disconnect(on_disconnect)
                 ble.on_rx(on_rx)
                 ble_error_count = 0
-                log('BLE协议栈已恢复')
+                print('[MAIN] BLE协议栈已恢复')
             except Exception as e2:
                 print('[MAIN] BLE恢复失败:', e2)
         time.sleep(1)
