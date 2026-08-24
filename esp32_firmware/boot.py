@@ -171,6 +171,8 @@ borrow_code = None
 borrow_expiry_epoch = 0
 ble_error_count = 0
 last_ble_error = 0
+session_authenticated = False
+session_is_borrower = False
 
 # ==================== GPIO ====================
 try:
@@ -274,29 +276,12 @@ def process_command(cmd_str):
     global admin_password, admin_device, admin_last_seen
     global borrow_code, borrow_expiry_epoch
     global device_name, auto_lock
+    global session_authenticated, session_is_borrower
     cmd = cmd_str.strip()
     print('处理命令: ' + cmd)
 
-    if cmd == 'suoche':
-        gpio_pulse(gpio_lock)
-        return 'OK suoche'
-    elif cmd == 'jiesuo':
-        gpio_pulse(gpio_unlock)
-        return 'OK jiesuo'
-    elif cmd == 'xunche':
-        gpio_pulse(gpio_lock, 300)
-        gpio_pulse(gpio_lock, 300)
-        return 'OK xunche'
-    elif cmd == 'chuangsheng':
-        gpio_hold(gpio_lock, 7)
-        return 'OK chuangsheng'
-    elif cmd == 'chuangjiang':
-        gpio_hold(gpio_unlock, 7)
-        return 'OK chuangjiang'
-    elif cmd == 'houbeixiang':
-        gpio_hold(gpio_trunk, 7)
-        return 'OK houbeixiang'
-    elif cmd.startswith('!AUTH '):
+    # ===== 无需认证的指令 =====
+    if cmd.startswith('!AUTH '):
         parts = cmd.split(' ', 2)
         if len(parts) >= 3:
             pwd = parts[1]
@@ -304,6 +289,8 @@ def process_command(cmd_str):
             if pwd == admin_password:
                 admin_device = device_id
                 admin_last_seen = time.time()
+                session_authenticated = True
+                session_is_borrower = False
                 save_config()
                 print('管理员认证成功: ' + device_id)
                 return 'OK AUTH'
@@ -311,10 +298,30 @@ def process_command(cmd_str):
                 print('管理员认证失败')
                 return 'ERR AUTH_FAIL'
         return 'ERR AUTH_FMT'
+    elif cmd.startswith('!VERIFYBORROW '):
+        pwd = cmd.split(' ', 1)[1]
+        if borrow_code is None:
+            print('临时密码验证失败: 无临时密码')
+            return 'ERR NO_BORROW'
+        if pwd != borrow_code:
+            print('临时密码验证失败: 密码不匹配')
+            return 'ERR BORROW_FAIL'
+        if borrow_expiry_epoch > 0 and time.time() > borrow_expiry_epoch:
+            print('临时密码验证失败: 已过期')
+            borrow_code = None
+            borrow_expiry_epoch = 0
+            save_config()
+            return 'ERR BORROW_EXPIRED'
+        session_authenticated = True
+        session_is_borrower = True
+        print('临时密码验证通过')
+        return 'OK VERIFYBORROW'
     elif cmd.startswith('!DEVID '):
         device_id = cmd.split(' ', 1)[1] if len(cmd.split(' ')) > 1 else ''
         if admin_device and (device_id.startswith(admin_device) or admin_device.startswith(device_id)):
             admin_last_seen = time.time()
+            session_authenticated = True
+            session_is_borrower = False
             print('管理员设备确认: ' + device_id)
             return 'OK DEVID'
         elif admin_device is None:
@@ -336,6 +343,41 @@ def process_command(cmd_str):
             return 'ERR TIME: ' + str(e)
     elif cmd == '!TIMEREQ':
         return 'OK TIMEREQ'
+
+    # ===== 以下指令需要已认证 =====
+    if not session_authenticated:
+        print('未认证，拒绝执行: ' + cmd)
+        return 'ERR NOT_AUTH'
+
+    # 临时借车不能执行以下管理指令
+    if session_is_borrower:
+        # 临时借车只能操作车辆，不能改设置
+        if cmd.startswith('!PWD ') or cmd.startswith('!NAME ') or cmd.startswith('!BORROW ') or cmd == '!BORROWCLEAR' or cmd == '!RESET' or cmd.startswith('!AUTOLOCK'):
+            print('临时借车无权执行管理指令: ' + cmd)
+            return 'ERR NO_PERM'
+
+    # ===== 车辆控制指令（需认证） =====
+    if cmd == 'suoche':
+        gpio_pulse(gpio_lock)
+        return 'OK suoche'
+    elif cmd == 'jiesuo':
+        gpio_pulse(gpio_unlock)
+        return 'OK jiesuo'
+    elif cmd == 'xunche':
+        gpio_pulse(gpio_lock, 300)
+        gpio_pulse(gpio_lock, 300)
+        return 'OK xunche'
+    elif cmd == 'chuangsheng':
+        gpio_hold(gpio_lock, 7)
+        return 'OK chuangsheng'
+    elif cmd == 'chuangjiang':
+        gpio_hold(gpio_unlock, 7)
+        return 'OK chuangjiang'
+    elif cmd == 'houbeixiang':
+        gpio_hold(gpio_trunk, 7)
+        return 'OK houbeixiang'
+
+    # ===== 管理指令（仅管理员） =====
     elif cmd.startswith('!PWD '):
         pwd = cmd.split(' ', 1)[1]
         if len(pwd) >= 6:
@@ -348,7 +390,6 @@ def process_command(cmd_str):
         name = cmd.split(' ', 1)[1]
         device_name = name
         save_config()
-        # 重启广播使新名称生效
         try:
             ble.stop_advertising()
             time.sleep_ms(100)
@@ -375,22 +416,6 @@ def process_command(cmd_str):
         save_config()
         print('临时密码已清除')
         return 'OK BORROWCLEAR'
-    elif cmd.startswith('!VERIFYBORROW '):
-        pwd = cmd.split(' ', 1)[1]
-        if borrow_code is None:
-            print('临时密码验证失败: 无临时密码')
-            return 'ERR NO_BORROW'
-        if pwd != borrow_code:
-            print('临时密码验证失败: 密码不匹配')
-            return 'ERR BORROW_FAIL'
-        if borrow_expiry_epoch > 0 and time.time() > borrow_expiry_epoch:
-            print('临时密码验证失败: 已过期')
-            borrow_code = None
-            borrow_expiry_epoch = 0
-            save_config()
-            return 'ERR BORROW_EXPIRED'
-        print('临时密码验证通过')
-        return 'OK VERIFYBORROW'
     elif cmd == '!RESET':
         try:
             import os
@@ -403,6 +428,8 @@ def process_command(cmd_str):
         borrow_expiry_epoch = 0
         device_name = DEFAULT_DEVICE_NAME
         auto_lock = True
+        session_authenticated = False
+        session_is_borrower = False
         save_config()
         print('已恢复出厂设置')
         return 'OK RESET'
@@ -432,8 +459,10 @@ def on_connect():
     print('[BLE] 已连接')
 
 def on_disconnect():
-    global pending_disconnect
+    global pending_disconnect, session_authenticated, session_is_borrower
     pending_disconnect = True
+    session_authenticated = False
+    session_is_borrower = False
     led_off()
 
 # ==================== 主程序 ====================

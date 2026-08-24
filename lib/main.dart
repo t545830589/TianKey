@@ -1102,17 +1102,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (simulationMode && autoConnect && adminDevice != null && adminDevice == installId) {
       _log('[APP] 自动连接：检测到已授权管理员设备');
       await _autoConnectSimulation();
-    } else if (simulationMode && autoConnect && authorized && savedAccessMode == 'borrower' && borrowCode != null) {
-      _log('[APP] 自动连接：检测到已授权临时借车');
-      await _autoConnectSimulation();
-    } else if (!simulationMode && autoConnect && authorized && savedRemoteId != null) {
-      // 管理员或临时借车都支持自动连接
-      final isAdminDevice = adminDevice != null && adminDevice == installId;
-      final isBorrower = savedAccessMode == 'borrower';
-      if (isAdminDevice || isBorrower) {
-        _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
-        await _autoConnectReal();
-      }
+    } else if (!simulationMode && autoConnect && authorized && adminDevice != null && adminDevice == installId && savedRemoteId != null) {
+      // 只有管理员才自动连接，临时借车不自动连接（每次需重新认证）
+      _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
+      await _autoConnectReal();
     }
 
     if (backgroundScan) {
@@ -1176,20 +1169,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         return;
       }
       setState(() { connecting = true; });
-      // 根据保存的访问模式决定连接方式
-      final savedMode = prefs?.getString('access_mode');
-      if (savedMode == 'borrower') {
-        // 临时借车自动连接
-        final savedCode = prefs?.getString('borrow_code');
-        if (savedCode == null || savedCode.isEmpty) {
-          setState(() { connecting = false; status = '借车授权已失效，请重新认证'; });
-          return;
-        }
-        await _connectBle(foundDevice!, AccessMode.borrower, password: savedCode, autoConnectVerify: true);
-      } else {
-        // 管理员自动连接
-        await _connectBle(foundDevice!, AccessMode.admin, autoConnectVerify: true);
-      }
+      // 管理员自动连接
+      await _connectBle(foundDevice!, AccessMode.admin, autoConnectVerify: true);
     } catch (e) {
       setState(() { connecting = false; status = '自动连接失败：$e'; });
       _log('[APP] 自动连接失败：$e');
@@ -2078,11 +2059,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
     if (ok != true) return;
     if (!simulationMode) {
-      // 真实模式：发送恢复出厂到ESP32
+      // 真实模式：发送恢复出厂到ESP32并确认
       if (bleGateway.readyForWrite) {
-        bleGateway.writeCommand(utf8.encode('!RESET'));
-        _log('[BLE] 已发送恢复出厂到ESP32');
-        await Future.delayed(const Duration(milliseconds: 500));
+        for (int retry = 0; retry < 3; retry++) {
+          final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'));
+          _log('[BLE] ESP32恢复出厂回复: $reply');
+          if (reply != null && reply.contains('OK')) break;
+          if (retry < 2) await Future.delayed(const Duration(milliseconds: 500));
+        }
       }
       await bleGateway.dispose();
       await ble.disconnect();
