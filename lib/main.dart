@@ -800,7 +800,7 @@ enum AccessMode { admin, borrower }
 // ==================== 模拟ESP32逻辑层 ====================
 class SimulatedEsp32 {
   final void Function(String)? onLog;
-  String adminPassword = '13092991951';
+  String adminPassword = '123456789';
   String? adminDevice;
   String? borrowCode;
   DateTime? borrowStart;
@@ -909,7 +909,7 @@ class SimulatedEsp32 {
   }
 
   bool resetPassword() {
-    adminPassword = '13092991951';
+    adminPassword = '123456789';
     _logEsp32('密码已恢复默认');
     return true;
   }
@@ -921,7 +921,7 @@ class SimulatedEsp32 {
   }
 
   void factoryReset() {
-    adminPassword = '13092991951';
+    adminPassword = '123456789';
     adminDevice = null;
     borrowCode = null;
     borrowStart = null;
@@ -950,7 +950,7 @@ class TianKeyHome extends StatefulWidget {
 }
 
 class _TianKeyHomeState extends State<TianKeyHome> {
-  static const defaultPassword = '13092991951';
+  static const defaultPassword = '123456789';
   static const legacyPhoneId = 'PHONE-TIANKY-01';
   static const defaultName = '陕A0P92Y';
 
@@ -1146,17 +1146,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   Future<void> _autoConnectReal() async {
     if (simulationMode || connected || connecting) return;
     setState(() {
-      connecting = true;
       status = '正在自动连接...';
     });
     _log('[APP] 真实BLE自动连接开始');
     try {
       await scan();
       if (foundDevice == null) {
-        setState(() { connecting = false; status = '自动连接失败：未找到车辆'; });
+        setState(() { status = '自动连接失败：未找到车辆'; });
         _log('[APP] 自动连接失败：未找到车辆');
         return;
       }
+      setState(() { connecting = true; });
       // 根据保存的访问模式决定连接方式
       final savedMode = prefs?.getString('access_mode');
       if (savedMode == 'borrower') {
@@ -1479,14 +1479,36 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             return;
           }
         } else {
-          await ble.disconnect();
-          adminSession = false;
-          authorized = false;
-          await prefs?.setBool('authorized', false);
-          setState(() { connecting = false; status = '管理员席位已被其他设备占用，需重新认证'; });
-          _log('[APP] 管理员席位验证失败：已被其他设备占用');
-          _message('管理员席位已被其他设备占用，请重新输入密码认证');
-          return;
+          // 管理员席位被其他设备占用，弹密码框让当前设备重新认证
+          _log('[APP] 管理员席位验证失败：已被其他设备占用，需重新认证');
+          final pwd = await _askPassword(AccessMode.admin);
+          if (pwd == null || !mounted) {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '用户取消认证'; });
+            return;
+          }
+          String? authReply;
+          for (int retry = 0; retry < 3; retry++) {
+            authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $pwd $installId'));
+            _log('[BLE] ESP32回复: $authReply (尝试${retry + 1}/3)');
+            if (authReply != null && authReply.contains('OK')) break;
+            if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+          }
+          if (authReply != null && authReply.contains('OK')) {
+            esp32.verifyAdminPassword(pwd, installId ?? '');
+            adminDevice = installId;
+            adminSession = true;
+            authorized = true;
+            esp32.adminDevice = installId;
+            await prefs?.setString('admin_device_id', installId!);
+            await prefs?.setBool('authorized', true);
+            _log('[APP] 管理员密码验证通过，已接管管理员席位');
+          } else {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '密码错误' });
+            _message('密码错误');
+            return;
+          }
         }
       }
       }
@@ -1908,17 +1930,21 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (ok != true) return;
     final value = newPasswordController.text.trim();
     if (value.length < 6) { _message('密码至少6位'); return; }
+    // 真实模式：先发送到ESP32并确认成功
+    if (!simulationMode && bleGateway.readyForWrite) {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!PWD $value'));
+      _log('[BLE] ESP32密码修改回复: $reply');
+      if (reply == null || !reply.contains('OK')) {
+        _message('ESP32密码修改失败，请重试');
+        return;
+      }
+    }
     adminPassword = value;
     esp32.changePassword(value);
     await prefs?.setString('admin_password', value);
-    // 真实模式：发送密码修改到ESP32
-    if (!simulationMode && bleGateway.readyForWrite) {
-      bleGateway.writeCommand(utf8.encode('!PWD $value'));
-      _log('[BLE] 已发送密码修改到ESP32');
-    }
     _log('[APP] 管理员密码已保存');
     setState(() {});
-    _message('新密码已生效，旧密码失效');
+    _message('新密码已生效，旧密码已失效');
   }
 
   Future<void> changeDeviceName() async {
@@ -1949,14 +1975,18 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     if (ok != true) return;
     final value = nameController.text.trim();
     if (value.isEmpty) return;
+    // 真实模式：先发送到ESP32并确认成功
+    if (!simulationMode && bleGateway.readyForWrite) {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $value'));
+      _log('[BLE] ESP32名称修改回复: $reply');
+      if (reply == null || !reply.contains('OK')) {
+        _message('ESP32名称修改失败，请重试');
+        return;
+      }
+    }
     deviceName = value;
     esp32.changeDeviceName(value);
     await prefs?.setString('device_name', value);
-    // 真实模式：发送名称修改到ESP32
-    if (!simulationMode && bleGateway.readyForWrite) {
-      bleGateway.writeCommand(utf8.encode('!NAME $value'));
-      _log('[BLE] 已发送设备名称修改到ESP32');
-    }
     _log('[APP] 设备名称已保存');
     setState(() {});
     _message('设备名称已更新');
@@ -2050,7 +2080,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await prefs?.setString('install_id', newId);
     _log('[APP] 恢复出厂');
     if (mounted) setState(() { status = '已恢复未绑定初始状态'; tab = PageTab.vehicle; });
-    _message('恢复出厂完成，管理员初始密码恢复为13092991951');
+    _message('恢复出厂完成，管理员初始密码恢复为123456789');
   }
 
   Future<void> _requireAdminAuth(VoidCallback onVerified) async {

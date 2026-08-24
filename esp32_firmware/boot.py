@@ -154,7 +154,7 @@ class BLEServer:
 
 # ==================== 配置 ====================
 CONFIG_FILE = 'config.json'
-DEFAULT_PASSWORD = '13092991951'
+DEFAULT_PASSWORD = '123456789'
 DEFAULT_DEVICE_NAME = '陕A0P92Y'
 DEFAULT_GPIO_LOCK = 14
 DEFAULT_GPIO_UNLOCK = 33
@@ -347,11 +347,14 @@ def process_command(cmd_str):
     elif cmd.startswith('!NAME '):
         name = cmd.split(' ', 1)[1]
         device_name = name
+        save_config()
+        # 重启广播使新名称生效
         try:
-            ble._ble.config(gap_name=name)
+            ble.stop_advertising()
+            time.sleep_ms(100)
+            ble.start_advertising()
         except:
             pass
-        save_config()
         print('设备名已更新: ' + name)
         return 'OK NAME'
     elif cmd.startswith('!BORROW '):
