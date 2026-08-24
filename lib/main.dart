@@ -949,7 +949,7 @@ class TianKeyHome extends StatefulWidget {
   State<TianKeyHome> createState() => _TianKeyHomeState();
 }
 
-class _TianKeyHomeState extends State<TianKeyHome> {
+class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   static const defaultPassword = '123456789';
   static const legacyPhoneId = 'PHONE-TIANKY-01';
   static const defaultName = '陕A0P92Y';
@@ -1018,11 +1018,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
     backgroundScanTimer?.cancel();
@@ -1033,6 +1035,23 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     unawaited(bleGateway.dispose());
     unawaited(ble.dispose());
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // APP退到后台 → 断开BLE → ESP32重新广播 → 其他手机能扫到
+      if (connected && !simulationMode) {
+        _log('[APP] APP进入后台，断开BLE连接');
+        disconnect();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // APP回到前台 → 自动重连
+      if (!connected && !connecting && authorized && savedRemoteId != null) {
+        _log('[APP] APP回到前台，尝试自动重连');
+        connect();
+      }
+    }
   }
 
   Future<void> _load() async {
@@ -1505,7 +1524,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             _log('[APP] 管理员密码验证通过，已接管管理员席位');
           } else {
             await ble.disconnect();
-            setState(() { connecting = false; status = '密码错误' });
+            setState(() { connecting = false; status = '密码错误'; });
             _message('密码错误');
             return;
           }
