@@ -44,17 +44,23 @@ class BLEServer:
     def start_advertising(self):
         self.scanning = True
         try:
-            self._ble.active(True)
             if not self._services_registered:
+                self._ble.active(True)
                 self._register_services()
+            try:
+                self._ble.gap_advertise(None)
+            except:
+                pass
             name_bytes = self.name.encode('utf-8')
             # NUS 128-bit UUID little-endian: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
             nus_uuid_le = bytes([0x01, 0x00, 0x40, 0x6E, 0xA3, 0xB5, 0x93, 0xF3, 0xE0, 0xA9, 0xE5, 0x0E, 0x24, 0xDC, 0xCA, 0x9E])
             adv_data = bytes([0x02, 0x01, 0x06]) + bytes([0x11, 0x06]) + nus_uuid_le + bytes([len(name_bytes) + 1, 0x09]) + name_bytes
             self._ble.gap_advertise(100 * 1000, adv_data=adv_data)
             self._ble.irq(self._irq_handler)
+            print('[BLE] 广播已启动')
         except Exception as e:
             print('[BLE] 广播启动失败:', e)
+            self.scanning = False
 
     def stop_advertising(self):
         self.scanning = False
