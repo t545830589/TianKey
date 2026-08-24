@@ -1348,6 +1348,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           adminSession = true;
           adminDevice = installId;
           await prefs?.setString('admin_device_id', installId!);
+        } else if (reply != null && reply.contains('NO_ADMIN')) {
+          // ESP32没有绑定管理员，需要手动认证
+          await ble.disconnect();
+          adminSession = false;
+          authorized = false;
+          await prefs?.setBool('authorized', false);
+          setState(() { connecting = false; status = 'ESP32未绑定管理员，请手动认证'; });
+          _log('[APP] ESP32未绑定管理员，需手动输入密码认证');
+          _message('ESP32未绑定管理员，请通过蓝牙页面手动输入密码认证');
+          return;
         } else {
           await ble.disconnect();
           adminSession = false;

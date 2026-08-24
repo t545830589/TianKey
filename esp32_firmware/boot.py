@@ -121,7 +121,7 @@ DEFAULT_DEVICE_NAME = '陕A0P92Y'
 DEFAULT_GPIO_LOCK = 14
 DEFAULT_GPIO_UNLOCK = 33
 DEFAULT_GPIO_TRUNK = 4
-WDT_TIMEOUT_MS = 30000
+WDT_TIMEOUT_MS = 60000
 
 # ==================== 状态 ====================
 admin_password = DEFAULT_PASSWORD
@@ -307,11 +307,8 @@ def process_command(cmd_str):
             log('管理员设备确认: ' + device_id)
             return 'OK DEVID'
         elif admin_device is None:
-            admin_device = device_id
-            admin_last_seen = time.time()
-            save_config()
-            log('首次绑定管理员: ' + device_id)
-            return 'OK DEVID'
+            log('无管理员绑定，需通过!AUTH认证: ' + device_id)
+            return 'ERR NO_ADMIN'
         else:
             log('非管理员设备: ' + device_id)
             return 'ERR NOT_ADMIN'
