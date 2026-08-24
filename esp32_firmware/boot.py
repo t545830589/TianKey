@@ -4,6 +4,7 @@ import ubinascii
 import utime as time
 import gc
 import sys
+import struct
 from machine import Pin, WDT
 from bluetooth import BLE, UUID
 
@@ -13,8 +14,8 @@ UART_TX_CHAR_UUID = UUID('6E400003-B5A3-F393-E0A9-E50E24DCCA9E')
 UART_RX_CHAR_UUID = UUID('6E400002-B5A3-F393-E0A9-E50E24DCCA9E')
 
 class BLEClient:
-    def __init__(self, ble):
-        self._ble = ble
+    def __init__(self, ble_server):
+        self._ble = ble_server
     @property
     def is_connected(self):
         return self._ble.is_connected
@@ -24,9 +25,7 @@ class BLEClient:
 class BLEServer:
     def __init__(self, name):
         self.name = name
-        self._ble = BLE(0)
-        self._ble.active(False)
-        self._ble.config(gap_name=name)
+        self._ble = BLE()
         self._connected = False
         self._on_connect = None
         self._on_disconnect = None
@@ -35,28 +34,46 @@ class BLEServer:
         self._tx_handle = None
         self._rx_handle = None
         self.scanning = False
-        self._services_registered = False
+        self._init_ble()
 
     @property
     def is_connected(self):
         return self._connected
 
+    def _init_ble(self):
+        try:
+            self._ble.active(False)
+            time.sleep_ms(200)
+            self._ble.active(True)
+            time.sleep_ms(100)
+            self._ble.irq(self._irq_handler)
+            ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services((
+                (UART_SERVICE_UUID, (
+                    (UART_TX_CHAR_UUID, 0x0010),
+                    (UART_RX_CHAR_UUID, 0x0008),
+                )),
+            ))
+            try:
+                self._ble.gatts_set_buffer(self._rx_handle, 128)
+            except:
+                pass
+            self._ble.config(gap_name=self.name)
+            print('[BLE] BLE初始化完成')
+        except Exception as e:
+            print('[BLE] BLE初始化失败:', e)
+
+    def _gen_adv(self):
+        adv = struct.pack('BBB', 2, 1, 6)
+        name = self.name.encode()
+        adv += struct.pack('BB', len(name) + 1, 9) + name
+        return adv
+
     def start_advertising(self):
         self.scanning = True
         try:
-            if not self._services_registered:
-                self._ble.active(True)
-                self._register_services()
-            try:
-                self._ble.gap_advertise(None)
-            except:
-                pass
-            name_bytes = self.name.encode('utf-8')
-            # NUS 128-bit UUID little-endian: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
-            nus_uuid_le = bytes([0x01, 0x00, 0x40, 0x6E, 0xA3, 0xB5, 0x93, 0xF3, 0xE0, 0xA9, 0xE5, 0x0E, 0x24, 0xDC, 0xCA, 0x9E])
-            adv_data = bytes([0x02, 0x01, 0x06]) + bytes([0x11, 0x06]) + nus_uuid_le + bytes([len(name_bytes) + 1, 0x09]) + name_bytes
-            self._ble.gap_advertise(100 * 1000, adv_data=adv_data)
-            self._ble.irq(self._irq_handler)
+            self._ble.gap_advertise(None)
+            time.sleep_ms(20)
+            self._ble.gap_advertise(100, self._gen_adv())
             print('[BLE] 广播已启动')
         except Exception as e:
             print('[BLE] 广播启动失败:', e)
@@ -69,22 +86,31 @@ class BLEServer:
         except:
             pass
 
-    def _register_services(self):
+    def ble_reset(self):
         try:
-            services = (
+            self._ble.active(False)
+            time.sleep_ms(200)
+            self._ble.active(True)
+            time.sleep_ms(100)
+            self._ble.irq(self._irq_handler)
+            ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services((
                 (UART_SERVICE_UUID, (
-                    (UART_TX_CHAR_UUID, 0x0012),
+                    (UART_TX_CHAR_UUID, 0x0010),
                     (UART_RX_CHAR_UUID, 0x0008),
                 )),
-            )
-            ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services(services)
+            ))
             try:
                 self._ble.gatts_set_buffer(self._rx_handle, 128)
             except:
                 pass
-            self._services_registered = True
+            self._ble.config(gap_name=self.name)
+            self._connected = False
+            self._conn_handle = None
+            self.scanning = False
+            self.start_advertising()
+            print('[BLE] BLE协议栈已重置')
         except Exception as e:
-            print('[BLE] 服务注册失败:', e)
+            print('[BLE] 重置失败:', e)
 
     def _irq_handler(self, event, data):
         if event == 1:
@@ -96,6 +122,7 @@ class BLEServer:
         elif event == 2:
             self._connected = False
             self._conn_handle = None
+            self.scanning = False
             if self._on_disconnect:
                 self._on_disconnect()
         elif event == 3:
@@ -121,7 +148,6 @@ class BLEServer:
             time.sleep_ms(200)
             self._connected = False
             self._conn_handle = None
-            self._services_registered = False
             print('[BLE] BLE协议栈已重置')
         except Exception as e:
             print('[BLE] 重置失败:', e)
@@ -443,10 +469,13 @@ ble_client = BLEClient(ble)
 ble.on_connect(on_connect)
 ble.on_disconnect(on_disconnect)
 ble.on_rx(on_rx)
+ble.start_advertising()
 gc.collect()
 
 print('[MAIN] 启动BLE广播...')
 print('[MAIN] 等待连接...')
+
+adv_fail_count = 0
 
 while True:
     try:
@@ -456,11 +485,9 @@ while True:
                 pending_disconnect = False
                 auto_lock_action()
                 log('BLE已断开，执行安全保护')
-            if ble.scanning:
-                pass
-            else:
+            if not ble.scanning:
                 ble.start_advertising()
-                print('[MAIN] 开始广播...')
+        adv_fail_count = 0
         if ble.is_connected and pending_connect:
             pending_connect = False
         if ble.is_connected and pending_commands:
@@ -470,7 +497,7 @@ while True:
                 ble_client.send(result.encode('utf-8'))
                 print('[BLE] 已回复:', result)
         gc.collect()
-        time.sleep_ms(50)
+        time.sleep_ms(300 if not ble.is_connected else 100)
     except KeyboardInterrupt:
         print('[MAIN] 用户中断')
         break
@@ -481,13 +508,7 @@ while True:
         if ble_error_count >= 5:
             print('[MAIN] BLE异常次数过多，重置BLE协议栈')
             try:
-                ble.reset()
-                time.sleep_ms(500)
-                ble = BLEServer(device_name)
-                ble_client = BLEClient(ble)
-                ble.on_connect(on_connect)
-                ble.on_disconnect(on_disconnect)
-                ble.on_rx(on_rx)
+                ble.ble_reset()
                 ble_error_count = 0
                 print('[MAIN] BLE协议栈已恢复')
             except Exception as e2:
