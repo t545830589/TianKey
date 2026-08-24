@@ -1371,7 +1371,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
         for (int retry = 0; retry < 3; retry++) {
           reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
           _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
-          if (reply != null && reply.contains('OK')) break;
+          if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
         }
         if (reply != null && reply.contains('OK')) {
@@ -1380,15 +1380,38 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           adminDevice = installId;
           await prefs?.setString('admin_device_id', installId!);
         } else if (reply != null && reply.contains('NO_ADMIN')) {
-          // ESP32没有绑定管理员，需要手动认证
-          await ble.disconnect();
+          // ESP32没有绑定管理员，弹密码框认证
           adminSession = false;
           authorized = false;
-          await prefs?.setBool('authorized', false);
-          setState(() { connecting = false; status = 'ESP32未绑定管理员，请手动认证'; });
-          _log('[APP] ESP32未绑定管理员，需手动输入密码认证');
-          _message('ESP32未绑定管理员，请通过蓝牙页面手动输入密码认证');
-          return;
+          _log('[APP] ESP32无管理员绑定，进入密码认证流程');
+          final pwd = await _askPassword(selected);
+          if (pwd == null || !mounted) {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '用户取消认证'; });
+            return;
+          }
+          String? authReply;
+          for (int retry = 0; retry < 3; retry++) {
+            authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $pwd $installId'));
+            _log('[BLE] ESP32回复: $authReply (尝试${retry + 1}/3)');
+            if (authReply != null && authReply.contains('OK')) break;
+            if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+          }
+          if (authReply != null && authReply.contains('OK')) {
+            esp32.verifyAdminPassword(pwd, installId ?? '');
+            adminDevice = installId;
+            adminSession = true;
+            esp32.adminDevice = installId;
+            await prefs?.setString('admin_device_id', installId!);
+            await prefs?.setBool('authorized', true);
+            authorized = true;
+            _log('[APP] 管理员密码验证通过');
+          } else {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '密码错误'; });
+            _message('密码错误');
+            return;
+          }
         } else {
           await ble.disconnect();
           adminSession = false;
