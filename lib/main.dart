@@ -761,7 +761,7 @@ ThemeData _buildTKTheme() {
       errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TKColors.neonRed, width: 2)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: TKColors.bgCard,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: TKColors.neonBlue, width: 2)),
       titleTextStyle: const TextStyle(color: TKColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
@@ -1489,6 +1489,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
           return;
         }
       }
+      }
 
       if (!skipPassword && password != null && !autoConnectVerify) {
         // 真实模式：BLE连上后，发送密码给ESP32验证
@@ -1537,14 +1538,14 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               _log('[APP] 临时密码验证通过');
               // 保存临时借车授权状态
               await prefs?.setBool('authorized', true);
-              await prefs?.setString('ble_remote_id', device.remoteId);
+              await prefs?.setString('ble_remote_id', target.remoteId);
               await prefs?.setString('access_mode', 'borrower');
               await prefs?.setString('borrow_code', password);
               if (esp32.borrowEnd != null) {
                 await prefs?.setInt('borrow_end', esp32.borrowEnd!.millisecondsSinceEpoch);
               }
               authorized = true;
-              savedRemoteId = device.remoteId;
+              savedRemoteId = target.remoteId;
             } else {
               await ble.disconnect();
               setState(() { connecting = false; status = '密码错误或已过期'; });

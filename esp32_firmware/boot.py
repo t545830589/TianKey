@@ -237,60 +237,37 @@ def save_config():
     except Exception as e:
         print('[CONFIG] 保存失败:', e)
 
-# ==================== 日志（200条+3天清理） ====================
-LOG_MAX = 200
-LOG_MAX_AGE = 7 * 24 * 3600  # 7天自动清理
-log_entries = []
-
-def log(msg):
-    ts = time.time()
-    t = time.localtime()
-    tstr = '{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}'.format(t[0], t[1], t[2], t[3], t[4], t[5])
-    log_entries.append({'time': ts, 'text': '[{}] {}'.format(tstr, msg)})
-    _clean_logs()
-    print('[{}] {}'.format(tstr, msg))
-
-def _clean_logs():
-    now = time.time()
-    log_entries[:] = [e for e in log_entries if now - e['time'] < LOG_MAX_AGE]
-    while len(log_entries) > LOG_MAX:
-        log_entries.pop(0)
-
-def log_get_all():
-    gc.collect()
-    return '\n'.join(['[{}] {}'.format(e['text'].split('] ')[0] + ']', e['text'].split('] ')[1] if '] ' in e['text'] else e['text']) for e in log_entries[-50:]]) if log_entries else '无日志'
-
 # ==================== 安全保护 ====================
 def safety_lock_all():
     try:
         gpio_lock.value(0)
         gpio_unlock.value(0)
         gpio_trunk.value(0)
-        log('安全保护: 所有GPIO已锁定')
+        print('安全保护: 所有GPIO已锁定')
     except Exception as e:
-        log('安全保护失败: ' + str(e))
+        print('安全保护失败: ' + str(e))
 
 def auto_lock_action():
     if auto_lock:
         safety_lock_all()
-        log('自动落锁: 已执行')
+        print('自动落锁: 已执行')
     else:
-        log('自动落锁: 未开启，跳过')
+        print('自动落锁: 未开启，跳过')
 
 # ==================== GPIO控制 ====================
 def gpio_pulse(pin, ms=500):
     try:
         pin.value(1); time.sleep_ms(ms); pin.value(0)
-        log('GPIO脉冲完成')
+        print('GPIO脉冲完成')
     except Exception as e:
-        log('GPIO脉冲失败: ' + str(e))
+        print('GPIO脉冲失败: ' + str(e))
 
 def gpio_hold(pin, seconds=7):
     try:
         pin.value(1); time.sleep(seconds); pin.value(0)
-        log('GPIO保持完成')
+        print('GPIO保持完成')
     except Exception as e:
-        log('GPIO保持失败: ' + str(e))
+        print('GPIO保持失败: ' + str(e))
 
 # ==================== 命令处理 ====================
 def process_command(cmd_str):
@@ -298,7 +275,7 @@ def process_command(cmd_str):
     global borrow_code, borrow_expiry_epoch
     global device_name, auto_lock
     cmd = cmd_str.strip()
-    log('处理命令: ' + cmd)
+    print('处理命令: ' + cmd)
 
     if cmd == 'suoche':
         gpio_pulse(gpio_lock)
@@ -328,23 +305,23 @@ def process_command(cmd_str):
                 admin_device = device_id
                 admin_last_seen = time.time()
                 save_config()
-                log('管理员认证成功: ' + device_id)
+                print('管理员认证成功: ' + device_id)
                 return 'OK AUTH'
             else:
-                log('管理员认证失败')
+                print('管理员认证失败')
                 return 'ERR AUTH_FAIL'
         return 'ERR AUTH_FMT'
     elif cmd.startswith('!DEVID '):
         device_id = cmd.split(' ', 1)[1] if len(cmd.split(' ')) > 1 else ''
         if admin_device and (device_id.startswith(admin_device) or admin_device.startswith(device_id)):
             admin_last_seen = time.time()
-            log('管理员设备确认: ' + device_id)
+            print('管理员设备确认: ' + device_id)
             return 'OK DEVID'
         elif admin_device is None:
-            log('无管理员绑定，需通过!AUTH认证: ' + device_id)
+            print('无管理员绑定，需通过!AUTH认证: ' + device_id)
             return 'ERR NO_ADMIN'
         else:
-            log('非管理员设备: ' + device_id + ' (管理员: ' + str(admin_device) + ')')
+            print('非管理员设备: ' + device_id + ' (管理员: ' + str(admin_device) + ')')
             return 'ERR NOT_ADMIN'
     elif cmd.startswith('!TIME '):
         try:
@@ -353,7 +330,7 @@ def process_command(cmd_str):
             rtc = machine.RTC()
             tm = time.localtime(ts)
             rtc.init((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
-            log('时间同步: ' + str(ts))
+            print('时间同步: ' + str(ts))
             return 'OK TIME'
         except Exception as e:
             return 'ERR TIME: ' + str(e)
@@ -364,7 +341,7 @@ def process_command(cmd_str):
         if len(pwd) >= 6:
             admin_password = pwd
             save_config()
-            log('密码已更新')
+            print('密码已更新')
             return 'OK PWD'
         return 'ERR PWD_LEN'
     elif cmd.startswith('!NAME '):
@@ -375,7 +352,7 @@ def process_command(cmd_str):
         except:
             pass
         save_config()
-        log('设备名已更新: ' + name)
+        print('设备名已更新: ' + name)
         return 'OK NAME'
     elif cmd.startswith('!BORROW '):
         parts = cmd.split(' ')
@@ -386,30 +363,30 @@ def process_command(cmd_str):
             except:
                 borrow_expiry_epoch = time.time() + 3600 * 24
             save_config()
-            log('临时密码已设置: ' + borrow_code + ' 过期: ' + str(borrow_expiry_epoch))
+            print('临时密码已设置: ' + borrow_code + ' 过期: ' + str(borrow_expiry_epoch))
             return 'OK BORROW'
         return 'ERR BORROW_FMT'
     elif cmd == '!BORROWCLEAR':
         borrow_code = None
         borrow_expiry_epoch = 0
         save_config()
-        log('临时密码已清除')
+        print('临时密码已清除')
         return 'OK BORROWCLEAR'
     elif cmd.startswith('!VERIFYBORROW '):
         pwd = cmd.split(' ', 1)[1]
         if borrow_code is None:
-            log('临时密码验证失败: 无临时密码')
+            print('临时密码验证失败: 无临时密码')
             return 'ERR NO_BORROW'
         if pwd != borrow_code:
-            log('临时密码验证失败: 密码不匹配')
+            print('临时密码验证失败: 密码不匹配')
             return 'ERR BORROW_FAIL'
         if borrow_expiry_epoch > 0 and time.time() > borrow_expiry_epoch:
-            log('临时密码验证失败: 已过期')
+            print('临时密码验证失败: 已过期')
             borrow_code = None
             borrow_expiry_epoch = 0
             save_config()
             return 'ERR BORROW_EXPIRED'
-        log('临时密码验证通过')
+        print('临时密码验证通过')
         return 'OK VERIFYBORROW'
     elif cmd == '!RESET':
         try:
@@ -424,12 +401,10 @@ def process_command(cmd_str):
         device_name = DEFAULT_DEVICE_NAME
         auto_lock = True
         save_config()
-        log('已恢复出厂设置')
+        print('已恢复出厂设置')
         return 'OK RESET'
-    elif cmd == '!LOG':
-        return log_get_all()
     else:
-        log('未知命令: ' + cmd)
+        print('未知命令: ' + cmd)
         return 'ERR UNKNOWN'
 
 # ==================== BLE回调 ====================
@@ -460,9 +435,9 @@ def on_disconnect():
 
 # ==================== 主程序 ====================
 load_config()
-log('系统启动')
-log('管理员密码: ' + admin_password[:4] + '****')
-log('管理员设备: ' + str(admin_device))
+print('系统启动')
+print('管理员密码: ' + admin_password[:4] + '****')
+print('管理员设备: ' + str(admin_device))
 
 ble = BLEServer(device_name)
 ble_client = BLEClient(ble)
@@ -484,7 +459,7 @@ while True:
             if pending_disconnect:
                 pending_disconnect = False
                 auto_lock_action()
-                log('BLE已断开，执行安全保护')
+                print('BLE已断开，执行安全保护')
             if not ble.scanning:
                 ble.start_advertising()
         adv_fail_count = 0
