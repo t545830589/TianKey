@@ -24,7 +24,7 @@ class BLEClient:
 class BLE:
     def __init__(self, name):
         self.name = name
-        self._ble = BLE()
+        self._ble = BLE(0)
         self._ble.active(False)
         self._ble.config(gap_name=name)
         self._connected = False
