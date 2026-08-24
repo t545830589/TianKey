@@ -1078,7 +1078,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
     esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
-    final savedAccessMode = p.getString('access_mode');
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
