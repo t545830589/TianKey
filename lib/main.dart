@@ -1168,8 +1168,61 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         return;
       }
       setState(() { connecting = true; });
-      // 管理员自动连接
-      await _connectBle(foundDevice!, AccessMode.admin, autoConnectVerify: true);
+      // 管理员自动连接：用保存的密码直接认证
+      final savedPwd = prefs?.getString('admin_password');
+      if (savedPwd == null || savedPwd.isEmpty) {
+        setState(() { connecting = false; status = '自动连接失败：无保存的密码'; });
+        return;
+      }
+      // 先BLE连接
+      await ble.connect(foundDevice!.device!);
+      if (ble.discoveredServices.isEmpty) {
+        throw StateError('服务列表为空');
+      }
+      // 绑定NUS通道
+      for (final s in ble.discoveredServices) {
+        for (final c in s.characteristics) {
+          final uuid = c.characteristicUuid.str.toUpperCase();
+          if (uuid.contains('6E400002')) bleGateway.bind(writeCharacteristic: c);
+          if (uuid.contains('6E400003')) bleGateway.bind(notifyCharacteristic: c);
+        }
+      }
+      if (bleGateway.readyForWrite) {
+        await bleGateway.startNotify();
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+      // 用保存的密码认证
+      String? reply;
+      for (int retry = 0; retry < 3; retry++) {
+        reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'));
+        _log('[BLE] 自动认证回复: $reply (尝试${retry + 1}/3)');
+        if (reply != null && reply.contains('OK')) break;
+        if (retry < 2) await Future.delayed(const Duration(milliseconds: 500));
+      }
+      if (reply != null && reply.contains('OK')) {
+        esp32.verifyAdminPassword(savedPwd, installId ?? '');
+        adminDevice = installId;
+        adminSession = true;
+        authorized = true;
+        esp32.adminDevice = installId;
+        await prefs?.setString('admin_device_id', installId!);
+        await prefs?.setBool('authorized', true);
+        foundDevice = BleScanItem(name: esp32.deviceName, remoteId: foundDevice!.remoteId, device: foundDevice!.device);
+        savedRemoteId = foundDevice!.remoteId;
+        await prefs?.setString('ble_remote_id', foundDevice!.remoteId);
+        setState(() {
+          connected = true;
+          connecting = false;
+          timeSynced = false;
+          status = '自动连接成功，管理员模式';
+        });
+        _log('[APP] 管理员自动认证通过');
+        await syncTime();
+      } else {
+        await ble.disconnect();
+        setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
+        _log('[APP] 自动连接密码认证失败');
+      }
     } catch (e) {
       setState(() { connecting = false; status = '自动连接失败：$e'; });
       _log('[APP] 自动连接失败：$e');
