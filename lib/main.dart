@@ -1271,10 +1271,17 @@ class _TianKeyHomeState extends State<TianKeyHome> {
 
   Future<void> connect() async {
     if (connecting || connected) return;
-    final target = foundDevice;
+    var target = foundDevice;
     if (target == null) {
+      // 没有已保存设备，先扫描
+      setState(() { connecting = true; status = '正在扫描设备...'; });
       await scan();
-      return;
+      if (foundDevice == null || !mounted) {
+        setState(() { connecting = false; status = '未发现设备，请确认ESP32已开启'; });
+        _message('未发现设备，请确认ESP32在附近并已开启');
+        return;
+      }
+      target = foundDevice!;
     }
     if (autoConnect && authorized && adminDevice != null && adminDevice == installId) {
       await _connectBle(target, AccessMode.admin, autoConnectVerify: true);
@@ -2102,94 +2109,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                         child: Column(
                           children: [
                             if (!connected) ...[
-                              // BLE扫描区域
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF06101D),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFF0D3B66).withOpacity(0.5)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.bluetooth_searching, color: Color(0xFF00E5FF), size: 18),
-                                        const SizedBox(width: 8),
-                                        const Text('BLE扫描', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 14, fontWeight: FontWeight.bold)),
-                                        const Spacer(),
-                                        TKNeonButton(
-                                          label: scanning ? '扫描中...' : '扫描',
-                                          icon: Icons.search,
-                                          neonColor: TKColors.neonBlue,
-                                          onTap: scanning ? null : () => scan(),
-                                          isEnabled: !scanning && !connecting && !connected,
-                                        ),
-                                      ],
-                                    ),
-                                    if (scannedDevices.isNotEmpty) ...[
-                                      const SizedBox(height: 8),
-                                      // 搜索框
-                                      TextField(
-                                        controller: searchController,
-                                        style: const TextStyle(color: Colors.white, fontSize: 13),
-                                        decoration: InputDecoration(
-                                          hintText: '搜索设备名称...',
-                                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                                          prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF), size: 18),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(color: Color(0xFF0D3B66)),
-                                          ),
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(color: Color(0xFF0D3B66)),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(color: Color(0xFF00E5FF)),
-                                          ),
-                                          isDense: true,
-                                        ),
-                                        onChanged: (v) => setState(() => searchQuery = v),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      // 设备列表
-                                      ...scannedDevices.where((d) =>
-                                        searchQuery.isEmpty || d.name.toLowerCase().contains(searchQuery.toLowerCase()) || d.remoteId.toLowerCase().contains(searchQuery.toLowerCase())
-                                      ).map((device) => ListTile(
-                                        dense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                        leading: Icon(
-                                          device.name.contains('陕A') ? Icons.directions_car : Icons.bluetooth,
-                                          color: device.name.contains('陕A') ? const Color(0xFFFF8800) : const Color(0xFF00E5FF),
-                                          size: 20,
-                                        ),
-                                        title: Text(device.name, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                                        subtitle: Text(device.remoteId, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
-                                        trailing: const Icon(Icons.chevron_right, color: Color(0xFF00E5FF), size: 18),
-                                        onTap: () => connectToDevice(device),
-                                      )),
-                                    ],
-                                    if (scanning && scannedDevices.isEmpty) ...[
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: TKColors.neonBlue)),
-                                          const SizedBox(width: 8),
-                                          Text('正在搜索BLE设备...', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                                        ],
-                                      ),
-                                    ],
-                                    if (!scanning && scannedDevices.isEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Text('点击"扫描"搜索附近BLE设备', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12)),
-                                    ],
-                                  ],
-                                ),
-                              ),
                               const SizedBox(height: 8),
                             ],
                             Row(children: [
