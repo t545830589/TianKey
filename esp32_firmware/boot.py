@@ -70,6 +70,10 @@ class BLEServer:
                 )),
             )
             ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services(services)
+            try:
+                self._ble.gatts_set_buffer(self._rx_handle, 128)
+            except:
+                pass
             self._services_registered = True
         except Exception as e:
             print('[BLE] 服务注册失败:', e)
@@ -160,10 +164,7 @@ def led_off():
     if led: led.value(0)
 
 # ==================== WDT ====================
-try:
-    wdt = WDT(timeout=WDT_TIMEOUT_MS)
-except:
-    wdt = None
+wdt = None
 
 def feed_wdt():
     if wdt: wdt.feed()
@@ -301,7 +302,7 @@ def process_command(cmd_str):
         return 'ERR AUTH_FMT'
     elif cmd.startswith('!DEVID '):
         device_id = cmd.split(' ', 1)[1] if len(cmd.split(' ')) > 1 else ''
-        if admin_device == device_id:
+        if admin_device and (device_id.startswith(admin_device) or admin_device.startswith(device_id)):
             admin_last_seen = time.time()
             log('管理员设备确认: ' + device_id)
             return 'OK DEVID'
@@ -309,7 +310,7 @@ def process_command(cmd_str):
             log('无管理员绑定，需通过!AUTH认证: ' + device_id)
             return 'ERR NO_ADMIN'
         else:
-            log('非管理员设备: ' + device_id)
+            log('非管理员设备: ' + device_id + ' (管理员: ' + str(admin_device) + ')')
             return 'ERR NOT_ADMIN'
     elif cmd.startswith('!TIME '):
         try:

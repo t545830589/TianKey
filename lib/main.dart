@@ -2074,8 +2074,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                             ],
                             Row(children: [
                               Expanded(child: TKNeonButton(label: connected ? '断开连接' : '快速连接', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
-                              const SizedBox(width: 10),
-                              Expanded(child: TKNeonButton(label: '管理员授权', icon: Icons.shield, neonColor: TKColors.neonOrange, onTap: adminEnabled ? () => toggleAuthorization() : () => _showAdminAuthDialog(), isEnabled: true)),
                             ]),
                             const SizedBox(height: 8),
                             Row(children: [
