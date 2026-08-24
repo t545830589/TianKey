@@ -48,7 +48,9 @@ class BLEServer:
             if not self._services_registered:
                 self._register_services()
             name_bytes = self.name.encode('utf-8')
-            adv_data = bytes([0x02, 0x01, 0x06]) + bytes([len(name_bytes) + 1, 0x09]) + name_bytes
+            # NUS 128-bit UUID little-endian: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
+            nus_uuid_le = bytes([0x01, 0x00, 0x40, 0x6E, 0xA3, 0xB5, 0x93, 0xF3, 0xE0, 0xA9, 0xE5, 0x0E, 0x24, 0xDC, 0xCA, 0x9E])
+            adv_data = bytes([0x02, 0x01, 0x06]) + bytes([0x11, 0x06]) + nus_uuid_le + bytes([len(name_bytes) + 1, 0x09]) + name_bytes
             self._ble.gap_advertise(100 * 1000, adv_data=adv_data)
             self._ble.irq(self._irq_handler)
         except Exception as e:
@@ -448,7 +450,6 @@ while True:
                 pending_disconnect = False
                 auto_lock_action()
                 log('BLE已断开，执行安全保护')
-                safety_lock_all()
             if ble.scanning:
                 pass
             else:

@@ -972,6 +972,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   String searchQuery = '';
   Timer? borrowExpiryTimer;
   Timer? commandTimer;
+  Timer? backgroundScanTimer;
 
   bool ready = false;
   bool scanning = false;
@@ -980,6 +981,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   bool authorized = true;
   bool adminSession = false;
   bool autoConnect = true;
+  bool backgroundScan = false;
   bool sound = true;
   bool locked = true;
   bool simulationMode = true;
@@ -1023,6 +1025,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   void dispose() {
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
+    backgroundScanTimer?.cancel();
     passwordController.dispose();
     newPasswordController.dispose();
     nameController.dispose();
@@ -1051,6 +1054,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     borrowEnd = end == null ? null : DateTime.fromMillisecondsSinceEpoch(end);
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
+    backgroundScan = p.getBool('background_scan') ?? false;
     sound = p.getBool('sound') ?? true;
     simulationMode = p.getBool('simulation_mode') ?? true;
     timeFail = p.getBool('time_fail') ?? false;
@@ -1081,6 +1085,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     } else if (!simulationMode && autoConnect && authorized && adminDevice != null && adminDevice == installId && savedRemoteId != null) {
       _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
       await _autoConnectReal();
+    }
+
+    if (backgroundScan) {
+      _startBackgroundScan();
     }
 
     if (mounted) setState(() {});
@@ -1311,27 +1319,47 @@ class _TianKeyHomeState extends State<TianKeyHome> {
             _message('BLE连接已断开');
           }
         };
-        // 发现服务，绑定NUS写入/通知通道
-        final services = await ble.discoverServices();
-        for (final service in services) {
-          if (service.serviceUuid.str.toUpperCase().contains('6E400001')) {
-            BluetoothCharacteristic? writeChar;
-            BluetoothCharacteristic? notifyChar;
-            for (final c in service.characteristics) {
-              final uuid = c.characteristicUuid.str.toUpperCase();
-              if (uuid.contains('6E400002')) writeChar = c;
-              if (uuid.contains('6E400003')) notifyChar = c;
-            }
+        // 等待BLE协议栈稳定
+        await Future.delayed(const Duration(milliseconds: 800));
+        // 发现服务，绑定NUS写入/通知通道（带重试）
+        bool serviceFound = false;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+          try {
+            final services = await ble.discoverServices();
+            for (final service in services) {
+              if (service.serviceUuid.str.toUpperCase().contains('6E400001')) {
+                BluetoothCharacteristic? writeChar;
+                BluetoothCharacteristic? notifyChar;
+                for (final c in service.characteristics) {
+                  final uuid = c.characteristicUuid.str.toUpperCase();
+                  if (uuid.contains('6E400002')) writeChar = c;
+                  if (uuid.contains('6E400003')) notifyChar = c;
+                }
             if (writeChar != null) {
               bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
               if (notifyChar != null) {
                 await bleGateway.startNotify();
+                await Future.delayed(const Duration(milliseconds: 200));
                 _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
               }
               _log('[APP] NUS通道绑定成功，可以发送指令');
             }
-            break;
+                  _log('[APP] NUS通道绑定成功，可以发送指令');
+                  serviceFound = true;
+                }
+                break;
+              }
+            }
+            if (serviceFound) break;
+            _log('[APP] 第${attempt}次服务发现未找到NUS，重试...');
+            await Future.delayed(const Duration(milliseconds: 500));
+          } catch (e) {
+            _log('[APP] 第${attempt}次服务发现异常：$e');
+            await Future.delayed(const Duration(milliseconds: 500));
           }
+        }
+        if (!serviceFound) {
+          throw StateError('无法发现NUS服务，请确认ESP32固件正常');
         }
       } else {
         await Future.delayed(const Duration(milliseconds: 500));
@@ -1341,8 +1369,13 @@ class _TianKeyHomeState extends State<TianKeyHome> {
       // 自动连接验证：真实BLE模式发!DEVID检查管理员席位
       if (autoConnectVerify && !simulationMode && bleGateway.readyForWrite) {
         setState(() => status = 'BLE已连接，正在验证管理员席位...');
-        final reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
-        _log('[BLE] ESP32回复: $reply');
+        String? reply;
+        for (int retry = 0; retry < 3; retry++) {
+          reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
+          _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+          if (reply != null && reply.contains('OK')) break;
+          if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+        }
         if (reply != null && reply.contains('OK')) {
           _log('[APP] 管理员席位验证通过');
           adminSession = true;
@@ -1384,8 +1417,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               _message('管理员席位已被其他设备占用');
               return;
             }
-            reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'));
-            _log('[BLE] ESP32回复: $reply');
+            for (int retry = 0; retry < 3; retry++) {
+              reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'));
+              _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+              if (reply != null && reply.contains('OK')) break;
+              if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+            }
             if (reply != null && reply.contains('OK')) {
               esp32.verifyAdminPassword(password, installId ?? '');
               adminDevice = installId;
@@ -1400,8 +1437,12 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               return;
             }
           } else {
-            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'));
-            _log('[BLE] ESP32回复: $reply');
+            for (int retry = 0; retry < 3; retry++) {
+              reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'));
+              _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+              if (reply != null && reply.contains('OK')) break;
+              if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+            }
             if (reply != null && reply.contains('OK')) {
               esp32.verifyBorrowPassword(password);
               _log('[APP] 临时密码验证通过');
@@ -1890,9 +1931,10 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     esp32.factoryReset();
     await prefs?.clear();
     adminPassword = defaultPassword;
-    adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true; simulationMode = true;
+    adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; backgroundScan = false; sound = true; simulationMode = true;
     deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
     connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
+    backgroundScanTimer?.cancel();
     final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
     installId = newId;
     await prefs?.setString('install_id', newId);
@@ -1924,6 +1966,53 @@ class _TianKeyHomeState extends State<TianKeyHome> {
   }
 
   void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '[APP] 自动连接开启' : '[APP] 自动连接关闭'); setState(() {}); }
+
+  void _toggleBackgroundScan(bool _) async {
+    backgroundScan = !backgroundScan;
+    await prefs?.setBool('background_scan', backgroundScan);
+    if (backgroundScan) {
+      _log('[APP] 后台自动扫描开启（省电模式，每60秒扫描一次）');
+      _startBackgroundScan();
+    } else {
+      _log('[APP] 后台自动扫描关闭');
+      backgroundScanTimer?.cancel();
+      backgroundScanTimer = null;
+    }
+    setState(() {});
+  }
+
+  void _startBackgroundScan() {
+    backgroundScanTimer?.cancel();
+    backgroundScanTimer = Timer.periodic(const Duration(seconds: 60), (timer) async {
+      if (!mounted || connected || connecting || scanning) return;
+      if (!backgroundScan) { timer.cancel(); return; }
+      _log('[APP] 后台扫描中...');
+      try {
+        if (simulationMode) {
+          await scan();
+          if (foundDevice != null && !connected && !connecting) {
+            await connect();
+          }
+        } else {
+          final devices = await ble.scan();
+          if (devices.isNotEmpty) {
+            final esp32Device = devices.firstWhere(
+              (d) => d.name.contains('陕A0P92Y') || d.name.contains('TianKey'),
+              orElse: () => devices.first,
+            );
+            foundDevice = esp32Device;
+            savedRemoteId = esp32Device.remoteId;
+            if (autoConnect && authorized && adminDevice != null && adminDevice == installId) {
+              _log('[APP] 后台扫描发现车辆，自动连接');
+              await _connectBle(esp32Device, AccessMode.admin, autoConnectVerify: true);
+            }
+          }
+        }
+      } catch (e) {
+        _log('[APP] 后台扫描异常: $e');
+      }
+    });
+  }
 
   Widget vehiclePage() => Scaffold(
         backgroundColor: TKColors.bgPrimary,
@@ -2452,6 +2541,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                     _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? () => syncTime() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '统一日志', icon: Icons.receipt_long, onTap: () => showLogs()),
                     _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: () { _toggleAutoConnect(autoConnect); }),
+                    _AdminActionTile(title: '后台自动扫描：${backgroundScan ? '开启' : '关闭'}', icon: Icons.radar, onTap: () { _toggleBackgroundScan(backgroundScan); }),
                     _AdminActionTile(title: '管理员迁移', icon: Icons.swap_horiz, onTap: adminEnabled ? () => _migrateAdmin() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '恢复出厂', icon: Icons.delete_forever, onTap: adminEnabled ? () => factoryReset() : () => _message('请先完成管理员认证'), isDanger: true),
                     const SizedBox(height: 20),
@@ -2742,7 +2832,7 @@ class _TianKeyHomeState extends State<TianKeyHome> {
               esp32.factoryReset();
               await prefs?.clear();
               adminPassword = defaultPassword;
-              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true; simulationMode = true;
+              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; backgroundScan = false; sound = true; simulationMode = true;
               deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
               connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
               final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';

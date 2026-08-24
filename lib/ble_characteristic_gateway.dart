@@ -43,21 +43,24 @@ class BleCharacteristicGateway {
     }
 
     String? response;
+    final completer = Completer<String?>();
     final sub = _notifyController?.stream.listen((value) {
       final msg = String.fromCharCodes(value);
       if (msg.startsWith('!TIMEREQ')) return;
-      response = msg;
+      if (!completer.isCompleted) {
+        response = msg;
+        completer.complete(msg);
+      }
     });
 
     await characteristic.write(data, withoutResponse: false);
 
-    final deadline = DateTime.now().add(timeout);
-    while (response == null && DateTime.now().isBefore(deadline)) {
-      await Future.delayed(const Duration(milliseconds: 50));
-    }
+    final result = await completer.future.timeout(timeout, onTimeout: () {
+      return null;
+    });
 
     sub?.cancel();
-    return response;
+    return result;
   }
 
   Future<Stream<List<int>>> startNotify() async {
@@ -70,7 +73,7 @@ class BleCharacteristicGateway {
     await characteristic.setNotifyValue(true);
 
     _notifyController ??= StreamController<List<int>>.broadcast();
-    _notifySubscription = characteristic.lastValueStream.listen(
+    _notifySubscription = characteristic.onValueChangedStream.listen(
       (value) => _notifyController?.add(List<int>.from(value)),
       onError: _notifyController?.addError,
     );
