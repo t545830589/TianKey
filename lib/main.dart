@@ -1162,6 +1162,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _log('[APP] 真实BLE自动连接开始');
     try {
       await scan();
+      if (foundDevice == null && savedRemoteId != null) {
+        final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
+        if (match.isNotEmpty) foundDevice = match.first;
+      }
+      if (foundDevice == null && scannedDevices.length == 1) {
+        foundDevice = scannedDevices.first;
+      }
       if (foundDevice == null) {
         setState(() { status = '自动连接失败：未找到车辆'; });
         _log('[APP] 自动连接失败：未找到车辆');
@@ -1361,8 +1368,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
-      // 扫到了让用户选设备
-      return;
+      // 扫到了：如果已授权且有保存的设备，自动连接
+      if (authorized && savedRemoteId != null) {
+        final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
+        if (match.isNotEmpty) {
+          foundDevice = match.first;
+          target = foundDevice;
+        } else if (scannedDevices.length == 1) {
+          foundDevice = scannedDevices.first;
+          target = foundDevice;
+        }
+      }
+      if (target == null) {
+        return;
+      }
     }
     if (autoConnect && authorized && adminDevice != null && adminDevice == installId) {
       await _connectBle(target, AccessMode.admin, autoConnectVerify: true);
