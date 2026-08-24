@@ -1261,32 +1261,6 @@ class _TianKeyHomeState extends State<TianKeyHome> {
     await _connectBle(device, selected, password: pwd);
   }
 
-  Future<BleScanItem?> _chooseBleDevice(List<BleScanItem> devices) {
-    return showDialog<BleScanItem>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF06101D),
-        title: const Text('选择 BLE 设备'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: devices.length,
-            itemBuilder: (context, index) {
-              final item = devices[index];
-              return ListTile(
-                leading: const Icon(Icons.bluetooth, color: Color(0xFF1595FF)),
-                title: Text(item.name),
-                subtitle: Text(item.remoteId),
-                onTap: () => Navigator.pop(context, item),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> connect() async {
     if (connecting || connected) return;
     final target = foundDevice;
