@@ -47,7 +47,9 @@ class BLEServer:
             self._ble.active(True)
             if not self._services_registered:
                 self._register_services()
-            self._ble.gap_advertise(100 * 1000, adv_data=bytes([0x02, 0x01, 0x06, 0x03, 0x03, 0x00, 0x40, 0x6E]))
+            name_bytes = self.name.encode('utf-8')
+            adv_data = bytes([0x02, 0x01, 0x06]) + bytes([len(name_bytes) + 1, 0x09]) + name_bytes
+            self._ble.gap_advertise(100 * 1000, adv_data=adv_data)
             self._ble.irq(self._irq_handler)
         except Exception as e:
             print('[BLE] 广播启动失败:', e)
