@@ -1335,18 +1335,16 @@ class _TianKeyHomeState extends State<TianKeyHome> {
                   if (uuid.contains('6E400002')) writeChar = c;
                   if (uuid.contains('6E400003')) notifyChar = c;
                 }
-            if (writeChar != null) {
-              bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
-              if (notifyChar != null) {
-                await bleGateway.startNotify();
-                await Future.delayed(const Duration(milliseconds: 200));
-                _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
-              }
-              _log('[APP] NUS通道绑定成功，可以发送指令');
-            }
+                if (writeChar != null) {
+                  bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
+                  if (notifyChar != null) {
+                    await bleGateway.startNotify();
+                    await Future.delayed(const Duration(milliseconds: 200));
+                    _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
+                  }
                   _log('[APP] NUS通道绑定成功，可以发送指令');
-                  serviceFound = true;
                 }
+                serviceFound = true;
                 break;
               }
             }

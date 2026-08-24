@@ -42,13 +42,11 @@ class BleCharacteristicGateway {
       throw StateError('未绑定可写 characteristic');
     }
 
-    String? response;
     final completer = Completer<String?>();
     final sub = _notifyController?.stream.listen((value) {
       final msg = String.fromCharCodes(value);
       if (msg.startsWith('!TIMEREQ')) return;
       if (!completer.isCompleted) {
-        response = msg;
         completer.complete(msg);
       }
     });
@@ -73,7 +71,7 @@ class BleCharacteristicGateway {
     await characteristic.setNotifyValue(true);
 
     _notifyController ??= StreamController<List<int>>.broadcast();
-    _notifySubscription = characteristic.onValueChangedStream.listen(
+    _notifySubscription = characteristic.onValueReceived.listen(
       (value) => _notifyController?.add(List<int>.from(value)),
       onError: _notifyController?.addError,
     );
