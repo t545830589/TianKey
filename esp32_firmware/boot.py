@@ -200,9 +200,9 @@ def save_config():
     except Exception as e:
         print('[CONFIG] 保存失败:', e)
 
-# ==================== 日志（200条+7天清理） ====================
+# ==================== 日志（200条+3天清理） ====================
 LOG_MAX = 200
-LOG_MAX_AGE = 7 * 24 * 3600
+LOG_MAX_AGE = 3 * 24 * 3600
 log_entries = []
 
 def log(msg):
@@ -416,7 +416,7 @@ def on_connect():
     led_blink(2, 100)
     led_on()
     log('BLE已连接')
-    if ble_client and ble_client.is_connected():
+    if ble_client and ble_client.is_connected:
         try:
             ble_client.send(b'!TIMEREQ')
             log('已请求APP同步时间')
