@@ -1186,7 +1186,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       // 用扫描方式找到设备（替代不可靠的fromId）
       _log('[APP] 扫描寻找已保存设备: $savedRemoteId');
       setState(() => status = '正在扫描已保存设备...');
-      final devices = await ble.scan(timeout: const Duration(seconds: 15));
+      final devices = await ble.scan(timeout: const Duration(seconds: 3));
       if (!mounted) return;
       BleScanItem? target;
       if (devices.isNotEmpty) {
@@ -1380,17 +1380,30 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (connecting || connected || _autoConnecting) return;
     var target = foundDevice;
 
-    // 没有已发现设备时，用扫描找
+    // 有保存的设备ID → 先直接重连（1-2秒），不扫描
+    if (target == null && savedRemoteId != null) {
+      _log('[APP] 直接重连: $savedRemoteId');
+      setState(() { status = '正在重连已保存设备...'; });
+      try {
+        final savedDevice = BluetoothDevice.fromId(savedRemoteId!);
+        target = BleScanItem(name: deviceName, remoteId: savedRemoteId!, device: savedDevice);
+        foundDevice = target;
+      } catch (e) {
+        _log('[APP] 直接重连失败: $e，回退扫描');
+        target = null;
+      }
+    }
+
+    // 直接重连失败 → 扫描3秒
     if (target == null) {
       setState(() { status = '正在扫描设备...'; });
-      await scan(timeout: const Duration(seconds: 15));
+      await scan(timeout: const Duration(seconds: 3));
       if (!mounted) return;
       if (scannedDevices.isEmpty) {
         setState(() { status = '未发现设备，请确认ESP32已开启'; });
         _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
-      // 已保存设备优先匹配
       if (authorized && savedRemoteId != null) {
         final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
         if (match.isNotEmpty) {
@@ -1443,7 +1456,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           } catch (e) {
             _log('[APP] 第${attempt}次BLE连接/服务发现失败：$e');
             if (attempt < 3) {
-              await Future.delayed(const Duration(milliseconds: 1000));
+              await Future.delayed(const Duration(milliseconds: 500));
             }
           }
         }
@@ -1867,23 +1880,24 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         protocol = 'houbeixiang'; gpio = 4; detail = 'GPIO4 保持7秒';
     }
     _log('[APP] 发送指令：$protocol');
-    // 真实模式：通过BLE发送指令给ESP32，等待回复确认
+    // 真实模式：直接发送，不等回复（ESP32瞬间执行）
     if (!simulationMode && bleGateway.readyForWrite) {
-      final cmdTimeout = timed ? const Duration(seconds: 10) : const Duration(seconds: 5);
-      final reply = await bleGateway.sendAndWait(utf8.encode(protocol), timeout: cmdTimeout);
-      _log('[BLE] ESP32回复: $reply');
-      if (reply == null || !reply.contains('OK')) {
-        _message('$command\n❌ ESP32未确认执行');
-        _log('[BLE] ESP32未确认指令：$protocol');
+      try {
+        await bleGateway.writeCommand(utf8.encode(protocol));
+        _log('[BLE] 已发送：$protocol');
+      } catch (e) {
+        _message('发送失败：$e');
+        _log('[BLE] 发送失败：$e');
         return;
       }
-      _log('[BLE] 已确认：$protocol');
     } else if (!simulationMode && !bleGateway.readyForWrite) {
       _message('BLE通道未就绪，请重新连接');
       return;
     }
     final espDetail = esp32.executeCommand(protocol);
     _log('[ESP32] $espDetail');
+    setState(() { status = '✅ $command 已发送'; });
+    _message('$command\n✅ 已发送');
     commandTimer?.cancel();
     if (timed) {
       commandSeconds = 7;
@@ -1892,9 +1906,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (!mounted) { timer.cancel(); return; }
         if (commandSeconds <= 1) {
           timer.cancel();
-          setState(() { commandSeconds = 0; activeCommand = ''; status = '✅ $command 完成：$espDetail'; });
-          _log('[ESP32] $protocol 执行成功');
-          _message('$command\n✅ 执行成功');
+          setState(() { commandSeconds = 0; activeCommand = ''; status = '✅ $command 完成'; });
           return;
         }
         setState(() => commandSeconds -= 1);
