@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tiankey-apk-build-${{ github.ref }}
+  group: tianjin-apk-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -45,22 +45,14 @@ jobs:
         shell: bash
         run: |
           if [ ! -f android/settings.gradle ]; then
-            flutter create --platforms=android --project-name=tiankey --no-pub .
+            flutter create --platforms=android --project-name=tianjin --no-pub .
           fi
           rm -rf test
           rm -f analysis_options.yaml
 
-          # flutter_blue_plus 1.36.8 requires Android API 21+ and Android 12 BLE permissions.
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' android/app/build.gradle
           sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' android/app/build.gradle
 
-          # flutter_blue_plus_android 7.0.4 is a legacy Android library module that
-          # reads Flutter's SDK values through a project property named `flutter`.
-          # Flutter 3.19.6 does not expose that property to the generated library
-          # subproject, so define the exact SDK values only on that library project.
-          # Do NOT define `project.ext.flutter` on :app: Flutter's own Gradle plugin
-          # uses that property for the Flutter source directory; overwriting it on
-          # every project causes the observed `Must provide Flutter source directory`.
           if ! grep -q 'flutter_blue_plus_android' android/build.gradle; then
             python3 - <<'PY'
           from pathlib import Path
@@ -91,6 +83,40 @@ jobs:
           test -f lib/main.dart
           test -f lib/ble_service.dart
 
+      - name: Set app icon and name
+        shell: bash
+        run: |
+          pip install Pillow
+          python3 - <<'PY'
+          from PIL import Image
+          import os, glob
+
+          src = 'assets/app_icon.png'
+          if not os.path.exists(src):
+              print('No app_icon.png found, skipping')
+              exit(0)
+
+          img = Image.open(src)
+          sizes = {
+              'mipmap-mdpi': 48,
+              'mipmap-hdpi': 72,
+              'mipmap-xhdpi': 96,
+              'mipmap-xxhdpi': 144,
+              'mipmap-xxxhdpi': 192,
+          }
+          for folder, size in sizes.items():
+              out_dir = f'android/app/src/main/res/{folder}'
+              os.makedirs(out_dir, exist_ok=True)
+              resized = img.resize((size, size), Image.LANCZOS)
+              resized.save(os.path.join(out_dir, 'ic_launcher.png'))
+              print(f'  {folder}/ic_launcher.png ({size}x{size})')
+
+          print('App icon set to TIANJIN')
+          PY
+
+          # Set app name to TIANJIN
+          sed -i 's/android:label="[^"]*"/android:label="TIANJIN"/' android/app/src/main/AndroidManifest.xml
+
       - name: Get dependencies
         run: flutter pub get
 
@@ -109,6 +135,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TianKey-V11-release-apk
+          name: TIANJIN-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error

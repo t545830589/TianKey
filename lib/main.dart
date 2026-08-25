@@ -1883,7 +1883,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     // 真实模式：直接发送，不等回复（ESP32瞬间执行）
     if (!simulationMode && bleGateway.readyForWrite) {
       try {
-        await bleGateway.writeCommand(utf8.encode(protocol));
+        await bleGateway.writeCommand(utf8.encode(protocol), withoutResponse: true);
         _log('[BLE] 已发送：$protocol');
       } catch (e) {
         _message('发送失败：$e');

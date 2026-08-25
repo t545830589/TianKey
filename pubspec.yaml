@@ -1,6 +1,7 @@
-name: tian_key
+name: tianjin
 
-description: "Tian Key V11 personal Mazda Axela BLE car key app"
+description: "TIANJIN BLE car key app"
+
 publish_to: "none"
 
 version: 1.0.0+1
@@ -19,4 +20,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-    - assets/home_car_bg.jpg
+    - assets/home_car_bg.png
+    - assets/app_icon.png
