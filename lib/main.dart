@@ -978,6 +978,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool scanning = false;
   bool connecting = false;
   bool connected = false;
+  bool _autoConnecting = false;
   bool authorized = true;
   bool adminSession = false;
   bool autoConnect = true;
@@ -1122,7 +1123,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> _autoConnectSimulation() async {
-    if (!simulationMode || connected || connecting) return;
+    if (!simulationMode || connected || connecting || _autoConnecting) return;
+    _autoConnecting = true;
     setState(() {
       connecting = true;
       status = '正在自动连接...';
@@ -1158,34 +1160,51 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       status = adminSession ? '自动连接成功，管理员模式' : '自动连接成功，非管理员模式，需输入密码';
     });
     _log('[APP] BLE自动连接成功${adminSession ? "（管理员）" : "（非管理员）"}');
+    _autoConnecting = false;
     await syncTime();
   }
 
   Future<void> _autoConnectReal() async {
-    if (simulationMode || connected || connecting) return;
+    if (simulationMode || connected || connecting || _autoConnecting) return;
+    _autoConnecting = true;
     setState(() {
+      connecting = true;
       status = '正在自动连接...';
     });
     _log('[APP] 真实BLE自动连接开始');
     try {
-      // 直接用保存的设备ID重连，不扫描（快且稳定）
       if (savedRemoteId == null || savedRemoteId!.isEmpty) {
         setState(() { connecting = false; status = '自动连接失败：无保存设备'; });
         _log('[APP] 自动连接失败：无保存设备');
         return;
       }
-      _log('[APP] 直接重连: $savedRemoteId');
-      final savedDevice = BluetoothDevice.fromId(savedRemoteId!);
-      foundDevice = BleScanItem(name: deviceName, remoteId: savedRemoteId!, device: savedDevice);
-      setState(() { connecting = true; });
-      // 管理员自动连接：用保存的密码直接认证
       final savedPwd = prefs?.getString('admin_password');
       if (savedPwd == null || savedPwd.isEmpty) {
         setState(() { connecting = false; status = '自动连接失败：无保存的密码'; });
         return;
       }
+      // 用扫描方式找到设备（替代不可靠的fromId）
+      _log('[APP] 扫描寻找已保存设备: $savedRemoteId');
+      setState(() => status = '正在扫描已保存设备...');
+      final devices = await ble.scan(timeout: const Duration(seconds: 15));
+      if (!mounted) return;
+      BleScanItem? target;
+      if (devices.isNotEmpty) {
+        // 优先用remoteId精确匹配
+        final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
+        if (match.isNotEmpty) {
+          target = match.first;
+        }
+      }
+      if (target == null) {
+        setState(() { connecting = false; status = '自动连接失败：设备不在附近'; });
+        _log('[APP] 自动连接失败：扫描未找到已保存设备');
+        return;
+      }
+      foundDevice = target;
+      _log('[APP] 扫描找到设备: ${target.name} / ${target.remoteId}');
       // BLE连接
-      await ble.connect(foundDevice!.device!);
+      await ble.connect(target.device!);
       if (ble.discoveredServices.isEmpty) {
         throw StateError('服务列表为空');
       }
@@ -1238,6 +1257,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     } catch (e) {
       setState(() { connecting = false; status = '自动连接失败：$e'; });
       _log('[APP] 自动连接失败：$e');
+    } finally {
+      _autoConnecting = false;
     }
   }
 
@@ -1283,7 +1304,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     borrowExpiryTimer = Timer(delay, () => unawaited(_clearBorrow(logExpiry: true)));
   }
 
-  Future<void> scan() async {
+  Future<void> scan({Duration? timeout}) async {
     if (!ready || scanning || connecting || connected) return;
     setState(() {
       scanning = true;
@@ -1307,7 +1328,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (!await ble.isSupported()) {
           throw StateError('当前手机不支持 BLE');
         }
-        final devices = await ble.scan();
+        final devices = await ble.scan(timeout: timeout ?? const Duration(seconds: 6));
         if (!mounted) return;
         scannedDevices = devices;
         if (devices.isEmpty) {
@@ -1356,32 +1377,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> connect() async {
-    if (connecting || connected) return;
+    if (connecting || connected || _autoConnecting) return;
     var target = foundDevice;
 
-    // 优先：有保存的设备ID直接重连，不扫描（快且稳定）
-    if (target == null && savedRemoteId != null && authorized) {
-      _log('[APP] 尝试直接重连 savedRemoteId: $savedRemoteId');
-      setState(() { status = '正在重连已保存设备...'; });
-      try {
-        final savedDevice = BluetoothDevice.fromId(savedRemoteId!);
-        target = BleScanItem(name: deviceName, remoteId: savedRemoteId!, device: savedDevice);
-        foundDevice = target;
-      } catch (e) {
-        _log('[APP] 直接重连失败: $e，回退扫描');
-      }
-    }
-
-    // 直接重连失败或没有保存设备，才扫描
+    // 没有已发现设备时，用扫描找
     if (target == null) {
       setState(() { status = '正在扫描设备...'; });
-      await scan();
+      await scan(timeout: const Duration(seconds: 15));
       if (!mounted) return;
       if (scannedDevices.isEmpty) {
         setState(() { status = '未发现设备，请确认ESP32已开启'; });
         _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
+      // 已保存设备优先匹配
       if (authorized && savedRemoteId != null) {
         final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
         if (match.isNotEmpty) {
@@ -2186,7 +2195,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _startBackgroundScan() {
     backgroundScanTimer?.cancel();
     backgroundScanTimer = Timer.periodic(const Duration(seconds: 60), (timer) async {
-      if (!mounted || connected || connecting || scanning) return;
+      if (!mounted || connected || connecting || scanning || _autoConnecting) return;
       if (!backgroundScan) { timer.cancel(); return; }
       _log('[APP] 后台扫描中...');
       try {
@@ -2245,7 +2254,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 height: 170,
                 width: double.infinity,
                 child: Image.asset(
-                  'assets/home_car_bg.jpg',
+                  'assets/home_car_bg.png',
                   fit: BoxFit.cover,
                   alignment: const Alignment(0, 0.1),
                 ),
