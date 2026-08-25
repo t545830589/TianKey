@@ -1050,6 +1050,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (!connected && !connecting && authorized && savedRemoteId != null) {
         _log('[APP] APP回到前台，尝试自动重连');
         connect();
+        // 3秒后如果还没连上，重试一次
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+            _log('[APP] 自动重连重试');
+            connect();
+          }
+        });
       }
     }
   }
@@ -1161,19 +1168,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     });
     _log('[APP] 真实BLE自动连接开始');
     try {
-      await scan();
-      if (foundDevice == null && savedRemoteId != null) {
-        final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
-        if (match.isNotEmpty) foundDevice = match.first;
-      }
-      if (foundDevice == null && scannedDevices.length == 1) {
-        foundDevice = scannedDevices.first;
-      }
-      if (foundDevice == null) {
-        setState(() { status = '自动连接失败：未找到车辆'; });
-        _log('[APP] 自动连接失败：未找到车辆');
+      // 直接用保存的设备ID重连，不扫描（快且稳定）
+      if (savedRemoteId == null || savedRemoteId!.isEmpty) {
+        setState(() { connecting = false; status = '自动连接失败：无保存设备'; });
+        _log('[APP] 自动连接失败：无保存设备');
         return;
       }
+      _log('[APP] 直接重连: $savedRemoteId');
+      final savedDevice = BluetoothDevice.fromId(savedRemoteId!);
+      foundDevice = BleScanItem(name: deviceName, remoteId: savedRemoteId!, device: savedDevice);
       setState(() { connecting = true; });
       // 管理员自动连接：用保存的密码直接认证
       final savedPwd = prefs?.getString('admin_password');
@@ -1181,7 +1184,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         setState(() { connecting = false; status = '自动连接失败：无保存的密码'; });
         return;
       }
-      // 先BLE连接
+      // BLE连接
       await ble.connect(foundDevice!.device!);
       if (ble.discoveredServices.isEmpty) {
         throw StateError('服务列表为空');
@@ -1219,9 +1222,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         esp32.adminDevice = installId;
         await prefs?.setString('admin_device_id', installId!);
         await prefs?.setBool('authorized', true);
-        foundDevice = BleScanItem(name: esp32.deviceName, remoteId: foundDevice!.remoteId, device: foundDevice!.device);
-        savedRemoteId = foundDevice!.remoteId;
-        await prefs?.setString('ble_remote_id', foundDevice!.remoteId);
         setState(() {
           connected = true;
           connecting = false;
@@ -1358,8 +1358,22 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> connect() async {
     if (connecting || connected) return;
     var target = foundDevice;
+
+    // 优先：有保存的设备ID直接重连，不扫描（快且稳定）
+    if (target == null && savedRemoteId != null && authorized) {
+      _log('[APP] 尝试直接重连 savedRemoteId: $savedRemoteId');
+      setState(() { status = '正在重连已保存设备...'; });
+      try {
+        final savedDevice = BluetoothDevice.fromId(savedRemoteId!);
+        target = BleScanItem(name: deviceName, remoteId: savedRemoteId!, device: savedDevice);
+        foundDevice = target;
+      } catch (e) {
+        _log('[APP] 直接重连失败: $e，回退扫描');
+      }
+    }
+
+    // 直接重连失败或没有保存设备，才扫描
     if (target == null) {
-      // 没有已保存设备，先扫描（不设connecting，否则scan()会跳过）
       setState(() { status = '正在扫描设备...'; });
       await scan();
       if (!mounted) return;
@@ -1368,7 +1382,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
-      // 扫到了：如果已授权且有保存的设备，自动连接
       if (authorized && savedRemoteId != null) {
         final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
         if (match.isNotEmpty) {
