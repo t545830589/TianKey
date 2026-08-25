@@ -18,5 +18,15 @@ dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/
-    - assets/home_car_bg.jpg
+    - assets/borrow_page_bg.png
+    - assets/home_car_bg.png
+    - assets/home_controls_bg.png
+    - assets/logo_footer_bg.png
+    - assets/popup_admin_auth.png
+    - assets/popup_device_name.png
+    - assets/popup_edit_pwd.png
+    - assets/popup_reset_pwd.png
+    - assets/popup_sound.png
+    - assets/popup_time_sync.png
+    - assets/settings_auto_connect.png
+    - assets/settings_page_bg.png
