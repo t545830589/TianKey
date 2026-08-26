@@ -1380,21 +1380,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (connecting || connected || _autoConnecting) return;
     var target = foundDevice;
 
-    // 有保存的设备ID → 先直接重连（1-2秒），不扫描
-    if (target == null && savedRemoteId != null) {
-      _log('[APP] 直接重连: $savedRemoteId');
-      setState(() { status = '正在重连已保存设备...'; });
-      try {
-        final savedDevice = BluetoothDevice.fromId(savedRemoteId!);
-        target = BleScanItem(name: deviceName, remoteId: savedRemoteId!, device: savedDevice);
-        foundDevice = target;
-      } catch (e) {
-        _log('[APP] 直接重连失败: $e，回退扫描');
-        target = null;
-      }
-    }
-
-    // 直接重连失败 → 扫描3秒
+    // 没有已发现设备 → 扫描3秒找
     if (target == null) {
       setState(() { status = '正在扫描设备...'; });
       await scan(timeout: const Duration(seconds: 3));
@@ -1404,17 +1390,21 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
-      if (authorized && savedRemoteId != null) {
+      // 已保存设备优先匹配
+      if (savedRemoteId != null) {
         final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
         if (match.isNotEmpty) {
           foundDevice = match.first;
           target = foundDevice;
-        } else if (scannedDevices.length == 1) {
-          foundDevice = scannedDevices.first;
-          target = foundDevice;
         }
       }
+      // 没匹配到保存设备，但只有一个设备就直接选
+      if (target == null && scannedDevices.length == 1) {
+        foundDevice = scannedDevices.first;
+        target = foundDevice;
+      }
       if (target == null) {
+        setState(() { status = '发现${scannedDevices.length}个设备，请选择'; });
         return;
       }
     }
