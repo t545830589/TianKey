@@ -36,7 +36,7 @@ class BleCharacteristicGateway {
     );
   }
 
-  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 5)}) async {
+  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 2)}) async {
     final characteristic = _writeCharacteristic;
     if (characteristic == null) {
       throw StateError('未绑定可写 characteristic');

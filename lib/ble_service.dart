@@ -130,7 +130,7 @@ class TianKeyBleService {
       await target.connect(timeout: const Duration(seconds: 15), autoConnect: false);
       // 等待ESP32 GATT服务就绪
       for (int i = 0; i < 3; i++) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 300));
         if (!target.isConnected) throw StateError('BLE设备未连接');
         try {
           await discoverServices();

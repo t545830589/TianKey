@@ -1231,7 +1231,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'));
         _log('[BLE] 自动认证回复: $reply (尝试${retry + 1}/3)');
         if (reply != null && reply.contains('OK')) break;
-        if (retry < 2) await Future.delayed(const Duration(milliseconds: 500));
+        if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
       }
       if (reply != null && reply.contains('OK')) {
         esp32.verifyAdminPassword(savedPwd, installId ?? '');
@@ -1520,7 +1520,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $savedCode'));
             _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
             if (reply != null && reply.contains('OK')) break;
-            if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+            if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
           if (reply != null && reply.contains('OK')) {
             esp32.verifyBorrowPassword(savedCode);
@@ -1539,7 +1539,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
             _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
             if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
-            if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+            if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
           if (reply != null && reply.contains('OK')) {
             _log('[APP] 管理员席位验证通过');
@@ -1563,7 +1563,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'));
               _log('[BLE] ESP32回复: $authReply (尝试${retry + 1}/3)');
               if (authReply != null && authReply.contains('OK')) break;
-              if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+              if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (authReply != null && authReply.contains('OK')) {
               esp32.verifyAdminPassword(savedPwd, installId ?? '');
@@ -1602,7 +1602,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'));
               _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
               if (reply != null && reply.contains('OK')) break;
-              if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+              if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (reply != null && reply.contains('OK')) {
               esp32.verifyAdminPassword(password, installId ?? '');
@@ -1624,7 +1624,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'));
               _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
               if (reply != null && reply.contains('OK')) break;
-              if (retry < 2) await Future.delayed(const Duration(milliseconds: 300));
+              if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (reply != null && reply.contains('OK')) {
               esp32.verifyBorrowPassword(password);
@@ -1780,14 +1780,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> syncTime() async {
     if (!connected) return;
     _log('[APP] 自动同步时间...');
-    // 真实模式：发送时间给ESP32
     if (!simulationMode && bleGateway.readyForWrite) {
       final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      bleGateway.writeCommand(utf8.encode('!TIME $ts'));
+      bleGateway.writeCommand(utf8.encode('!TIME $ts'), withoutResponse: true);
       _log('[BLE] 已发送时间同步：$ts');
     }
     _log('[ESP32] 收到时间同步请求');
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
     if (timeFail) {
       setState(() {
