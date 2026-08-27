@@ -1099,6 +1099,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       _startBackgroundScan();
     }
 
+    // 自动连接失败或首次使用（无保存设备），自动扫描弹出设备列表让用户手动选
+    if (!connected && !simulationMode && mounted) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted && !connected && !scanning) scan();
+    }
+
     if (mounted) setState(() {});
   }
 
@@ -1248,15 +1254,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
 
 
-  void _message(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: const TextStyle(color: TKColors.textPrimary)),
-      backgroundColor: TKColors.bgCard,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: TKColors.neonBlue, width: 1)),
-    ));
-  }
+  void _message(String message) {}
 
   void _scheduleBorrowExpiry() {
     borrowExpiryTimer?.cancel();
