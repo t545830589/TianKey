@@ -799,7 +799,6 @@ enum AccessMode { admin, borrower }
 
 // ==================== 模拟ESP32逻辑层 ====================
 class SimulatedEsp32 {
-  final void Function(String)? onLog;
   String adminPassword = '123456789';
   String? adminDevice;
   String? borrowCode;
@@ -810,47 +809,34 @@ class SimulatedEsp32 {
   DateTime? espTime;
   bool autoLockEnabled = true;
 
-  SimulatedEsp32({this.onLog});
-
-  void _logEsp32(String msg) {
-    onLog?.call('[ESP32] $msg');
-  }
+  SimulatedEsp32();
 
   bool verifyAdminPassword(String password, String deviceId) {
-    _logEsp32('收到管理员认证请求');
     if (password != adminPassword) {
-      _logEsp32('管理员密码验证失败');
       return false;
     }
     adminDevice = deviceId;
-    _logEsp32('管理员密码验证通过，设备：$deviceId');
     return true;
   }
 
   bool verifyBorrowPassword(String password) {
-    _logEsp32('收到临时借车认证请求');
     if (borrowCode == null || password != borrowCode) {
-      _logEsp32('临时密码验证失败');
       return false;
     }
     if (borrowEnd != null && DateTime.now().isAfter(borrowEnd!)) {
-      _logEsp32('临时密码已过期');
       return false;
     }
-    _logEsp32('临时密码验证通过，有效至：$borrowEnd');
     return true;
   }
 
   bool isCurrentAdmin(String deviceId) {
     final result = adminDevice == deviceId;
-    _logEsp32('检查管理员席位：${result ? "是当前管理员" : "不是当前管理员"}');
     return result;
   }
 
   bool syncTime(DateTime phoneTime) {
     espTime = phoneTime;
     timeSynced = true;
-    _logEsp32('时间同步成功：$phoneTime');
     return true;
   }
 
@@ -859,25 +845,18 @@ class SimulatedEsp32 {
     switch (command) {
       case 'suoche':
         detail = 'GPIO14 锁车脉冲';
-        _logEsp32('收到suoche，GPIO14 执行脉冲');
       case 'jiesuo':
         detail = 'GPIO33 解锁脉冲';
-        _logEsp32('收到jiesuo，GPIO33 执行脉冲');
       case 'xunche':
         detail = 'GPIO14 连续两次锁车脉冲';
-        _logEsp32('收到xunche，GPIO14 连续两次脉冲');
       case 'chuangsheng':
         detail = 'GPIO14 保持7秒';
-        _logEsp32('收到chuangsheng，GPIO14 保持7秒');
       case 'chuangjiang':
         detail = 'GPIO33 保持7秒';
-        _logEsp32('收到chuangjiang，GPIO33 保持7秒');
       case 'houbeixiang':
         detail = 'GPIO4 保持7秒';
-        _logEsp32('收到houbeixiang，GPIO4 保持7秒');
       default:
         detail = '未知命令';
-        _logEsp32('收到未知命令：$command');
     }
     return detail;
   }
@@ -898,25 +877,21 @@ class SimulatedEsp32 {
     final code = (val % 1000000).toString().padLeft(6, '0');
     
     borrowCode = code;
-    _logEsp32('生成临时借车密码：$code，有效期 ${hours == 0 ? "5分钟" : "$hours 小时"}，过期时间戳：$expiryEpoch');
     return code;
   }
 
   bool changePassword(String newPassword) {
     adminPassword = newPassword;
-    _logEsp32('密码已更新');
     return true;
   }
 
   bool resetPassword() {
     adminPassword = '123456789';
-    _logEsp32('密码已恢复默认');
     return true;
   }
 
   bool changeDeviceName(String name) {
     deviceName = name;
-    _logEsp32('设备名称已更新：$name');
     return true;
   }
 
@@ -929,15 +904,12 @@ class SimulatedEsp32 {
     deviceName = '陕A0P92Y';
     timeSynced = false;
     espTime = null;
-    _logEsp32('恢复出厂：所有设置已清除');
   }
 
   void disconnect() {
     timeSynced = false;
     espTime = null;
-    _logEsp32('BLE连接断开，执行安全保护');
     if (autoLockEnabled) {
-      _logEsp32('自动落锁：已执行');
     }
   }
 }
@@ -956,7 +928,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   final TianKeyBleService ble = TianKeyBleService();
   final BleCharacteristicGateway bleGateway = BleCharacteristicGateway();
-  late final SimulatedEsp32 esp32 = SimulatedEsp32(onLog: _log);
+  late final SimulatedEsp32 esp32 = SimulatedEsp32();
   final List<String> logs = <String>[];
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController newPasswordController = TextEditingController();
@@ -1000,6 +972,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   DateTime? borrowEnd;
   DateTime? espTime;
   bool borrowTimeConfirmed = false;
+  bool sleepEnabled = false;
+  int sleepHours = 0;
+  int sleepMinutes = 30;
+  bool esp32Sleeping = false;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   String lastCommand = '';
   bool splashDone = false;
@@ -1086,6 +1062,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
     esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
+    sleepEnabled = p.getBool('sleep_enabled') ?? false;
+    sleepHours = p.getInt('sleep_hours') ?? 0;
+    sleepMinutes = p.getInt('sleep_minutes') ?? 30;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1099,7 +1078,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _log('[APP] 启动');
     _scheduleBorrowExpiry();
     if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
-      await _clearBorrow(logExpiry: true);
+      await _clearBorrow();
     }
 
     if (mounted) setState(() {});
@@ -1262,25 +1241,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     }
   }
 
-  void _log(String message) {
-    logs.add('${DateTime.now()} $message');
-    while (logs.length > 200) logs.removeAt(0);
-    _cleanupOldLogs();
-  }
+  void _log(String message) {}
 
-  void _cleanupOldLogs() {
-    if (logs.isEmpty) return;
-    final now = DateTime.now();
-    logs.removeWhere((entry) {
-      try {
-        final entryDate = DateTime.parse(entry.split(' ').first);
-        return entryDate.isBefore(now.subtract(const Duration(days: 7)));
-      } catch (_) {
-        return false;
-      }
-    });
-    while (logs.length > 200) logs.removeAt(0);
-  }
+  void _cleanupOldLogs() {}
 
   void _message(String message) {
     if (!mounted) return;
@@ -1298,10 +1261,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (end == null) return;
     final delay = end.difference(DateTime.now());
     if (delay <= Duration.zero) {
-      unawaited(_clearBorrow(logExpiry: true));
+      unawaited(_clearBorrow());
       return;
     }
-    borrowExpiryTimer = Timer(delay, () => unawaited(_clearBorrow(logExpiry: true)));
+    borrowExpiryTimer = Timer(delay, () => unawaited(_clearBorrow()));
   }
 
   Future<void> scan({Duration? timeout}) async {
@@ -1932,19 +1895,16 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _message('临时密码：$code\n有效期：$duration');
   }
 
-  Future<void> _clearBorrow({bool logExpiry = false}) async {
+  Future<void> _clearBorrow() async {
     final hadCode = borrowCode != null;
     borrowExpiryTimer?.cancel(); borrowExpiryTimer = null;
     borrowCode = null; borrowStart = null; borrowEnd = null;
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
-    if (logExpiry && hadCode) _log('[APP] 临时借车密码已到期并清除');
     // 真实模式：通知ESP32清除临时密码
     if (!simulationMode && bleGateway.readyForWrite) {
       final reply = await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'));
-      _log('[BLE] ESP32回复: $reply');
-      _log('[BLE] 已通知ESP32清除临时密码');
     }
     if (mounted) {
       if (mode == AccessMode.borrower) {
@@ -2362,10 +2322,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        child: TKNeonButton(label: '系统日志', icon: Icons.receipt_long, neonColor: TKColors.neonBlue, onTap: () => showLogs(), isEnabled: true),
-                      ),
                       const SizedBox(height: 8),
                     ],
                   ),
@@ -2628,6 +2584,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       },
                     ),
                     TKSettingTile(
+                      title: '深度睡眠',
+                      leadingIcon: Icons.bedtime,
+                      trailingText: sleepEnabled ? '已开启' : '已关闭',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deepSleepPage(ctx)))),
+                    ),
+                    TKSettingTile(
                       title: '恢复出厂',
                       leadingIcon: Icons.delete_forever,
                       trailingText: '>',
@@ -2716,7 +2678,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                     _AdminActionTile(title: '生成临时借车密码', icon: Icons.key, onTap: adminEnabled ? () => generateBorrowCode() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: authorized ? '关闭授权' : '恢复授权', icon: Icons.verified_user, onTap: adminEnabled ? () => toggleAuthorization() : () => _message('请先完成管理员认证')),
                     _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? () => syncTime() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '统一日志', icon: Icons.receipt_long, onTap: () => showLogs()),
                     _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: () { _toggleAutoConnect(autoConnect); }),
                     _AdminActionTile(title: '后台自动扫描：${backgroundScan ? '开启' : '关闭'}', icon: Icons.radar, onTap: () { _toggleBackgroundScan(backgroundScan); }),
                     _AdminActionTile(title: '管理员迁移', icon: Icons.swap_horiz, onTap: adminEnabled ? () => _migrateAdmin() : () => _message('请先完成管理员认证')),
@@ -2978,6 +2939,128 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
+  // 6.5 深度睡眠设置
+  Widget _deepSleepPage(BuildContext pageCtx) {
+    final hoursCtrl = TextEditingController(text: sleepHours.toString());
+    final minutesCtrl = TextEditingController(text: sleepMinutes.toString());
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+          const TKPageTitle(title: '深度睡眠设置'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: StatefulBuilder(builder: (context, setLocalState) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TKBigIcon(icon: Icons.bedtime, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          TKSwitchTile(
+            title: '深度睡眠',
+            subtitle: '开启后，车熄火时ESP32进入深度睡眠省电',
+            value: sleepEnabled,
+            onChanged: (v) { setLocalState(() {}); setState(() { sleepEnabled = v; }); prefs?.setBool('sleep_enabled', v); },
+            leadingIcon: Icons.power_settings_new,
+          ),
+          const SizedBox(height: 16),
+          if (sleepEnabled) ...[
+            const Text('睡眠时长', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
+            const SizedBox(height: 12),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              SizedBox(width: 80, child: TextField(
+                controller: hoursCtrl,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: TKColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  fillColor: TKColors.bgCard,
+                  filled: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.neonBlue)),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onChanged: (v) { sleepHours = int.tryParse(v) ?? 0; },
+              )),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('小时', style: TextStyle(color: TKColors.textSecondary, fontSize: 14))),
+              SizedBox(width: 80, child: TextField(
+                controller: minutesCtrl,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: TKColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  fillColor: TKColors.bgCard,
+                  filled: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.neonBlue)),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onChanged: (v) { sleepMinutes = int.tryParse(v) ?? 0; },
+              )),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('分钟', style: TextStyle(color: TKColors.textSecondary, fontSize: 14))),
+            ]),
+            const SizedBox(height: 16),
+            Text(
+              '总计 ${sleepHours}小时${sleepMinutes}分钟',
+              style: const TextStyle(color: TKColors.neonBlue, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+          const SizedBox(height: 24),
+          Text(
+            esp32Sleeping ? '当前状态: 睡眠中 💤' : '当前状态: 已唤醒 ✅',
+            style: TextStyle(color: esp32Sleeping ? TKColors.neonOrange : TKColors.neonBlue, fontSize: 16),
+          ),
+          const SizedBox(height: 24),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(
+            label: '保存设置',
+            icon: Icons.save,
+            neonColor: TKColors.neonBlue,
+            isEnabled: connected,
+            onTap: connected ? () async {
+              final totalMinutes = sleepHours * 60 + sleepMinutes;
+              if (totalMinutes <= 0) {
+                _message('请设置睡眠时长');
+                return;
+              }
+              if (!simulationMode && bleGateway.readyForWrite) {
+                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'));
+                if (reply == null || !reply.contains('OK')) {
+                  _message('设置失败: ${reply ?? "无响应"}');
+                  return;
+                }
+              }
+              await prefs?.setInt('sleep_hours', sleepHours);
+              await prefs?.setInt('sleep_minutes', sleepMinutes);
+              _message('深度睡眠已设置: ${sleepHours}小时${sleepMinutes}分钟');
+            } : null,
+          )),
+          const SizedBox(height: 16),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(
+            label: '立即唤醒',
+            icon: Icons.alarm,
+            neonColor: TKColors.neonOrange,
+            isEnabled: connected,
+            onTap: connected ? () async {
+              if (!simulationMode && bleGateway.readyForWrite) {
+                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'));
+                if (reply == null || !reply.contains('OK')) {
+                  _message('唤醒失败: ${reply ?? "无响应"}');
+                  return;
+                }
+              }
+              setState(() { sleepEnabled = false; esp32Sleeping = false; });
+              setLocalState(() {});
+              _message('ESP32已唤醒，深度睡眠已关闭');
+            } : null,
+          )),
+          const SizedBox(height: 16),
+          const Text('设为0可关闭深度睡眠', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+          const Text('睡眠期间蓝牙关闭，定时醒来检查连接', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+        ])))),
+      ])),
+    );
+  }
+
   // 7. 恢复出厂
   Widget _factoryResetPage(BuildContext pageCtx) {
     return Scaffold(
@@ -3106,43 +3189,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       ),
     );
   }
-
-  Future<void> showLogs() async => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: TKColors.bgPrimary,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (context) => Container(
-      height: MediaQuery.of(context).size.height * 0.78,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: TKColors.textMuted, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 16),
-          const TKPageTitle(title: 'Tian Key 系统日志'),
-          const Text('APP + BLE日志 · ≤200条 · 7天自动清理', style: TextStyle(color: TKColors.textSecondary, fontSize: 12)),
-          const Divider(color: TKColors.divider, height: 24),
-          Expanded(
-            child: logs.isEmpty
-                ? const TKEmptyState(message: '暂无日志', icon: Icons.article_outlined)
-                : ListView.builder(
-                    itemCount: logs.length,
-                    reverse: true,
-                    itemBuilder: (context, index) {
-                      final log = logs[logs.length - 1 - index];
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(log, style: const TextStyle(color: TKColors.textPrimary, fontSize: 12, fontFamily: 'monospace')),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    ),
-  );
 
   String _formatTime(DateTime value) { String two(int v) => v.toString().padLeft(2, '0'); return '${value.month}/${value.day} ${two(value.hour)}:${two(value.minute)}'; }
 
