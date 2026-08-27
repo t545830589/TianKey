@@ -1088,16 +1088,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) setState(() => splashDone = true);
 
-    if (simulationMode && autoConnect && adminDevice != null && adminDevice == installId) {
-      _log('[APP] 自动连接：检测到已授权管理员设备');
+    if (simulationMode && autoConnect) {
+      _log('[APP] 自动连接：模拟模式');
       await _autoConnectSimulation();
-    } else if (!simulationMode && autoConnect && authorized && adminDevice != null && adminDevice == installId && savedRemoteId != null) {
-      // 只有管理员才自动连接，临时借车不自动连接（每次需重新认证）
+    } else if (!simulationMode && autoConnect && savedRemoteId != null) {
       _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
       await _autoConnectReal();
-    } else if (!connected && !connecting && !_autoConnecting) {
-      _log('[APP] 自动弹出扫描对话框');
-      _showScanDialog();
     }
 
     if (backgroundScan) {
@@ -1147,7 +1143,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _log('[APP] BLE自动连接成功${adminSession ? "（管理员）" : "（非管理员）"}');
     _autoConnecting = false;
     await syncTime();
-    await _syncSettings();
   }
 
   Future<void> _autoConnectReal() async {
@@ -1235,7 +1230,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         });
         _log('[APP] 管理员自动认证通过');
         await syncTime();
-        await _syncSettings();
       } else {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
@@ -1251,112 +1245,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   void _log(String message) {}
 
-  void _cleanupOldLogs() {}
 
-  Future<void> _syncSettings() async {
-    if (simulationMode || !bleGateway.readyForWrite) return;
-    try {
-      // 查询管理员设备ID
-      final devIdReply = await bleGateway.sendAndWait(utf8.encode('!DEVICEID?'));
-      if (devIdReply != null && devIdReply.startsWith('DEVICEID:')) {
-        final remoteAdminId = devIdReply.substring(9);
-        if (remoteAdminId != 'NONE' && remoteAdminId != adminDevice) {
-          _log('[SYNC] 管理员设备已变更: $remoteAdminId (本地: $adminDevice)');
-          _message('⚠️ 管理员设备已变更，可能已被其他设备接管');
-        }
-      }
-      // 查询设备名
-      final nameReply = await bleGateway.sendAndWait(utf8.encode('!NAME?'));
-      if (nameReply != null && nameReply.startsWith('NAME:')) {
-        final remoteName = nameReply.substring(5);
-        if (remoteName != deviceName) {
-          _log('[SYNC] 设备名已变更: $remoteName (本地: $deviceName)');
-          _message('⚠️ 设备名已变更: $remoteName');
-          deviceName = remoteName;
-          await prefs?.setString('device_name', remoteName);
-        }
-      }
-    } catch (e) {
-      _log('[SYNC] 同步设置异常: $e');
-    }
-  }
 
-  Future<void> _showScanDialog() async {
-    if (connected || connecting || _autoConnecting) return;
-    setState(() => scanning = true);
-    _log('[APP] 自动弹出扫描对话框');
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: TKColors.bgCard,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: TKColors.neonBlue, width: 1)),
-          title: Row(children: [
-            const Icon(Icons.bluetooth_searching, color: TKColors.neonBlue, size: 24),
-            const SizedBox(width: 8),
-            const Text('搜索蓝牙设备', style: TextStyle(color: TKColors.textPrimary, fontSize: 18)),
-          ]),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (scanning) ...[
-                const SizedBox(height: 16),
-                SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: TKColors.neonBlue)),
-                const SizedBox(height: 12),
-                const Text('正在搜索附近BLE设备...', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
-              ] else if (scannedDevices.isEmpty) ...[
-                const SizedBox(height: 16),
-                const Icon(Icons.bluetooth_disabled, color: TKColors.textMuted, size: 48),
-                const SizedBox(height: 12),
-                const Text('未发现设备', style: TextStyle(color: TKColors.textMuted, fontSize: 14)),
-              ] else ...[
-                const SizedBox(height: 8),
-                Text('发现 ${scannedDevices.length} 个设备', style: const TextStyle(color: TKColors.neonBlue, fontSize: 14)),
-                const SizedBox(height: 8),
-                ...scannedDevices.map((device) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    device.name.contains('陕A') ? Icons.directions_car : Icons.bluetooth,
-                    color: device.name.contains('陕A') ? TKColors.neonOrange : TKColors.neonBlue,
-                    size: 20,
-                  ),
-                  title: Text(device.name, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: Text(device.remoteId, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                  trailing: const Icon(Icons.chevron_right, color: TKColors.neonBlue, size: 18),
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    connectToDevice(device);
-                  },
-                )),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消', style: TextStyle(color: TKColors.textMuted)),
-            ),
-            if (!scanning)
-              TextButton(
-                onPressed: () async {
-                  setDialogState(() => scanning = true);
-                  await scan(timeout: const Duration(seconds: 6));
-                  if (mounted) setDialogState(() {});
-                },
-                child: const Text('重新搜索', style: TextStyle(color: TKColors.neonBlue)),
-              ),
-          ],
-        ),
-      ),
-    ).then((_) {
-      if (mounted) setState(() => scanning = false);
-    });
-    // 开始扫描
-    await scan(timeout: const Duration(seconds: 6));
-    if (mounted) setState(() {});
-  }
 
   void _message(String message) {
     if (!mounted) return;
@@ -1771,7 +1661,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       });
       _log('[APP] ${simulationMode ? "模拟" : "BLE真实"}连接成功：${target.name}');
       await syncTime();
-      await _syncSettings();
     } catch (error) {
       if (!mounted) return;
       setState(() {
