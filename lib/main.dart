@@ -1147,6 +1147,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _log('[APP] BLE自动连接成功${adminSession ? "（管理员）" : "（非管理员）"}');
     _autoConnecting = false;
     await syncTime();
+    await _syncSettings();
   }
 
   Future<void> _autoConnectReal() async {
@@ -1234,6 +1235,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         });
         _log('[APP] 管理员自动认证通过');
         await syncTime();
+        await _syncSettings();
       } else {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
@@ -1250,6 +1252,34 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _log(String message) {}
 
   void _cleanupOldLogs() {}
+
+  Future<void> _syncSettings() async {
+    if (simulationMode || !bleGateway.readyForWrite) return;
+    try {
+      // 查询管理员设备ID
+      final devIdReply = await bleGateway.sendAndWait(utf8.encode('!DEVICEID?'));
+      if (devIdReply != null && devIdReply.startsWith('DEVICEID:')) {
+        final remoteAdminId = devIdReply.substring(9);
+        if (remoteAdminId != 'NONE' && remoteAdminId != adminDevice) {
+          _log('[SYNC] 管理员设备已变更: $remoteAdminId (本地: $adminDevice)');
+          _message('⚠️ 管理员设备已变更，可能已被其他设备接管');
+        }
+      }
+      // 查询设备名
+      final nameReply = await bleGateway.sendAndWait(utf8.encode('!NAME?'));
+      if (nameReply != null && nameReply.startsWith('NAME:')) {
+        final remoteName = nameReply.substring(5);
+        if (remoteName != deviceName) {
+          _log('[SYNC] 设备名已变更: $remoteName (本地: $deviceName)');
+          _message('⚠️ 设备名已变更: $remoteName');
+          deviceName = remoteName;
+          await prefs?.setString('device_name', remoteName);
+        }
+      }
+    } catch (e) {
+      _log('[SYNC] 同步设置异常: $e');
+    }
+  }
 
   void _message(String message) {
     if (!mounted) return;
@@ -1664,6 +1694,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       });
       _log('[APP] ${simulationMode ? "模拟" : "BLE真实"}连接成功：${target.name}');
       await syncTime();
+      await _syncSettings();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1945,6 +1976,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     authorized = !authorized;
     await prefs?.setBool('authorized', authorized);
     _log(authorized ? '[APP] 恢复设备授权' : '[APP] 关闭设备授权');
+    // 真实模式：发送 !SAFE 命令到ESP32
+    if (!simulationMode && bleGateway.readyForWrite) {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!SAFE ${authorized ? 1 : 0}'));
+      _log('[BLE] ESP32授权回复: $reply');
+    }
     setState(() => status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权');
     _message(authorized ? '授权已恢复' : '授权已关闭，管理员会话保留');
   }
