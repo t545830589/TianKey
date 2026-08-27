@@ -1077,7 +1077,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     esp32.borrowEnd = borrowEnd;
 
     ready = true;
-    _cleanupOldLogs();
     _log('[APP] 启动');
     _scheduleBorrowExpiry();
     if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
