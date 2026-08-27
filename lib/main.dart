@@ -976,6 +976,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool sleepEnabled = false;
   int sleepHours = 0;
   int sleepMinutes = 30;
+  int wakeMinutes = 30;
   bool esp32Sleeping = false;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   String lastCommand = '';
@@ -1066,6 +1067,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     sleepEnabled = p.getBool('sleep_enabled') ?? false;
     sleepHours = p.getInt('sleep_hours') ?? 0;
     sleepMinutes = p.getInt('sleep_minutes') ?? 30;
+    wakeMinutes = p.getInt('wake_minutes') ?? 30;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1093,6 +1095,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       // 只有管理员才自动连接，临时借车不自动连接（每次需重新认证）
       _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
       await _autoConnectReal();
+    } else if (!connected && !connecting && !_autoConnecting) {
+      _log('[APP] 自动弹出扫描：开始搜索设备');
+      await scan(timeout: const Duration(seconds: 6));
     }
 
     if (backgroundScan) {
@@ -1110,7 +1115,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       status = '正在自动连接...';
     });
     _log('[APP] 自动连接开始');
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
     final simDevice = BleScanItem(name: esp32.deviceName, remoteId: 'SIM-ESP32-TIANKY');
     foundDevice = simDevice;
@@ -1131,7 +1136,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       _log('[ESP32] 管理员席位已被其他设备占用：${esp32.adminDevice}');
       _log('[APP] 自动连接降级为普通模式，需重新输入密码');
     }
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
     setState(() {
       connected = true;
@@ -1166,7 +1171,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       // 用扫描方式找到设备（替代不可靠的fromId）
       _log('[APP] 扫描寻找已保存设备: $savedRemoteId');
       setState(() => status = '正在扫描已保存设备...');
-      final devices = await ble.scan(timeout: const Duration(seconds: 3));
+      final devices = await ble.scan(timeout: const Duration(milliseconds: 1500));
       if (!mounted) return;
       BleScanItem? target;
       if (devices.isNotEmpty) {
@@ -1203,7 +1208,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
       if (bleGateway.readyForWrite) {
         await bleGateway.startNotify();
-        await Future.delayed(const Duration(milliseconds: 200));
+        await Future.delayed(const Duration(milliseconds: 100));
       }
       // 用保存的密码认证
       String? reply;
@@ -1211,7 +1216,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'));
         _log('[BLE] 自动认证回复: $reply (尝试${retry + 1}/3)');
         if (reply != null && reply.contains('OK')) break;
-        if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
+        if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
       }
       if (reply != null && reply.contains('OK')) {
         esp32.verifyAdminPassword(savedPwd, installId ?? '');
@@ -3048,6 +3053,28 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               '总计 ${sleepHours}小时${sleepMinutes}分钟',
               style: const TextStyle(color: TKColors.neonBlue, fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 24),
+            const Text('唤醒时长', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
+            const SizedBox(height: 4),
+            const Text('醒来后广播蓝牙多久（分钟）', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+            const SizedBox(height: 12),
+            SizedBox(width: 120, child: TextField(
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: TKColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                fillColor: TKColors.bgCard,
+                filled: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.neonBlue)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                suffixText: '分钟',
+                suffixStyle: const TextStyle(color: TKColors.textSecondary, fontSize: 14),
+              ),
+              controller: TextEditingController(text: wakeMinutes.toString()),
+              onChanged: (v) { wakeMinutes = int.tryParse(v) ?? 30; },
+            )),
           ],
           const SizedBox(height: 24),
           Text(
@@ -3069,13 +3096,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'));
                 if (reply == null || !reply.contains('OK')) {
-                  _message('设置失败: ${reply ?? "无响应"}');
+                  _message('睡眠设置失败: ${reply ?? "无响应"}');
+                  return;
+                }
+                final wakeReply = await bleGateway.sendAndWait(utf8.encode('!WAKE $wakeMinutes'));
+                if (wakeReply == null || !wakeReply.contains('OK')) {
+                  _message('唤醒设置失败: ${wakeReply ?? "无响应"}');
                   return;
                 }
               }
               await prefs?.setInt('sleep_hours', sleepHours);
               await prefs?.setInt('sleep_minutes', sleepMinutes);
-              _message('深度睡眠已设置: ${sleepHours}小时${sleepMinutes}分钟');
+              await prefs?.setInt('wake_minutes', wakeMinutes);
+              _message('已设置: 睡眠${sleepHours}时${sleepMinutes}分, 唤醒广播${wakeMinutes}分钟');
             } : null,
           )),
           const SizedBox(height: 16),
