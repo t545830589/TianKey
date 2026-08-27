@@ -1896,15 +1896,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> _clearBorrow() async {
-    final hadCode = borrowCode != null;
     borrowExpiryTimer?.cancel(); borrowExpiryTimer = null;
     borrowCode = null; borrowStart = null; borrowEnd = null;
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
-    // 真实模式：通知ESP32清除临时密码
     if (!simulationMode && bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'));
+      await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'));
     }
     if (mounted) {
       if (mode == AccessMode.borrower) {
