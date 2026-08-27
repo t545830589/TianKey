@@ -1898,7 +1898,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     borrowCode = esp32.borrowCode;
     borrowStart = esp32.borrowStart;
     borrowEnd = esp32.borrowEnd;
-    final expiryEpoch = borrowEnd!.millisecondsSinceEpoch ~/ 1000;
     await prefs?.setString('borrow_code', code);
     await prefs?.setInt('borrow_start', borrowStart!.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
