@@ -1218,6 +1218,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         adminDevice = installId;
         adminSession = true;
         authorized = true;
+        mode = AccessMode.admin;
         esp32.adminDevice = installId;
         await prefs?.setString('admin_device_id', installId!);
         await prefs?.setBool('authorized', true);
