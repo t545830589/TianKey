@@ -935,6 +935,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   String searchQuery = '';
   Timer? borrowExpiryTimer;
   Timer? commandTimer;
+  Timer? _heartbeatTimer;
 
   bool ready = false;
   bool scanning = false;
@@ -1000,6 +1001,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
+    _stopHeartbeat();
     passwordController.dispose();
     newPasswordController.dispose();
     nameController.dispose();
@@ -1169,9 +1171,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       timeSynced = false;
       status = adminSession ? '自动连接成功，管理员模式' : '自动连接成功，非管理员模式，需输入密码';
     });
-    _autoConnecting = false;
-    await syncTime();
-  }
+      _autoConnecting = false;
+      await syncTime();
+      _startHeartbeat();
+    }
 
   Future<void> _autoConnectReal() async {
     if (simulationMode || connected || connecting || _autoConnecting) return;
@@ -1253,6 +1256,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           status = '自动连接成功，管理员模式';
         });
         await syncTime();
+        _startHeartbeat();
       } else {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
@@ -1434,6 +1438,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           throw StateError('BLE连接失败，请确认设备在附近并重试');
         }
         ble.onDisconnect = () {
+          _stopHeartbeat();
           if (mounted && connected) {
             setState(() {
               connected = false;
@@ -1642,6 +1647,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         status = simulationMode ? '连接成功，正在同步时间...' : 'BLE真实连接成功，正在同步时间...';
       });
       await syncTime();
+      _startHeartbeat();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1759,6 +1765,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _msg('时间同步成功');
   }
 
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (connected && !simulationMode) {
+        queryRssi();
+      }
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
   Future<void> queryRssi() async {
     if (!connected || simulationMode || !bleGateway.readyForWrite) return;
     try {
@@ -1772,6 +1792,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> disconnect() async {
+    _stopHeartbeat();
     commandTimer?.cancel();
     if (!simulationMode) {
       await bleGateway.dispose();
