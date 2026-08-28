@@ -807,7 +807,6 @@ class SimulatedEsp32 {
   String deviceName = '陕A0P92Y';
   bool timeSynced = false;
   DateTime? espTime;
-  bool autoLockEnabled = true;
 
   SimulatedEsp32();
 
@@ -904,13 +903,6 @@ class SimulatedEsp32 {
     deviceName = '陕A0P92Y';
     timeSynced = false;
     espTime = null;
-  }
-
-  void disconnect() {
-    timeSynced = false;
-    espTime = null;
-    if (autoLockEnabled) {
-    }
   }
 }
 
@@ -1066,7 +1058,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     sound = p.getBool('sound') ?? true;
     simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
-    esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
     sleepEnabled = p.getBool('sleep_enabled') ?? false;
     sleepHours = p.getInt('sleep_hours') ?? 0;
     sleepMinutes = p.getInt('sleep_minutes') ?? 30;
@@ -1789,8 +1780,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!simulationMode) {
       await bleGateway.dispose();
       await ble.disconnect();
-    } else {
-      esp32.disconnect();
     }
     if (!mounted) return;
     setState(() {
@@ -1896,8 +1885,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (mode == AccessMode.borrower) {
         if (!simulationMode) {
           await ble.disconnect();
-        } else {
-          esp32.disconnect();
         }
         connected = false; mode = null; timeSynced = false; espTime = null;
         status = '临时借车授权已失效，车辆功能重新锁定';
@@ -1910,10 +1897,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!adminEnabled) { return; }
     authorized = !authorized;
     await prefs?.setBool('authorized', authorized);
-    // 真实模式：发送 !SAFE 命令到ESP32
-    if (!simulationMode && bleGateway.readyForWrite) {
-      await bleGateway.sendAndWait(utf8.encode('!SAFE ${authorized ? 1 : 0}'));
-    }
     setState(() => status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权');
   }
 
@@ -2965,7 +2948,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               _infoRow('连接状态', connected ? '已连接' : '未连接'),
               _infoRow('管理员', adminEnabled ? '已授权' : '未授权'),
               _infoRow('模拟模式', simulationMode ? '已开启' : '已关闭'),
-              _infoRow('自动落锁', esp32.autoLockEnabled ? '已开启' : '已关闭'),
               _infoRow('版本', '1.0.0+1'),
             ]),
           ),
