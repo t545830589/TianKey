@@ -1555,13 +1555,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           setState(() => status = 'BLE已连接，正在验证密码...');
           String? reply;
           if (selected == AccessMode.admin) {
-            final esp32Admin = esp32.adminDevice;
-            final seatBlocked = esp32Admin != null && esp32Admin.isNotEmpty && esp32Admin != installId && esp32Admin != legacyPhoneId;
-            if (seatBlocked) {
-              await ble.disconnect();
-              setState(() { connecting = false; status = '管理员席位已被其他设备占用'; });
-              return;
-            }
             for (int retry = 0; retry < 3; retry++) {
               reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'), expectPrefix: 'OK');
               if (reply != null && reply.contains('OK')) break;
