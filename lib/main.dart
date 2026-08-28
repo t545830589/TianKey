@@ -915,7 +915,6 @@ class TianKeyHome extends StatefulWidget {
 
 class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   static const defaultPassword = '123456789';
-  static const legacyPhoneId = 'PHONE-TIANKY-01';
   static const defaultName = '陕A0P92Y';
 
   final TianKeyBleService ble = TianKeyBleService();
