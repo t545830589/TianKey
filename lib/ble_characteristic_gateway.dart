@@ -46,7 +46,6 @@ class BleCharacteristicGateway {
     final sub = _notifyController?.stream.listen((value) {
       if (completer.isCompleted) return;
       final msg = String.fromCharCodes(value);
-      if (msg.startsWith('!TIMEREQ')) return;
       if (expectPrefix != null && !msg.startsWith(expectPrefix)) return;
       completer.complete(msg);
     });
