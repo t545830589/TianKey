@@ -1090,7 +1090,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     // 检查蓝牙是否开启，没开就弹窗提示
     if (!simulationMode && mounted) {
       try {
-        final isOn = await FlutterBluePlus.isOn;
+        final adapterState = await FlutterBluePlus.adapterState.first;
+        final isOn = adapterState == BluetoothAdapterState.on;
         if (!isOn && mounted) {
           final shouldEnable = await showDialog<bool>(
             context: context,
@@ -1149,8 +1150,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted && !connected && !scanning) {
         try {
-          final isOn = await FlutterBluePlus.isOn;
-          if (isOn) scan();
+          final adapterState2 = await FlutterBluePlus.adapterState.first;
+          if (adapterState2 == BluetoothAdapterState.on) scan();
         } catch (_) {
           scan();
         }
