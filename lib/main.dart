@@ -1983,29 +1983,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     setState(() {});
   }
 
-  Future<void> _migrateAdmin() async {
-    final ctrl = TextEditingController();
-    final passOk = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: TKColors.bgCard,
-        title: const Text('验证管理员密码', style: TextStyle(color: TKColors.textPrimary)),
-        content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number, style: const TextStyle(color: TKColors.textPrimary), decoration: const InputDecoration(hintText: '请输入管理员密码', hintStyle: TextStyle(color: TKColors.textMuted))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim() == adminPassword), child: const Text('确认')),
-        ],
-      ),
-    );
-    if (passOk != true) { return; }
-    adminDevice = null;
-    adminSession = false;
-    authorized = false;
-    esp32.adminDevice = null;
-    await prefs?.remove('admin_device_id');
-    setState(() {});
-  }
-
   Future<void> factoryReset() async {
     if (!adminEnabled) { return; }
     final ctrl = TextEditingController();
@@ -2090,20 +2067,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       onVerified();
     } else {
     }
-  }
-
-  void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); setState(() {}); }
-
-  void _toggleBackgroundScan(bool _) async {
-    backgroundScan = !backgroundScan;
-    await prefs?.setBool('background_scan', backgroundScan);
-    if (backgroundScan) {
-      _startBackgroundScan();
-    } else {
-      backgroundScanTimer?.cancel();
-      backgroundScanTimer = null;
-    }
-    setState(() {});
   }
 
   void _startBackgroundScan() {
@@ -3006,43 +2969,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       Text(value, style: const TextStyle(color: TKColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
     ]));
   }
-
-  // 管理员操作列表项
-  Widget _AdminActionTile({
-    required String title,
-    required IconData icon,
-    required VoidCallback? onTap,
-    bool isDanger = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: TKColors.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TKColors.borderSubtle, width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Icon(icon, color: isDanger ? TKColors.neonRed : TKColors.neonBlue, size: 24),
-                const SizedBox(width: 14),
-                Expanded(child: Text(title, style: const TextStyle(color: TKColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w500))),
-                const Icon(Icons.chevron_right, color: TKColors.textMuted, size: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime value) { String two(int v) => v.toString().padLeft(2, '0'); return '${value.month}/${value.day} ${two(value.hour)}:${two(value.minute)}'; }
 
   @override
   Widget build(BuildContext context) {
