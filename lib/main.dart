@@ -2520,82 +2520,132 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '修改管理员密码'),
-          const SizedBox(width: 48),
+    bool saving = false;
+    return StatefulBuilder(
+      builder: (context, setLocalState) => Scaffold(
+        backgroundColor: TKColors.bgPrimary,
+        body: SafeArea(child: Column(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+            const TKPageTitle(title: '修改管理员密码'),
+            const SizedBox(width: 48),
+          ])),
+          Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+            const SizedBox(height: 24),
+            TKBigIcon(icon: Icons.admin_panel_settings, color: TKColors.neonOrange, size: 80),
+            const SizedBox(height: 24),
+            TKTextField(controller: currentCtrl, label: '当前管理员密码', hint: '请输入当前管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+            const SizedBox(height: 16),
+            TKTextField(controller: newCtrl, label: '新管理员密码', hint: '请输入新管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+            const SizedBox(height: 16),
+            TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
+            const SizedBox(height: 32),
+            TKNeonButton(
+              label: saving ? '正在保存...' : '保存新密码',
+              icon: saving ? Icons.hourglass_top : Icons.check,
+              neonColor: TKColors.neonOrange,
+              onTap: saving ? null : () async {
+                if (currentCtrl.text.trim() != adminPassword) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('当前密码错误', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                if (newCtrl.text.trim().length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('新密码至少6位', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                if (newCtrl.text.trim() != confirmCtrl.text.trim()) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('两次密码不一致', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                setLocalState(() => saving = true);
+                try {
+                  if (!simulationMode && bleGateway.readyForWrite) {
+                    final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
+                    if (reply == null || !reply.contains('OK')) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ESP32修改密码失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                      setLocalState(() => saving = false);
+                      return;
+                    }
+                  }
+                  adminPassword = newCtrl.text.trim();
+                  esp32.changePassword(adminPassword);
+                  prefs?.setString('admin_password', adminPassword);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('密码修改成功', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
+                  Navigator.pop(pageCtx);
+                } catch (e) {
+                  setLocalState(() => saving = false);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('修改失败：$e', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                }
+              },
+              isEnabled: !saving,
+            ),
+          ])),
         ])),
-        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-          const SizedBox(height: 24),
-          TKBigIcon(icon: Icons.admin_panel_settings, color: TKColors.neonOrange, size: 80),
-          const SizedBox(height: 24),
-          TKTextField(controller: currentCtrl, label: '当前管理员密码', hint: '请输入当前管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 16),
-          TKTextField(controller: newCtrl, label: '新管理员密码', hint: '请输入新管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 16),
-          TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 32),
-          TKNeonButton(label: '保存新密码', icon: Icons.check, neonColor: TKColors.neonOrange, onTap: () async {
-            if (currentCtrl.text.trim() != adminPassword) { _msg('当前密码错误'); return; }
-            if (newCtrl.text.trim().length < 6) { _msg('新密码至少6位'); return; }
-            if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _msg('两次密码不一致'); return; }
-            if (!simulationMode && bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
-              if (reply == null || !reply.contains('OK')) {
-                _msg('ESP32修改密码失败');
-                return;
-              }
-            }
-            adminPassword = newCtrl.text.trim();
-            esp32.changePassword(adminPassword);
-            prefs?.setString('admin_password', adminPassword);
-            _msg('密码修改成功');
-            Navigator.pop(pageCtx);
-          }, isEnabled: true),
-        ])),
-      ])),
+      ),
     );
   }
 
   // 设备名称
   Widget _deviceNamePage(BuildContext pageCtx) {
     final ctrl = TextEditingController(text: deviceName);
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '设备名称'),
-          const SizedBox(width: 48),
+    bool saving = false;
+    return StatefulBuilder(
+      builder: (context, setLocalState) => Scaffold(
+        backgroundColor: TKColors.bgPrimary,
+        body: SafeArea(child: Column(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+            const TKPageTitle(title: '设备名称'),
+            const SizedBox(width: 48),
+          ])),
+          Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+            const SizedBox(height: 24),
+            TKBigIcon(icon: Icons.device_hub, color: TKColors.neonBlue, size: 80),
+            const SizedBox(height: 24),
+            TKTextField(controller: ctrl, label: '设备名称', hint: '输入设备名称'),
+            const SizedBox(height: 12),
+            const Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+            const SizedBox(height: 32),
+            TKNeonButton(
+              label: saving ? '正在保存...' : '保存',
+              icon: saving ? Icons.hourglass_top : Icons.check,
+              neonColor: TKColors.neonBlue,
+              onTap: saving ? null : () async {
+                final v = ctrl.text.trim();
+                if (v.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('名称不能为空', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                setLocalState(() => saving = true);
+                try {
+                  if (!simulationMode && bleGateway.readyForWrite) {
+                    final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
+                    if (reply == null || !reply.contains('OK')) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ESP32修改名称失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                      setLocalState(() => saving = false);
+                      return;
+                    }
+                  }
+                  deviceName = v;
+                  prefs?.setString('device_name', v);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('设备名称已更新', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
+                  Navigator.pop(pageCtx);
+                } catch (e) {
+                  setLocalState(() => saving = false);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('修改失败：$e', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                }
+              },
+              isEnabled: !saving,
+            ),
+          ])),
         ])),
-        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-          const SizedBox(height: 24),
-          TKBigIcon(icon: Icons.device_hub, color: TKColors.neonBlue, size: 80),
-          const SizedBox(height: 24),
-          TKTextField(controller: ctrl, label: '设备名称', hint: '输入设备名称'),
-          const SizedBox(height: 12),
-          const Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 32),
-          TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () async {
-            final v = ctrl.text.trim();
-            if (v.isEmpty) { _msg('名称不能为空'); return; }
-            if (!simulationMode && bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
-              if (reply == null || !reply.contains('OK')) {
-                _msg('ESP32修改名称失败');
-                return;
-              }
-            }
-            deviceName = v;
-            prefs?.setString('device_name', v);
-            _msg('设备名称已更新');
-            Navigator.pop(pageCtx);
-          }, isEnabled: true),
-        ])),
-      ])),
+      ),
     );
   }
 
