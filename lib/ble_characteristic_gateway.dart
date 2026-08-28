@@ -51,7 +51,7 @@ class BleCharacteristicGateway {
       completer.complete(msg);
     });
 
-    await characteristic.write(data, withoutResponse: false);
+    await characteristic.write(data, withoutResponse: true);
 
     final result = await completer.future.timeout(timeout, onTimeout: () {
       return null;

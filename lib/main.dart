@@ -1016,16 +1016,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      // APP退到后台 → 断开BLE → ESP32重新广播 → 其他手机能扫到
-      if (connected && !simulationMode) {
-        disconnect();
-      }
-    } else if (state == AppLifecycleState.resumed) {
-      // APP回到前台 → 自动重连
+    if (state == AppLifecycleState.resumed) {
       if (!connected && !connecting && authorized && savedRemoteId != null) {
         connect();
-        // 3秒后如果还没连上，重试一次
         Future.delayed(const Duration(seconds: 3), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
             connect();
@@ -1062,6 +1055,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     sleepHours = p.getInt('sleep_hours') ?? 0;
     sleepMinutes = p.getInt('sleep_minutes') ?? 30;
     wakeMinutes = p.getInt('wake_minutes') ?? 30;
+    esp32Sleeping = sleepEnabled;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1288,10 +1282,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (end == null) return;
     final delay = end.difference(DateTime.now());
     if (delay <= Duration.zero) {
+      _showBorrowExpiredDialog();
       unawaited(_clearBorrow());
       return;
     }
-    borrowExpiryTimer = Timer(delay, () => unawaited(_clearBorrow()));
+    borrowExpiryTimer = Timer(delay, () {
+      _showBorrowExpiredDialog();
+      unawaited(_clearBorrow());
+    });
+  }
+
+  void _showBorrowExpiredDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TKColors.bgCard,
+        title: const Text('借车授权已过期', style: TextStyle(color: TKColors.neonOrange)),
+        content: const Text('临时借车密码已过期，车辆功能已重新锁定。', style: TextStyle(color: TKColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('知道了', style: TextStyle(color: TKColors.neonBlue))),
+        ],
+      ),
+    );
   }
 
   Future<void> scan({Duration? timeout}) async {
@@ -2841,6 +2854,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               await prefs?.setInt('sleep_hours', sleepHours);
               await prefs?.setInt('sleep_minutes', sleepMinutes);
               await prefs?.setInt('wake_minutes', wakeMinutes);
+              setState(() { esp32Sleeping = true; });
               _msg('睡眠设置已保存');
             } : null,
           )),
