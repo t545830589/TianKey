@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -36,7 +37,7 @@ class BleCharacteristicGateway {
     );
   }
 
-  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 2)}) async {
+  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 2), String? expectPrefix}) async {
     final characteristic = _writeCharacteristic;
     if (characteristic == null) {
       throw StateError('未绑定可写 characteristic');
@@ -44,11 +45,11 @@ class BleCharacteristicGateway {
 
     final completer = Completer<String?>();
     final sub = _notifyController?.stream.listen((value) {
+      if (completer.isCompleted) return;
       final msg = String.fromCharCodes(value);
       if (msg.startsWith('!TIMEREQ')) return;
-      if (!completer.isCompleted) {
-        completer.complete(msg);
-      }
+      if (expectPrefix != null && !msg.startsWith(expectPrefix)) return;
+      completer.complete(msg);
     });
 
     await characteristic.write(data, withoutResponse: false);

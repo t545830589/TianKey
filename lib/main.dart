@@ -990,9 +990,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   bool get adminEnabled => adminSession;
 
-  bool get vehicleEnabled => connected && authorized &&
-      ((mode == AccessMode.admin && adminSession) ||
-          (mode == AccessMode.borrower && borrowValid && borrowTimeConfirmed));
+  bool get vehicleEnabled => connected;
 
   @override
   void initState() {
@@ -1267,7 +1265,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       // 用保存的密码认证
       String? reply;
       for (int retry = 0; retry < 3; retry++) {
-        reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'));
+        reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
         _log('[BLE] 自动认证回复: $reply (尝试${retry + 1}/3)');
         if (reply != null && reply.contains('OK')) break;
         if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
@@ -1452,9 +1450,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (target.device == null) throw StateError('BLE设备对象无效');
         // 整个连接+服务发现流程带重试
         bool bleReady = false;
-        for (int attempt = 1; attempt <= 3; attempt++) {
+        for (int attempt = 1; attempt <= 2; attempt++) {
           try {
-            await ble.connect(target.device!);
+            await ble.connect(target.device!, timeout: const Duration(seconds: 3));
             if (ble.discoveredServices.isEmpty) {
               throw StateError('服务列表为空');
             }
@@ -1462,8 +1460,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             break;
           } catch (e) {
             _log('[APP] 第${attempt}次BLE连接/服务发现失败：$e');
-            if (attempt < 3) {
-              await Future.delayed(const Duration(milliseconds: 500));
+            if (attempt < 2) {
+              await Future.delayed(const Duration(milliseconds: 300));
             }
           }
         }
@@ -1534,7 +1532,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           setState(() => status = 'BLE已连接，正在验证临时借车授权...');
           String? reply;
           for (int retry = 0; retry < 3; retry++) {
-            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $savedCode'));
+            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $savedCode'), expectPrefix: 'OK');
             _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
             if (reply != null && reply.contains('OK')) break;
             if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
@@ -1577,7 +1575,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             _log('[APP] !DEVID失败($reply)，自动用保存密码认证');
             String? authReply;
             for (int retry = 0; retry < 3; retry++) {
-              authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'));
+              authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
               _log('[BLE] ESP32回复: $authReply (尝试${retry + 1}/3)');
               if (authReply != null && authReply.contains('OK')) break;
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
@@ -1799,7 +1797,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _log('[APP] 自动同步时间...');
     if (!simulationMode && bleGateway.readyForWrite) {
       final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'));
+      final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'TIME');
       if (reply != null && reply.contains('TIME OK')) {
         _log('[BLE] 时间同步成功');
       } else {
