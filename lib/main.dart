@@ -1087,6 +1087,51 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) setState(() => splashDone = true);
 
+    // 检查蓝牙是否开启，没开就弹窗提示
+    if (!simulationMode && mounted) {
+      try {
+        final isOn = await FlutterBluePlus.isOn;
+        if (!isOn && mounted) {
+          final shouldEnable = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF0A1628),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.bluetooth_disabled, color: Color(0xFFFF8800), size: 24),
+                  SizedBox(width: 8),
+                  Text('蓝牙未开启', style: TextStyle(color: Colors.white, fontSize: 18)),
+                ],
+              ),
+              content: const Text('请开启蓝牙以搜索和连接设备', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('稍后', style: TextStyle(color: Colors.white54)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('去开启', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+          if (shouldEnable == true) {
+            try {
+              await FlutterBluePlus.turnOn();
+            } catch (_) {}
+            // 等待蓝牙就绪
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        }
+      } catch (_) {}
+    }
+
     if (simulationMode && autoConnect) {
       _log('[APP] 自动连接：模拟模式');
       await _autoConnectSimulation();
@@ -1102,7 +1147,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     // 自动连接失败或首次使用（无保存设备），自动扫描弹出设备列表让用户手动选
     if (!connected && !simulationMode && mounted) {
       await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted && !connected && !scanning) scan();
+      if (mounted && !connected && !scanning) {
+        try {
+          final isOn = await FlutterBluePlus.isOn;
+          if (isOn) scan();
+        } catch (_) {
+          scan();
+        }
+      }
     }
 
     if (mounted) setState(() {});
