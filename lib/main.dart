@@ -1938,7 +1938,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (value != confirmController.text.trim()) { return; }
     // 真实模式：先发送到ESP32并确认成功
     if (!simulationMode && bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!PWD $value'), expectPrefix: 'OK');
+      final reply = await bleGateway.sendAndWait(utf8.encode('!PWD $value'));
       if (reply == null || !reply.contains('OK')) {
         return;
       }
@@ -1979,7 +1979,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (value.isEmpty) return;
     // 真实模式：先发送到ESP32并确认成功
     if (!simulationMode && bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $value'), expectPrefix: 'OK');
+      final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $value'));
       if (reply == null || !reply.contains('OK')) {
         return;
       }
@@ -2551,7 +2551,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             if (newCtrl.text.trim().length < 6) { _msg('新密码至少6位'); return; }
             if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _msg('两次密码不一致'); return; }
             if (!simulationMode && bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'), expectPrefix: 'OK');
+              final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
               if (reply == null || !reply.contains('OK')) {
                 _msg('ESP32修改密码失败');
                 return;
@@ -2591,7 +2591,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             final v = ctrl.text.trim();
             if (v.isEmpty) { _msg('名称不能为空'); return; }
             if (!simulationMode && bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'), expectPrefix: 'OK');
+              final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
               if (reply == null || !reply.contains('OK')) {
                 _msg('ESP32修改名称失败');
                 return;
