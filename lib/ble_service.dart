@@ -98,7 +98,7 @@ class TianKeyBleService {
     await connect(BluetoothDevice.fromId(normalized));
   }
 
-  Future<void> connect(BluetoothDevice target) async {
+  Future<void> connect(BluetoothDevice target, {Duration timeout = const Duration(seconds: 3)}) async {
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
     device = target;
@@ -127,7 +127,7 @@ class TianKeyBleService {
     });
 
     try {
-      await target.connect(timeout: const Duration(seconds: 15), autoConnect: false);
+      await target.connect(timeout: timeout, autoConnect: false);
       // 等待ESP32 GATT服务就绪
       for (int i = 0; i < 3; i++) {
         await Future.delayed(const Duration(milliseconds: 300));
