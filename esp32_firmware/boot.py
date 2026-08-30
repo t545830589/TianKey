@@ -147,6 +147,18 @@ def read_voltage():
     except:
         return 4200
 
+_XOR_KEY = 0x5A
+
+def _obfuscate(s):
+    if not s:
+        return s
+    return ''.join(chr(ord(c) ^ _XOR_KEY) for c in s)
+
+def _deobfuscate(s):
+    if not s:
+        return s
+    return ''.join(chr(ord(c) ^ _XOR_KEY) for c in s)
+
 def load_config():
     global LOCK_DURATION, TRUNK_DURATION, AUTO_LOCK_ENABLED
     global LOCK_PIN, UNLOCK_PIN, TRUNK_PIN
@@ -157,9 +169,9 @@ def load_config():
         with open(CONFIG_FILE, "r") as f:
             cfg = json.loads(f.read())
         DEVICE_NAME = cfg.get("name", DEFAULT_NAME)
-        PASSWORD = cfg.get("pwd", DEFAULT_PWD)
+        PASSWORD = _deobfuscate(cfg.get("pwd", _obfuscate(DEFAULT_PWD)))
         admin_device_id = cfg.get("admin_device", None)
-        borrow_code = cfg.get("borrow_code", None)
+        borrow_code = _deobfuscate(cfg.get("borrow_code", None))
         borrow_expiry = int(cfg.get("borrow_expiry", 0))
         AUTO_LOCK_ENABLED = int(cfg.get("auto_lock", 1))
         LOCK_PIN = int(cfg.get("lock_pin", PIN_LOCK_DEFAULT))
@@ -205,7 +217,7 @@ def save_config():
     try:
         cfg = {
             "name": DEVICE_NAME,
-            "pwd": PASSWORD,
+            "pwd": _obfuscate(PASSWORD),
             "lock_dur": LOCK_DURATION,
             "trunk_dur": TRUNK_DURATION,
             "auto_lock": AUTO_LOCK_ENABLED,
@@ -213,7 +225,7 @@ def save_config():
             "unlock_pin": UNLOCK_PIN,
             "trunk_pin": TRUNK_PIN,
             "admin_device": admin_device_id if admin_device_id else None,
-            "borrow_code": borrow_code if borrow_code else None,
+            "borrow_code": _obfuscate(borrow_code) if borrow_code else None,
             "borrow_expiry": borrow_expiry,
             "sleep_min": sleep_minutes,
             "sleep_en": 1 if sleep_enabled else 0,
@@ -466,6 +478,7 @@ def process_command(cmd):
         act_chuangjiang()
     elif cmd_upper.startswith("!NAME "):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         new_name = cmd[6:].strip()
         if new_name:
@@ -475,6 +488,7 @@ def process_command(cmd):
             notify(b"NAME OK")
     elif cmd_upper.startswith("!PWD "):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         new_pwd = cmd[5:].strip()
         if new_pwd:
@@ -483,6 +497,7 @@ def process_command(cmd):
             notify(b"PWD OK")
     elif cmd_upper.startswith("!TIME "):
         if auth_level < 1:
+            notify(b"ERR NO_PERM")
             return
         try:
             ts = int(cmd[6:].strip())
@@ -494,6 +509,7 @@ def process_command(cmd):
             notify(b"ERR TIME")
     elif cmd_upper.startswith("!BORROW ") and not temp_auth:
         if auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         parts_borrow = cmd.split(" ")
         if len(parts_borrow) >= 3:
@@ -512,6 +528,7 @@ def process_command(cmd):
             notify(b"ERR BORROW_FMT")
     elif cmd_upper == "!BORROWCLEAR" and not temp_auth:
         if auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         borrow_code = None
         borrow_expiry = 0
@@ -519,6 +536,7 @@ def process_command(cmd):
         notify(b"OK BORROWCLEAR")
     elif cmd_upper == "!RESET" and not temp_auth:
         if auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         DEVICE_NAME = DEFAULT_NAME
         PASSWORD = DEFAULT_PWD
@@ -534,6 +552,7 @@ def process_command(cmd):
         notify(b"OK RESET")
     elif cmd_upper.startswith("!SLEEP"):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         if cmd_upper == "!SLEEP?":
             notify("SLEEP:{}:{}".format(1 if sleep_enabled else 0, sleep_minutes).encode())
@@ -556,6 +575,7 @@ def process_command(cmd):
             notify(b"ERR SLEEP_FMT")
     elif cmd_upper.startswith("!WAKE"):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         if cmd_upper == "!WAKE?":
             notify("WAKE:{}".format(wake_minutes).encode())

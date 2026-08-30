@@ -985,6 +985,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       _autoConnecting = false;
       await syncTime();
       _startHeartbeat();
+      _querySleepState();
     }
 
   Future<void> _autoConnectReal() async {
@@ -1068,6 +1069,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         });
         await syncTime();
         _startHeartbeat();
+        _querySleepState();
       } else {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
@@ -1369,8 +1371,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           String? reply;
           if (selected == AccessMode.admin) {
             for (int retry = 0; retry < 3; retry++) {
-              reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'), expectPrefix: 'OK');
-              if (reply != null && reply.contains('OK')) break;
+              reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'));
+              if (reply != null) break;
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (reply != null && reply.contains('OK')) {
@@ -1383,13 +1385,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               await prefs?.setBool('authorized', true);
             } else {
               await ble.disconnect();
-              setState(() { connecting = false; status = '密码错误'; });
+              final errMsg = (reply != null && reply.contains('ERR')) ? '密码错误（ESP32已锁定10秒）' : '密码错误或蓝牙断开';
+              setState(() { connecting = false; status = errMsg; });
               return;
             }
           } else {
             for (int retry = 0; retry < 3; retry++) {
-              reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'), expectPrefix: 'OK');
-              if (reply != null && reply.contains('OK')) break;
+              reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'));
+              if (reply != null) break;
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (reply != null && reply.contains('OK')) {
@@ -1406,7 +1409,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               savedRemoteId = target.remoteId;
             } else {
               await ble.disconnect();
-              setState(() { connecting = false; status = '密码错误或已过期'; });
+              final errMsg = (reply != null && reply.contains('ERR')) ? '借车码无效或已过期' : '借车码验证失败或蓝牙断开';
+              setState(() { connecting = false; status = errMsg; });
               return;
             }
           }
@@ -1457,6 +1461,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       });
       await syncTime();
       _startHeartbeat();
+      _querySleepState();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1598,6 +1603,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
     } catch (e) {
       debugPrint('queryRssi error: $e');
+    }
+  }
+
+  Future<void> _querySleepState() async {
+    if (!connected || simulationMode || !bleGateway.readyForWrite) return;
+    try {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP?'), expectPrefix: 'SLEEP');
+      if (reply != null && reply.startsWith('SLEEP:')) {
+        final parts = reply.substring(6).split(':');
+        if (parts.length >= 2) {
+          final enabled = parts[0] == '1';
+          final minutes = int.tryParse(parts[1]) ?? 30;
+          if (mounted) setState(() {
+            esp32Sleeping = enabled;
+            sleepEnabled = enabled;
+            sleepMinutes = minutes;
+          });
+          await prefs?.setBool('sleep_enabled', enabled);
+          await prefs?.setInt('sleep_minutes', minutes);
+        }
+      }
+    } catch (e) {
+      debugPrint('querySleepState error: $e');
     }
   }
 
@@ -2483,6 +2511,21 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             isEnabled: connected,
             onTap: connected ? () async {
               final totalMinutes = sleepHours * 60 + sleepMinutes;
+              if (!sleepEnabled) {
+                if (!simulationMode && bleGateway.readyForWrite) {
+                  final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
+                  if (reply == null || !reply.contains('OK')) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('关闭睡眠失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                    return;
+                  }
+                }
+                setState(() { esp32Sleeping = false; });
+                await prefs?.setInt('sleep_hours', sleepHours);
+                await prefs?.setInt('sleep_minutes', sleepMinutes);
+                await prefs?.setInt('wake_minutes', wakeMinutes);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('深度睡眠已关闭', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
+                return;
+              }
               if (totalMinutes <= 0) {
                 return;
               }
