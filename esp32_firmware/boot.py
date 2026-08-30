@@ -82,22 +82,6 @@ def init_pins():
     unlock_pin = Pin(UNLOCK_PIN, Pin.OUT, value=1)
     trunk_pin = Pin(TRUNK_PIN, Pin.OUT, value=1)
 
-def safe_pins():
-    global safe_state
-    try:
-        lock_pin.value(1)
-    except:
-        pass
-    try:
-        unlock_pin.value(1)
-    except:
-        pass
-    try:
-        trunk_pin.value(1)
-    except:
-        pass
-    safe_state = False
-
 def act_lock():
     global gpio_busy
     if not safe_state:
@@ -456,7 +440,7 @@ def process_command(cmd):
         disconnect_and_cleanup()
         return
 
-    if temp_auth and time.time() > temp_expire:
+    if temp_auth and time.time() > 0 and time.time() > temp_expire:
         disconnect_and_cleanup()
         return
 
