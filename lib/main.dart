@@ -20,16 +20,12 @@ class TKColors {
 
   // 科技蓝（主色/选中）
   static const Color neonBlue = Color(0xFF00E5FF);        // 发光电光蓝
-  static const Color neonBlueDark = Color(0xFF0072FF);    // 深电光蓝
-  static const Color neonBlueSoft = Color(0xFF00E5FF);    // 柔光蓝
 
   // 科技橙（警告/车窗/管理员）
   static const Color neonOrange = Color(0xFFFF8800);      // 发光金橙
-  static const Color neonOrangeDark = Color(0xFFE67700);
 
   // 警示红（取消/重置/危险）
   static const Color neonRed = Color(0xFFFF2A2A);         // 发光红
-  static const Color neonRedDark = Color(0xFFE61A1A);
 
   // 文字
   static const Color textPrimary = Color(0xFFFFFFFF);     // 纯白
@@ -43,9 +39,6 @@ class TKColors {
   static const Color disabled = Color(0xFF3A4450);        // 禁用态
 
   // 边框/分割
-  static const Color borderNeonBlue = Color(0xFF00E5FF);
-  static const Color borderNeonOrange = Color(0xFFFF8800);
-  static const Color borderNeonRed = Color(0xFFFF2A2A);
   static const Color borderSubtle = Color(0xFF1A2530);
   static const Color divider = Color(0xFF141D26);
 }
@@ -566,106 +559,6 @@ class TKLogoText extends StatelessWidget {
   }
 }
 
-// 车牌标签
-class TKLicensePlate extends StatelessWidget {
-  final String plate;
-
-  const TKLicensePlate({super.key, required this.plate});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A1628),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: TKColors.neonBlue.withOpacity(0.7), width: 1.5),
-        boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.25), blurRadius: 6, spreadRadius: 1)],
-      ),
-      child: Text(
-        plate,
-        style: const TextStyle(color: TKColors.neonBlue, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2),
-      ),
-    );
-  }
-}
-
-// 虚线边框卡片（临时密码区用）
-class TKDashedCard extends StatelessWidget {
-  final Widget child;
-  final Color dashColor;
-  final double dashWidth;
-  final double dashGap;
-
-  const TKDashedCard({super.key, required this.child, this.dashColor = TKColors.neonBlue, this.dashWidth = 6, this.dashGap = 4});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DashedRectPainter(color: dashColor, strokeWidth: 2, dashWidth: dashWidth, dashGap: dashGap, radius: 12),
-      child: Padding(padding: const EdgeInsets.all(2), child: child),
-    );
-  }
-}
-
-class _DashedRectPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double dashWidth;
-  final double dashGap;
-  final double radius;
-
-  _DashedRectPainter({required this.color, required this.strokeWidth, required this.dashWidth, required this.dashGap, required this.radius});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = radius;
-    final w = size.width;
-    final h = size.height;
-
-    // 画虚线圆角矩形
-    void drawDashedLine(Offset p1, Offset p2) {
-      final distance = (p2 - p1).distance;
-      final dashCount = (distance / (dashWidth + dashGap)).floor();
-      for (int i = 0; i < dashCount; i++) {
-        final start = p1 + (p2 - p1) * (i * (dashWidth + dashGap) / distance);
-        final end = p1 + (p2 - p1) * ((i * (dashWidth + dashGap) + dashWidth) / distance);
-        canvas.drawLine(start, end, Paint()..color = color..strokeWidth = strokeWidth..style = PaintingStyle.stroke);
-      }
-    }
-
-    // 四条边 + 圆角（简化：用直线近似）
-    drawDashedLine(Offset(r, 0), Offset(w - r, 0));
-    drawDashedLine(Offset(w, r), Offset(w, h - r));
-    drawDashedLine(Offset(w - r, h), Offset(r, h));
-    drawDashedLine(Offset(0, h - r), Offset(0, r));
-    // 圆角用贝塞尔近似（简化忽略，或用 arcTo）
-  }
-
-  // 简化：直接用虚线矩形无圆角
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// 简化版虚线卡片（用 Container + 装饰器近似）
-class TKDashedBorderCard extends StatelessWidget {
-  final Widget child;
-  final Color borderColor;
-
-  const TKDashedBorderCard({super.key, required this.child, this.borderColor = TKColors.neonBlue});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: borderColor.withOpacity(0.5), width: 1.5, style: BorderStyle.solid), // 简化用实线，如需虚线需 CustomPaint
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: child,
-    );
-  }
-}
-
 // 科技大图标展示（设置页子页面中央大图标）
 class TKBigIcon extends StatelessWidget {
   final IconData icon;
@@ -684,51 +577,6 @@ class TKBigIcon extends StatelessWidget {
         boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 20, spreadRadius: 3)],
       ),
       child: Icon(icon, color: color, size: size * 0.6),
-    );
-  }
-}
-
-// 空状态占位
-class TKEmptyState extends StatelessWidget {
-  final String message;
-  final IconData icon;
-  final Color color;
-
-  const TKEmptyState({super.key, required this.message, this.icon = Icons.inbox, this.color = TKColors.textMuted});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color.withOpacity(0.5), size: 48),
-          const SizedBox(height: 12),
-          Text(message, style: TextStyle(color: color, fontSize: 14)),
-        ],
-      ),
-    );
-  }
-}
-
-// 加载指示器
-class TKLoader extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const TKLoader({super.key, this.color = TKColors.neonBlue, this.size = 28});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: CircularProgressIndicator(
-          strokeWidth: 3,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-        ),
-      ),
     );
   }
 }
@@ -794,7 +642,7 @@ class TianKeyApp extends StatelessWidget {
   }
 }
 
-enum PageTab { vehicle, borrow, settings, admin }
+enum PageTab { vehicle, borrow, settings }
 enum AccessMode { admin, borrower }
 
 // ==================== 模拟ESP32逻辑层 ====================
@@ -1749,6 +1597,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (mounted) setState(() => rssiValue = val);
       }
     } catch (e) {
+      debugPrint('queryRssi error: $e');
     }
   }
 
@@ -2538,6 +2387,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Widget _deepSleepPage(BuildContext pageCtx) {
     final hoursCtrl = TextEditingController(text: sleepHours.toString());
     final minutesCtrl = TextEditingController(text: sleepMinutes.toString());
+    final wakeCtrl = TextEditingController(text: wakeMinutes.toString());
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
@@ -2618,7 +2468,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 suffixText: '分钟',
                 suffixStyle: const TextStyle(color: TKColors.textSecondary, fontSize: 14),
               ),
-              controller: TextEditingController(text: wakeMinutes.toString()),
+              controller: wakeCtrl,
               onChanged: (v) { wakeMinutes = int.tryParse(v) ?? 30; },
             )),
           ],

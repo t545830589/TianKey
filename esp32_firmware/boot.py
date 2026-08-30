@@ -292,8 +292,8 @@ def ble_reset():
                 (TX_UUID, 0x0010),
                 (RX_UUID, 0x000C),
             )),))
-        except:
-            pass
+        except Exception as e:
+            print("BLE reset service register failed:", e)
         connected = False
         conn_handle = None
         reset_auth()
@@ -642,8 +642,16 @@ try:
         (TX_UUID, 0x0010),
         (RX_UUID, 0x000C),
     )),))
-except:
-    pass
+except Exception as e:
+    print("BLE service register failed:", e)
+    time.sleep_ms(500)
+    try:
+        ((tx, rx),) = ble.gatts_register_services(((UART_UUID, (
+            (TX_UUID, 0x0010),
+            (RX_UUID, 0x000C),
+        )),))
+    except Exception as e2:
+        print("BLE service register retry failed:", e2)
 
 adv_success = start_adv()
 last_adv_ok = time.ticks_ms() if adv_success else 0
@@ -735,6 +743,7 @@ while True:
                     pass
                 time.sleep_ms(100)
                 wdt.feed()
+                wake_start = time.ticks_ms()
                 machine.deepsleep(sleep_minutes * 60 * 1000)
         else:
             ble_error_count = 0
