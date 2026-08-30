@@ -261,56 +261,6 @@ class TKIconButton extends StatelessWidget {
   }
 }
 
-// 科技标题栏（通用：左图标/返回、中间标题、右图标）
-class TKAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final String title;
-  final Widget? leading;
-  final Widget? trailing;
-  final Color titleColor;
-  final double height;
-
-  const TKAppBar({
-    super.key,
-    required this.title,
-    this.leading,
-    this.trailing,
-    this.titleColor = TKColors.neonBlue,
-    this.height = 56,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          leading ?? const SizedBox(width: 48),
-          Center(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: titleColor,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                shadows: [
-                  Shadow(color: titleColor.withOpacity(0.8), blurRadius: 12),
-                  Shadow(color: titleColor.withOpacity(0.5), blurRadius: 24),
-                ],
-              ),
-            ),
-          ),
-          trailing ?? const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Size get preferredSize => Size.fromHeight(height);
-}
 
 // 科技输入框（黑底、细蓝边框、右侧显隐图标）
 class TKTextField extends StatelessWidget {
@@ -711,11 +661,6 @@ class SimulatedEsp32 {
     return true;
   }
 
-  bool resetPassword() {
-    adminPassword = '123456789';
-    return true;
-  }
-
   void factoryReset() {
     adminPassword = '123456789';
     adminDevice = null;
@@ -754,6 +699,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Timer? borrowExpiryTimer;
   Timer? commandTimer;
   Timer? _heartbeatTimer;
+  bool _connectCooldown = false;
 
   bool ready = false;
   bool scanning = false;
@@ -769,6 +715,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   int rssiValue = 0;
   int commandSeconds = 0;
   String deviceName = defaultName;
+  String carModel = '未设置';
   String adminPassword = defaultPassword;
   String? installId;
   String? adminDevice;
@@ -846,6 +793,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       await p.setString('install_id', installId!);
     }
     deviceName = p.getString('device_name') ?? defaultName;
+    carModel = p.getString('car_model') ?? '未设置';
     adminPassword = p.getString('admin_password') ?? defaultPassword;
     adminDevice = p.getString('admin_device_id');
     savedRemoteId = p.getString('ble_remote_id');
@@ -1262,6 +1210,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               commandSeconds = 0;
               status = 'BLE连接已断开，车辆功能锁定';
             });
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
           }
         };
         // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
@@ -1543,16 +1492,21 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> syncTime() async {
     if (!connected) return;
-    if (!simulationMode && bleGateway.readyForWrite) {
-      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'OK');
-      if (!mounted) return;
-      if (reply != null && reply.contains('OK')) {
-        setState(() { timeSynced = true; });
-        _msg('时间同步成功');
-      } else {
-        _msg('时间同步失败');
+    try {
+      if (!simulationMode && bleGateway.readyForWrite) {
+        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'OK');
+        if (!mounted) return;
+        if (reply != null && reply.contains('OK')) {
+          setState(() { timeSynced = true; });
+          _msg('时间同步成功');
+        } else {
+          _msg('时间同步失败');
+        }
       }
+    } catch (e) {
+      if (!mounted) return;
+      _msg('时间同步异常');
     }
     await Future<void>.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
@@ -1699,8 +1653,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         setState(() => commandSeconds -= 1);
       });
-    } else {
-    }
     setState(() => status = timed ? '⏳ $command 4秒保持中（$commandSeconds）' : '✅ $command 成功');
   }
 
@@ -1715,12 +1667,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await prefs?.setInt('borrow_start', borrowStart!.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
     // 真实模式：发送 !BORROW 命令到ESP32
-    if (!simulationMode && bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'), expectPrefix: 'OK');
-      if (reply == null || !reply.contains('OK')) {
-        _msg('ESP32设置借车码失败');
-        return;
+    try {
+      if (!simulationMode && bleGateway.readyForWrite) {
+        final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'), expectPrefix: 'OK');
+        if (reply == null || !reply.contains('OK')) {
+          _msg('ESP32设置借车码失败');
+          return;
+        }
       }
+    } catch (e) {
+      _msg('借车码设置异常');
+      return;
     }
     _scheduleBorrowExpiry();
     setState(() => status = '临时借车密码已生成');
@@ -1733,12 +1690,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
-    if (!simulationMode && bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'), expectPrefix: 'OK');
-      if (reply == null || !reply.contains('OK')) {
-        _msg('ESP32取消借车码失败');
-        return;
+    try {
+      if (!simulationMode && bleGateway.readyForWrite) {
+        final reply = await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'), expectPrefix: 'OK');
+        if (reply == null || !reply.contains('OK')) {
+          _msg('ESP32取消借车码失败');
+          return;
+        }
       }
+    } catch (e) {
+      _msg('取消借车码异常');
+      return;
     }
     _msg('借车授权已取消');
     if (mounted) {
@@ -1906,7 +1868,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                               const SizedBox(height: 8),
                             ],
                             Row(children: [
-                              Expanded(child: TKNeonButton(label: connected ? '断开连接' : '快速连接', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
+                              Expanded(child: TKNeonButton(label: connected ? '断开连接' : (_connectCooldown ? '请稍候...' : '快速连接'), icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : (_connectCooldown ? null : () async { _connectCooldown = true; setState(() {}); try { await connect(); } finally { Future.delayed(const Duration(seconds: 3), () { if (mounted) { _connectCooldown = false; setState(() {}); } }); } }), isEnabled: true)),
                             ]),
                             const SizedBox(height: 8),
                             Row(children: [
@@ -2099,13 +2061,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
 // 时间选择按钮
   Widget _buildTimeSelectButton(String label, int hours) {
+    final isSelected = hoursController.text.trim() == hours.toString();
     return SizedBox(
       width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
       height: 56,
       child: TKNeonButton(
         label: label,
-        icon: Icons.access_time,
-        neonColor: TKColors.neonBlue,
+        icon: isSelected ? Icons.check_circle : Icons.access_time,
+        neonColor: isSelected ? TKColors.neonOrange : TKColors.neonBlue,
         onTap: () {
           setState(() {
             hoursController.text = hours.toString();
@@ -2169,7 +2132,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       trailingText: simulationMode ? '已开启' : '已关闭',
                       onTap: () {
                         setState(() => simulationMode = !simulationMode);
-                        prefs?.setBool('simulation_mode', simulationMode);
+                        await prefs?.setBool('simulation_mode', simulationMode);
                       },
                     ),
                     TKSettingTile(
@@ -2262,7 +2225,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                   }
                   adminPassword = newCtrl.text.trim();
                   esp32.changePassword(adminPassword);
-                  prefs?.setString('admin_password', adminPassword);
+                  await prefs?.setString('admin_password', adminPassword);
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('密码修改成功', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
                   Navigator.pop(pageCtx);
@@ -2283,6 +2246,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   // 设备名称
   Widget _deviceNamePage(BuildContext pageCtx) {
     final ctrl = TextEditingController(text: deviceName);
+    final modelCtrl = TextEditingController(text: carModel);
     bool saving = false;
     return StatefulBuilder(
       builder: (context, setLocalState) => Scaffold(
@@ -2298,6 +2262,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             TKBigIcon(icon: Icons.device_hub, color: TKColors.neonBlue, size: 80),
             const SizedBox(height: 24),
             TKTextField(controller: ctrl, label: '设备名称', hint: '输入设备名称'),
+            const SizedBox(height: 16),
+            TKTextField(controller: modelCtrl, label: '车型', hint: '输入车型，如：马自达昂克赛拉'),
             const SizedBox(height: 12),
             const Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
             const SizedBox(height: 32),
@@ -2323,7 +2289,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                     }
                   }
                   deviceName = v;
-                  prefs?.setString('device_name', v);
+                  await prefs?.setString('device_name', v);
+                  final m = modelCtrl.text.trim();
+                  if (m.isNotEmpty) {
+                    carModel = m;
+                    await prefs?.setString('car_model', m);
+                  }
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('设备名称已更新', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
                   Navigator.pop(pageCtx);
@@ -2422,6 +2393,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             onChanged: (v) { setLocalState(() {}); setState(() { sleepEnabled = v; }); prefs?.setBool('sleep_enabled', v); },
             leadingIcon: Icons.power_settings_new,
           ),
+          if (sleepEnabled) const Padding(padding: EdgeInsets.only(top: 4), child: Text('⚠️ 修改后需点下方"保存设置"才生效', style: TextStyle(color: TKColors.neonOrange, fontSize: 12))),
           const SizedBox(height: 16),
           if (sleepEnabled) ...[
             const Text('睡眠时长', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
@@ -2617,6 +2589,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
               installId = newId;
               await prefs?.setString('install_id', newId);
+              setState(() {});
               Navigator.pop(pageCtx);
             } else {
             }
@@ -2648,7 +2621,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: TKColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: TKColors.borderSubtle)),
             child: Column(children: [
-              _infoRow('车型', '马自达昂克赛拉'),
+              _infoRow('车型', carModel),
               _infoRow('车牌', deviceName),
               _infoRow('设备ID', installId ?? '未知'),
               const Divider(color: TKColors.divider, height: 20),

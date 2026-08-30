@@ -26,7 +26,6 @@ AUTH_FAILURE = 10000
 TEMP_VALID = 6 * 3600
 CONFIG_FILE = "config.json"
 RSSI_LOCK_THRESHOLD = -80
-VOLTAGE_MIN = 3300
 
 wdt = WDT(timeout=8000)
 
@@ -39,7 +38,6 @@ unlock_pin = None
 trunk_pin = None
 safe_state = False
 gpio_busy = False
-voltage_adc = None
 
 LOCK_DURATION = LOCK_DEFAULT_DURATION
 TRUNK_DURATION = TRUNK_DEFAULT_DURATION
@@ -134,21 +132,6 @@ def act_chuangjiang():
     unlock_pin.value(1)
     gpio_busy = False
 
-def read_voltage():
-    global voltage_adc
-    try:
-        if voltage_adc is None:
-            voltage_adc = ADC(Pin(34))
-            voltage_adc.atten(ADC.ATTN_11DB)
-            voltage_adc.width(ADC.WIDTH_12BIT)
-        raw = voltage_adc.read()
-        if raw == 0:
-            return 4200
-        mv = raw * 3300 // 4095
-        return mv
-    except:
-        return 4200
-
 _XOR_KEY = 0x5A
 
 def _obfuscate(s):
@@ -188,8 +171,8 @@ def load_config():
         LOCK_PIN = int(cfg.get("lock_pin", PIN_LOCK_DEFAULT))
         UNLOCK_PIN = int(cfg.get("unlock_pin", PIN_UNLOCK_DEFAULT))
         TRUNK_PIN = int(cfg.get("trunk_pin", PIN_TRUNK_DEFAULT))
-        LOCK_DURATION = int(cfg.get("lock_dur", LOCK_DEFAULT_DURATION))
-        TRUNK_DURATION = int(cfg.get("trunk_dur", TRUNK_DEFAULT_DURATION))
+        LOCK_DURATION = min(int(cfg.get("lock_dur", LOCK_DEFAULT_DURATION)), 7000)
+        TRUNK_DURATION = min(int(cfg.get("trunk_dur", TRUNK_DEFAULT_DURATION)), 7000)
         sleep_minutes = int(cfg.get("sleep_min", 0))
         sleep_enabled = bool(cfg.get("sleep_en", 0))
         wake_minutes = int(cfg.get("wake_min", 30))
@@ -206,8 +189,8 @@ def load_config():
                     d[k.strip()] = v.strip()
         DEVICE_NAME = d.get("name", DEFAULT_NAME)
         PASSWORD = d.get("pwd", DEFAULT_PWD)
-        LOCK_DURATION = int(d.get("lock_dur", str(LOCK_DEFAULT_DURATION)))
-        TRUNK_DURATION = int(d.get("trunk_dur", str(TRUNK_DEFAULT_DURATION)))
+        LOCK_DURATION = min(int(d.get("lock_dur", str(LOCK_DEFAULT_DURATION))), 7000)
+        TRUNK_DURATION = min(int(d.get("trunk_dur", str(TRUNK_DEFAULT_DURATION))), 7000)
         AUTO_LOCK_ENABLED = int(d.get("auto_lock", "1"))
         LOCK_PIN = int(d.get("lock_pin", str(PIN_LOCK_DEFAULT)))
         UNLOCK_PIN = int(d.get("unlock_pin", str(PIN_UNLOCK_DEFAULT)))
@@ -218,10 +201,10 @@ def load_config():
         save_config()
         try:
             os.remove("door.cfg")
-        except:
+        except Exception:
             pass
         return
-    except:
+    except Exception:
         pass
 
 def save_config():
@@ -243,10 +226,12 @@ def save_config():
             "sleep_en": 1 if sleep_enabled else 0,
             "wake_min": wake_minutes
         }
-        with open(CONFIG_FILE, "w") as f:
+        tmp = CONFIG_FILE + ".tmp"
+        with open(tmp, "w") as f:
             f.write(json.dumps(cfg))
-    except:
-        pass
+        os.rename(tmp, CONFIG_FILE)
+    except Exception as e:
+        print("save_config error:", e)
 
 DEVICE_NAME = DEFAULT_NAME
 PASSWORD = DEFAULT_PWD
@@ -301,7 +286,7 @@ def start_adv():
         time.sleep_ms(20)
         ble.gap_advertise(50, gen_adv())
         return True
-    except:
+    except Exception:
         return False
 
 def ble_reset():
@@ -324,7 +309,7 @@ def ble_reset():
         safe_state = False
         ble_error_count = 0
         start_adv()
-    except:
+    except Exception:
         ble_error_count += 1
         if ble_error_count >= 5:
             machine.reset()
@@ -333,7 +318,7 @@ def notify(data):
     try:
         if conn_handle is not None and connected:
             ble.gatts_notify(conn_handle, tx, data)
-    except:
+    except Exception:
         pass
 
 def disconnect_and_cleanup():
@@ -341,15 +326,16 @@ def disconnect_and_cleanup():
     if connected and conn_handle is not None:
         try:
             ble.gap_disconnect(conn_handle)
-        except:
+        except Exception:
             pass
+    gpio_busy = False
     if authenticated:
         try:
             act_lock()
             time.sleep_ms(100)
             wdt.feed()
             act_lock()
-        except:
+        except Exception:
             pass
     connected = False
     reset_auth()
@@ -371,7 +357,7 @@ def check_rssi():
         rssi = ble.gap_readRSSI(conn_handle)
         if rssi < RSSI_LOCK_THRESHOLD:
             disconnect_and_cleanup()
-    except:
+    except Exception:
         pass
 
 def process_command(cmd):
@@ -522,7 +508,7 @@ def process_command(cmd):
             tm = time.localtime(ts)
             rtc.datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
             notify(b"OK TIME")
-        except:
+        except Exception:
             notify(b"ERR TIME")
     elif cmd_upper.startswith("!BORROW "):
         if auth_level < 2:
@@ -537,7 +523,7 @@ def process_command(cmd):
                     notify(b"ERR BORROW_FMT")
                     return
                 borrow_expiry = int(time.time()) + hours * 3600
-            except:
+            except Exception:
                 borrow_expiry = 0
             config_dirty = True
             notify(b"OK BORROW")
@@ -588,7 +574,7 @@ def process_command(cmd):
                 sleep_minutes = val
             config_dirty = True
             notify(b"OK SLEEP")
-        except:
+        except Exception:
             notify(b"ERR SLEEP_FMT")
     elif cmd_upper.startswith("!WAKE"):
         if temp_auth or auth_level < 2:
@@ -608,14 +594,14 @@ def process_command(cmd):
             wake_minutes = val
             config_dirty = True
             notify(b"OK WAKE")
-        except:
+        except Exception:
             notify(b"ERR WAKE_FMT")
     elif cmd_upper == "!RSSI?":
         if connected and conn_handle is not None:
             try:
                 rssi = ble.gap_readRSSI(conn_handle)
                 notify("RSSI:{}".format(rssi).encode())
-            except:
+            except Exception:
                 notify(b"RSSI:0")
         else:
             notify(b"RSSI:0")
@@ -634,7 +620,7 @@ def ble_cb(event, data):
             if lock_until > 0 and time.ticks_diff(now_ticks, lock_until) < 0:
                 try:
                     ble.gap_disconnect(h)
-                except:
+                except Exception:
                     pass
                 return
             conn_handle = h
@@ -659,13 +645,13 @@ def ble_cb(event, data):
                 return
             try:
                 cmd_str = buf.decode().strip()
-            except:
+            except Exception:
                 return
             if len(cmd_str) > 128:
                 return
             process_command(cmd_str)
 
-    except:
+    except Exception:
         ble_error_count += 1
         if ble_error_count >= 5:
             machine.reset()
@@ -748,27 +734,14 @@ while True:
     if connected:
         try:
             check_rssi()
-        except:
+        except Exception:
             pass
         if authenticated and last_cmd_time > 0 and time.ticks_diff(now, last_cmd_time) > HEARTBEAT_TIMEOUT:
             disconnect_and_cleanup()
         machine.lightsleep(100)
     else:
-        mv = read_voltage()
         wdt.feed()
-        if mv < VOLTAGE_MIN:
-            try:
-                ble.active(False)
-            except:
-                pass
-            for _ in range(5):
-                wdt.feed()
-                time.sleep_ms(2000)
-            try:
-                machine.reset()
-            except:
-                pass
-        elif sleep_enabled and sleep_minutes > 0:
+        if sleep_enabled and sleep_minutes > 0:
             wake_elapsed_ms = time.ticks_diff(now, wake_start)
             if wake_minutes > 0 and wake_elapsed_ms < wake_minutes * 60 * 1000:
                 machine.lightsleep(500)
@@ -778,7 +751,7 @@ while True:
                     config_dirty = False
                 try:
                     ble.active(False)
-                except:
+                except Exception:
                     pass
                 time.sleep_ms(100)
                 wdt.feed()
