@@ -460,6 +460,7 @@ def process_command(cmd):
                 lock_until = 0
                 notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
                 return
+        notify(b"ERR AUTH_FAIL")
         lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
         disconnect_and_cleanup()
         return
@@ -498,6 +499,8 @@ def process_command(cmd):
             config_dirty = True
             pending_actions.append(("save_restart_adv", None))
             notify(b"OK NAME")
+        else:
+            notify(b"ERR NAME_FMT")
     elif cmd_upper.startswith("!PWD "):
         if temp_auth or auth_level < 2:
             notify(b"ERR NO_PERM")
@@ -507,6 +510,8 @@ def process_command(cmd):
             PASSWORD = new_pwd
             config_dirty = True
             notify(b"OK PWD")
+        else:
+            notify(b"ERR PWD_FMT")
     elif cmd_upper.startswith("!TIME "):
         if temp_auth or auth_level < 1:
             notify(b"ERR NO_PERM")
@@ -614,6 +619,8 @@ def process_command(cmd):
                 notify(b"RSSI:0")
         else:
             notify(b"RSSI:0")
+    else:
+        notify(b"ERR UNKNOWN_CMD")
 
 def ble_cb(event, data):
     global connected, conn_handle, auth_start, lock_until, ble_error_count

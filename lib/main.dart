@@ -1981,19 +1981,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           Text(borrowValid ? borrowCode! : '无有效临时密码', style: const TextStyle(color: TKColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                         ],
                       ),
-                      if (borrowValid && borrowCode != null) ...[
-                        const SizedBox(height: 12),
-                        TKNeonButton(
-                          label: '复制密码',
-                          icon: Icons.content_copy,
-                          neonColor: TKColors.neonBlue,
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: borrowCode!));
-                            _msg('密码已复制到剪贴板');
-                          },
-                          isEnabled: true,
-                        ),
-                      ],
                     ],
                   ),
                 ),
