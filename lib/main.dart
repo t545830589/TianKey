@@ -915,7 +915,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool authorized = true;
   bool adminSession = false;
   bool autoConnect = true;
-  bool sound = true;
   bool simulationMode = false;
   bool timeSynced = false;
   bool timeFail = false;
@@ -1009,7 +1008,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     borrowEnd = end == null ? null : DateTime.fromMillisecondsSinceEpoch(end);
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
-    sound = p.getBool('sound') ?? true;
     simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
     sleepEnabled = p.getBool('sleep_enabled') ?? false;
@@ -1696,7 +1694,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'TIME');
       if (reply != null && reply.contains('TIME OK')) {
+        setState(() { timeSynced = true; });
+        _msg('时间同步成功');
       } else {
+        _msg('时间同步失败');
       }
     }
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -2110,6 +2111,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           neonColor: TKColors.neonBlue,
                           onTap: () {
                             Clipboard.setData(ClipboardData(text: borrowCode!));
+                            _msg('密码已复制到剪贴板');
                           },
                           isEnabled: true,
                         ),
@@ -2177,6 +2179,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         onTap: borrowValid && borrowCode != null
                             ? () {
                                 Clipboard.setData(ClipboardData(text: borrowCode!));
+                                _msg('密码已复制到剪贴板');
                               }
                             : null,
                         isEnabled: borrowValid && borrowCode != null,
@@ -2294,12 +2297,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       leadingIcon: Icons.bluetooth_connected,
                       trailingText: autoConnect ? '已开启' : '已关闭',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
-                    ),
-                    TKSettingTile(
-                      title: '提示音设置',
-                      leadingIcon: Icons.volume_up,
-                      trailingText: sound ? '已开启' : '已关闭',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _soundPage(ctx)))),
                     ),
                     TKSettingTile(
                       title: '模拟模式',
@@ -2537,31 +2534,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
-  // 6. 提示音设置
-  Widget _soundPage(BuildContext pageCtx) {
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '提示音设置'),
-          const SizedBox(width: 48),
-        ])),
-        Expanded(child: StatefulBuilder(builder: (context, setLocalState) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TKBigIcon(icon: Icons.volume_up, color: TKColors.neonBlue, size: 80),
-          const SizedBox(height: 24),
-          TKSwitchTile(
-            title: '提示音',
-            subtitle: '开启后，操作时播放提示音',
-            value: sound,
-            onChanged: (v) { setLocalState(() {}); setState(() { sound = v; }); prefs?.setBool('sound', v); },
-            leadingIcon: Icons.volume_up,
-          ),
-        ])))),
-      ])),
-    );
-  }
-
   // 6.5 深度睡眠设置
   Widget _deepSleepPage(BuildContext pageCtx) {
     final hoursCtrl = TextEditingController(text: sleepHours.toString());
@@ -2741,8 +2713,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             if (ok == true) {
               if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
-                if (reply != null && reply.contains('ERR')) {
-                  ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('ESP32恢复出厂失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                if (reply == null || reply.contains('ERR')) {
+                  ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('ESP32恢复出厂失败，请重试', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
                 }
               }
@@ -2751,7 +2723,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               await prefs?.clear();
               ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('已恢复出厂设置', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
               adminPassword = defaultPassword;
-              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; sound = true; simulationMode = false;
+              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; simulationMode = false;
               deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
               connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
               final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';

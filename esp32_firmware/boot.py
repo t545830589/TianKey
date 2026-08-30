@@ -171,8 +171,8 @@ def load_config():
         sleep_enabled = bool(cfg.get("sleep_en", 0))
         wake_minutes = int(cfg.get("wake_min", 30))
         return
-    except:
-        pass
+    except Exception as e:
+        print("config.json load error:", e)
     try:
         with open("door.cfg", "r") as f:
             lines = f.read().strip().split("\n")
@@ -242,7 +242,7 @@ def verify_temp_code(code):
         return True, (window_now + 1) * TEMP_VALID
     window_prev = window_now - 1
     if code == _temp_code_for_window(window_prev):
-        return True, window_now * TEMP_VALID
+        return True, (window_now + 1) * TEMP_VALID
     return False, 0
 
 def reset_auth():
@@ -360,6 +360,15 @@ def process_command(cmd):
     last_cmd_time = time.ticks_ms()
 
     if not authenticated:
+        if cmd == PASSWORD:
+            authenticated = True
+            temp_auth = False
+            temp_expire = 0
+            auth_level = 2
+            safe_state = True
+            lock_until = 0
+            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
+            return
         if cmd.upper().startswith("!AUTH "):
             parts = cmd.split(" ", 2)
             if len(parts) >= 3:
@@ -427,15 +436,6 @@ def process_command(cmd):
                 lock_until = 0
                 notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
                 return
-        if cmd == PASSWORD:
-            authenticated = True
-            temp_auth = False
-            temp_expire = 0
-            auth_level = 2
-            safe_state = True
-            lock_until = 0
-            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
-            return
         lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
         disconnect_and_cleanup()
         return
@@ -470,6 +470,7 @@ def process_command(cmd):
         new_name = cmd[6:].strip()
         if new_name:
             DEVICE_NAME = new_name
+            config_dirty = True
             pending_actions.append(("save_restart_adv", None))
             notify(b"NAME OK")
     elif cmd_upper.startswith("!PWD "):
@@ -499,6 +500,9 @@ def process_command(cmd):
             borrow_code = parts_borrow[1]
             try:
                 hours = int(parts_borrow[2])
+                if hours < 1:
+                    notify(b"ERR BORROW_FMT")
+                    return
                 borrow_expiry = int(time.time()) + hours * 3600
             except:
                 borrow_expiry = 0
@@ -534,8 +538,12 @@ def process_command(cmd):
         if cmd_upper == "!SLEEP?":
             notify("SLEEP:{}:{}".format(1 if sleep_enabled else 0, sleep_minutes).encode())
             return
+        parts_sleep = cmd.split(" ")
+        if len(parts_sleep) < 2 or not parts_sleep[1].isdigit():
+            notify(b"ERR SLEEP_FMT")
+            return
         try:
-            val = int(cmd_upper[7:].strip())
+            val = int(parts_sleep[1])
             if val <= 0:
                 sleep_enabled = False
                 sleep_minutes = 0
@@ -552,8 +560,12 @@ def process_command(cmd):
         if cmd_upper == "!WAKE?":
             notify("WAKE:{}".format(wake_minutes).encode())
             return
+        parts_wake = cmd.split(" ")
+        if len(parts_wake) < 2 or not parts_wake[1].isdigit():
+            notify(b"ERR WAKE_FMT")
+            return
         try:
-            val = int(cmd_upper[6:].strip())
+            val = int(parts_wake[1])
             if val < 1:
                 val = 1
             wake_minutes = val
@@ -606,7 +618,13 @@ def ble_cb(event, data):
             buf = ble.gatts_read(rx)
             if buf is None:
                 return
-            process_command(buf.decode().strip())
+            try:
+                cmd_str = buf.decode().strip()
+            except:
+                return
+            if len(cmd_str) > 128:
+                return
+            process_command(cmd_str)
 
     except:
         ble_error_count += 1
