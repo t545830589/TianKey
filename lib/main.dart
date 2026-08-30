@@ -1545,8 +1545,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!connected) return;
     if (!simulationMode && bleGateway.readyForWrite) {
       final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'TIME');
-      if (reply != null && reply.contains('TIME OK')) {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'OK');
+      if (!mounted) return;
+      if (reply != null && reply.contains('OK')) {
         setState(() { timeSynced = true; });
         _msg('时间同步成功');
       } else {
@@ -1618,10 +1619,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           if (mounted) setState(() {
             esp32Sleeping = enabled;
             sleepEnabled = enabled;
-            sleepMinutes = minutes;
+            sleepHours = minutes ~/ 60;
+            sleepMinutes = minutes % 60;
           });
           await prefs?.setBool('sleep_enabled', enabled);
-          await prefs?.setInt('sleep_minutes', minutes);
+          await prefs?.setInt('sleep_hours', minutes ~/ 60);
+          await prefs?.setInt('sleep_minutes', minutes % 60);
         }
       }
     } catch (e) {
@@ -2514,6 +2517,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               if (!sleepEnabled) {
                 if (!simulationMode && bleGateway.readyForWrite) {
                   final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
+                  if (!context.mounted) return;
                   if (reply == null || !reply.contains('OK')) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('关闭睡眠失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                     return;
@@ -2523,6 +2527,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 await prefs?.setInt('sleep_hours', sleepHours);
                 await prefs?.setInt('sleep_minutes', sleepMinutes);
                 await prefs?.setInt('wake_minutes', wakeMinutes);
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('深度睡眠已关闭', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
                 return;
               }
@@ -2531,11 +2536,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               }
               if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'), expectPrefix: 'OK');
+                if (!context.mounted) return;
                 if (reply == null || !reply.contains('OK')) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('睡眠设置失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
                 }
                 final wakeReply = await bleGateway.sendAndWait(utf8.encode('!WAKE $wakeMinutes'), expectPrefix: 'OK');
+                if (!context.mounted) return;
                 if (wakeReply == null || !wakeReply.contains('OK')) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('唤醒设置失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
@@ -2545,6 +2552,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               await prefs?.setInt('sleep_minutes', sleepMinutes);
               await prefs?.setInt('wake_minutes', wakeMinutes);
               setState(() { esp32Sleeping = true; });
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('睡眠设置已保存', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
             } : null,
           )),
@@ -2557,6 +2565,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             onTap: connected ? () async {
               if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
+                if (!context.mounted) return;
                 if (reply == null || !reply.contains('OK')) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('唤醒失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
@@ -2564,6 +2573,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               }
               setState(() { sleepEnabled = false; esp32Sleeping = false; });
               setLocalState(() {});
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已唤醒', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
             } : null,
           )),

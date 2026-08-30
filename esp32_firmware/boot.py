@@ -70,6 +70,8 @@ ble_error_count = 0
 last_cmd_time = 0
 HEARTBEAT_TIMEOUT = 30000
 
+VALID_GPIO = {0,2,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,32,33}
+
 def init_pins():
     global lock_pin, unlock_pin, trunk_pin
     if lock_pin is not None:
@@ -78,9 +80,9 @@ def init_pins():
         unlock_pin.init(Pin.IN)
     if trunk_pin is not None:
         trunk_pin.init(Pin.IN)
-    lock_pin = Pin(LOCK_PIN, Pin.OUT, value=1)
-    unlock_pin = Pin(UNLOCK_PIN, Pin.OUT, value=1)
-    trunk_pin = Pin(TRUNK_PIN, Pin.OUT, value=1)
+    lock_pin = Pin(LOCK_PIN if LOCK_PIN in VALID_GPIO else PIN_LOCK_DEFAULT, Pin.OUT, value=1)
+    unlock_pin = Pin(UNLOCK_PIN if UNLOCK_PIN in VALID_GPIO else PIN_UNLOCK_DEFAULT, Pin.OUT, value=1)
+    trunk_pin = Pin(TRUNK_PIN if TRUNK_PIN in VALID_GPIO else PIN_TRUNK_DEFAULT, Pin.OUT, value=1)
 
 def act_lock():
     global gpio_busy
@@ -168,10 +170,19 @@ def load_config():
     try:
         with open(CONFIG_FILE, "r") as f:
             cfg = json.loads(f.read())
+        ver = int(cfg.get("ver", 1))
         DEVICE_NAME = cfg.get("name", DEFAULT_NAME)
-        PASSWORD = _deobfuscate(cfg.get("pwd", _obfuscate(DEFAULT_PWD)))
+        raw_pwd = cfg.get("pwd", None)
+        if raw_pwd is not None:
+            PASSWORD = _deobfuscate(raw_pwd) if ver >= 2 else raw_pwd
+        else:
+            PASSWORD = _obfuscate(DEFAULT_PWD) if ver >= 2 else DEFAULT_PWD
         admin_device_id = cfg.get("admin_device", None)
-        borrow_code = _deobfuscate(cfg.get("borrow_code", None))
+        raw_borrow = cfg.get("borrow_code", None)
+        if raw_borrow is not None:
+            borrow_code = _deobfuscate(raw_borrow) if ver >= 2 else raw_borrow
+        else:
+            borrow_code = None
         borrow_expiry = int(cfg.get("borrow_expiry", 0))
         AUTO_LOCK_ENABLED = int(cfg.get("auto_lock", 1))
         LOCK_PIN = int(cfg.get("lock_pin", PIN_LOCK_DEFAULT))
@@ -216,6 +227,7 @@ def load_config():
 def save_config():
     try:
         cfg = {
+            "ver": 2,
             "name": DEVICE_NAME,
             "pwd": _obfuscate(PASSWORD),
             "lock_dur": LOCK_DURATION,
@@ -485,7 +497,7 @@ def process_command(cmd):
             DEVICE_NAME = new_name
             config_dirty = True
             pending_actions.append(("save_restart_adv", None))
-            notify(b"NAME OK")
+            notify(b"OK NAME")
     elif cmd_upper.startswith("!PWD "):
         if temp_auth or auth_level < 2:
             notify(b"ERR NO_PERM")
@@ -494,9 +506,9 @@ def process_command(cmd):
         if new_pwd:
             PASSWORD = new_pwd
             config_dirty = True
-            notify(b"PWD OK")
+            notify(b"OK PWD")
     elif cmd_upper.startswith("!TIME "):
-        if auth_level < 1:
+        if temp_auth or auth_level < 1:
             notify(b"ERR NO_PERM")
             return
         try:
@@ -504,10 +516,10 @@ def process_command(cmd):
             rtc = machine.RTC()
             tm = time.localtime(ts)
             rtc.datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
-            notify(b"TIME OK")
+            notify(b"OK TIME")
         except:
             notify(b"ERR TIME")
-    elif cmd_upper.startswith("!BORROW ") and not temp_auth:
+    elif cmd_upper.startswith("!BORROW "):
         if auth_level < 2:
             notify(b"ERR NO_PERM")
             return
@@ -526,7 +538,7 @@ def process_command(cmd):
             notify(b"OK BORROW")
         else:
             notify(b"ERR BORROW_FMT")
-    elif cmd_upper == "!BORROWCLEAR" and not temp_auth:
+    elif cmd_upper == "!BORROWCLEAR":
         if auth_level < 2:
             notify(b"ERR NO_PERM")
             return
@@ -534,7 +546,7 @@ def process_command(cmd):
         borrow_expiry = 0
         config_dirty = True
         notify(b"OK BORROWCLEAR")
-    elif cmd_upper == "!RESET" and not temp_auth:
+    elif cmd_upper == "!RESET":
         if auth_level < 2:
             notify(b"ERR NO_PERM")
             return
