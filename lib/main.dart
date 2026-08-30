@@ -1627,22 +1627,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
     late final String protocol;
-    late final String detail;
-    late final int gpio;
     final timed = command == '车窗升' || command == '车窗降' || command == '后备箱';
     switch (command) {
       case '锁车':
-        protocol = 'suoche'; gpio = 14; detail = 'GPIO14 锁车脉冲';
+        protocol = 'suoche';
       case '解锁':
-        protocol = 'jiesuo'; gpio = 33; detail = 'GPIO33 解锁脉冲';
+        protocol = 'jiesuo';
       case '寻车':
-        protocol = 'xunche'; gpio = 14; detail = 'GPIO14 连续两次锁车脉冲';
+        protocol = 'xunche';
       case '车窗升':
-        protocol = 'chuangsheng'; gpio = 14; detail = 'GPIO14 保持7秒';
+        protocol = 'chuangsheng';
       case '车窗降':
-        protocol = 'chuangjiang'; gpio = 33; detail = 'GPIO33 保持7秒';
+        protocol = 'chuangjiang';
       default:
-        protocol = 'houbeixiang'; gpio = 4; detail = 'GPIO4 保持7秒';
+        protocol = 'houbeixiang';
     }
     // 真实模式：直接发送，不等回复（ESP32瞬间执行）
     if (!simulationMode && bleGateway.readyForWrite) {
