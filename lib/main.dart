@@ -1594,6 +1594,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         setState(() => commandSeconds -= 1);
       });
+    }
     setState(() => status = timed ? '⏳ $command 4秒保持中（$commandSeconds）' : '✅ $command 成功');
   }
 
