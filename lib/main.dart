@@ -1658,6 +1658,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> generateBorrowCode() async {
     if (!adminEnabled) { return; }
+    if (!simulationMode && !timeSynced) {
+      _msg('时间未同步，请先同步时间再生成借车码');
+      return;
+    }
     final hours = (int.tryParse(hoursController.text.trim()) ?? 24).clamp(0, 168).toInt();
     final code = esp32.generateBorrowCode(hours);
     borrowCode = esp32.borrowCode;
