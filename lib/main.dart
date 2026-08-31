@@ -711,7 +711,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool autoConnect = true;
 
   bool timeSynced = false;
-  bool timeFail = false;
   int rssiValue = 0;
   int commandSeconds = 0;
   String deviceName = defaultName;
@@ -805,7 +804,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
 
-    timeFail = p.getBool('time_fail') ?? false;
     sleepEnabled = p.getBool('sleep_enabled') ?? false;
     sleepHours = p.getInt('sleep_hours') ?? 0;
     sleepMinutes = p.getInt('sleep_minutes') ?? 30;
@@ -1440,19 +1438,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     }
     await Future<void>.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
-    if (timeFail) {
-      setState(() {
-        timeSynced = false;
-        espTime = null;
-        status = mode == AccessMode.admin ? '时间同步失败：管理员仍可使用' : '时间同步失败：无法确认临时授权有效期';
-      });
-      _msg('时间同步失败');
-      if (mode == AccessMode.admin) {
-        authorized = true;
-        await prefs?.setBool('authorized', true);
-      }
-      return;
-    }
     esp32.syncTime(DateTime.now());
     setState(() {
       timeSynced = true;
@@ -1590,7 +1575,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     final code = esp32.generateBorrowCode(hours);
     // 先发ESP32确认成功，再存本地
     try {
-      if (!simulationMode && bleGateway.readyForWrite) {
+      if (bleGateway.readyForWrite) {
         final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'), expectPrefix: 'OK');
         if (reply == null || !reply.contains('OK')) {
           _msg('ESP32设置借车码失败');
@@ -2251,16 +2236,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           Text(timeSynced ? '✅ 已同步' : '❌ 未同步', style: TextStyle(color: timeSynced ? TKColors.neonBlue : TKColors.neonOrange, fontSize: 22, fontWeight: FontWeight.bold)),
           if (espTime != null) Text('同步时间：$espTime', style: const TextStyle(color: TKColors.textMuted, fontSize: 12)),
           const SizedBox(height: 16),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('模拟同步失败', style: TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-            const SizedBox(width: 8),
-            Switch(value: timeFail, onChanged: (v) { setLocalState(() {}); setState(() => timeFail = v); prefs?.setBool('time_fail', v); }, activeColor: TKColors.neonOrange),
-          ]),
-          const SizedBox(height: 16),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: connected ? () async { await syncTime(); setLocalState(() {}); } : null, isEnabled: connected)),
           const SizedBox(height: 16),
           const Text('同步后将自动校准设备时间', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-          const Text('开启"模拟同步失败"可测试时间同步失败场景', style: TextStyle(color: TKColors.textMuted, fontSize: 11)),
         ])))),
       ])),
     );
