@@ -1183,7 +1183,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         bool bleReady = false;
         for (int attempt = 1; attempt <= 2; attempt++) {
           try {
+            setState(() => status = '正在连接蓝牙设备...');
             await ble.connect(target.device!, timeout: const Duration(seconds: 3));
+            setState(() => status = '蓝牙已连接，正在发现服务...');
             if (ble.discoveredServices.isEmpty) {
               throw StateError('服务列表为空');
             }
@@ -1226,9 +1228,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               if (uuid.contains('6E400003')) notifyChar = c;
             }
             if (writeChar != null) {
+              setState(() => status = '正在绑定通信通道...');
               bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
               if (notifyChar != null) {
                 await bleGateway.startNotify();
+                setState(() => status = '通信通道就绪，等待响应...');
                 await Future.delayed(const Duration(milliseconds: 200));
               }
             }
@@ -1412,6 +1416,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       _startHeartbeat();
       _querySleepState();
     } catch (error) {
+      if (!simulationMode) {
+        try { if (target.device != null && target.device!.isConnected) await target.device!.disconnect(); } catch (_) {}
+        try { await bleGateway.dispose(); } catch (_) {}
+      }
       if (!mounted) return;
       setState(() {
         connecting = false;

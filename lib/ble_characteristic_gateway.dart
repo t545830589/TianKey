@@ -33,6 +33,9 @@ class BleCharacteristicGateway {
     await characteristic.write(
       data,
       withoutResponse: withoutResponse,
+    ).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => throw StateError('写入超时'),
     );
   }
 
@@ -50,7 +53,10 @@ class BleCharacteristicGateway {
       completer.complete(msg);
     });
 
-    await characteristic.write(data, withoutResponse: true);
+    await characteristic.write(data, withoutResponse: true).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => throw StateError('写入超时'),
+    );
 
     final result = await completer.future.timeout(timeout, onTimeout: () {
       return null;
@@ -67,7 +73,10 @@ class BleCharacteristicGateway {
     }
 
     await _notifySubscription?.cancel();
-    await characteristic.setNotifyValue(true);
+    await characteristic.setNotifyValue(true).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => throw StateError('通知订阅超时'),
+    );
 
     _notifyController ??= StreamController<List<int>>.broadcast();
     _notifySubscription = characteristic.onValueReceived.listen(
