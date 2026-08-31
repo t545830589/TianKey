@@ -1257,7 +1257,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             }
           }
       }
-      }
 
       if (!skipPassword && password != null && !autoConnectVerify) {
         // BLE连上后，发送密码给ESP32验证
@@ -1326,7 +1325,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (selected == AccessMode.borrower) {
         await prefs?.setString('borrow_code', password ?? '');
         if (esp32.borrowEnd != null) {
-          await prefs?.setInt('borrow_end', esp32.borrowEnd!.millisecondsSinceEpoch);
+          await prefs?.setInt('borrow_end', esp32.borrowEnd.millisecondsSinceEpoch);
         }
       }
       setState(() {
@@ -2504,8 +2503,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             }
             } catch (e) {
               ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('操作失败，请重试', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
-            }
-            } else {
             }
           }, isEnabled: true)),
         ]))),
