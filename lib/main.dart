@@ -20,16 +20,12 @@ class TKColors {
 
   // 科技蓝（主色/选中）
   static const Color neonBlue = Color(0xFF00E5FF);        // 发光电光蓝
-  static const Color neonBlueDark = Color(0xFF0072FF);    // 深电光蓝
-  static const Color neonBlueSoft = Color(0xFF00E5FF);    // 柔光蓝
 
   // 科技橙（警告/车窗/管理员）
   static const Color neonOrange = Color(0xFFFF8800);      // 发光金橙
-  static const Color neonOrangeDark = Color(0xFFE67700);
 
   // 警示红（取消/重置/危险）
   static const Color neonRed = Color(0xFFFF2A2A);         // 发光红
-  static const Color neonRedDark = Color(0xFFE61A1A);
 
   // 文字
   static const Color textPrimary = Color(0xFFFFFFFF);     // 纯白
@@ -43,9 +39,6 @@ class TKColors {
   static const Color disabled = Color(0xFF3A4450);        // 禁用态
 
   // 边框/分割
-  static const Color borderNeonBlue = Color(0xFF00E5FF);
-  static const Color borderNeonOrange = Color(0xFFFF8800);
-  static const Color borderNeonRed = Color(0xFFFF2A2A);
   static const Color borderSubtle = Color(0xFF1A2530);
   static const Color divider = Color(0xFF141D26);
 }
@@ -268,56 +261,6 @@ class TKIconButton extends StatelessWidget {
   }
 }
 
-// 科技标题栏（通用：左图标/返回、中间标题、右图标）
-class TKAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final String title;
-  final Widget? leading;
-  final Widget? trailing;
-  final Color titleColor;
-  final double height;
-
-  const TKAppBar({
-    super.key,
-    required this.title,
-    this.leading,
-    this.trailing,
-    this.titleColor = TKColors.neonBlue,
-    this.height = 56,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          leading ?? const SizedBox(width: 48),
-          Center(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: titleColor,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                shadows: [
-                  Shadow(color: titleColor.withOpacity(0.8), blurRadius: 12),
-                  Shadow(color: titleColor.withOpacity(0.5), blurRadius: 24),
-                ],
-              ),
-            ),
-          ),
-          trailing ?? const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Size get preferredSize => Size.fromHeight(height);
-}
 
 // 科技输入框（黑底、细蓝边框、右侧显隐图标）
 class TKTextField extends StatelessWidget {
@@ -566,106 +509,6 @@ class TKLogoText extends StatelessWidget {
   }
 }
 
-// 车牌标签
-class TKLicensePlate extends StatelessWidget {
-  final String plate;
-
-  const TKLicensePlate({super.key, required this.plate});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A1628),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: TKColors.neonBlue.withOpacity(0.7), width: 1.5),
-        boxShadow: [BoxShadow(color: TKColors.neonBlue.withOpacity(0.25), blurRadius: 6, spreadRadius: 1)],
-      ),
-      child: Text(
-        plate,
-        style: const TextStyle(color: TKColors.neonBlue, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2),
-      ),
-    );
-  }
-}
-
-// 虚线边框卡片（临时密码区用）
-class TKDashedCard extends StatelessWidget {
-  final Widget child;
-  final Color dashColor;
-  final double dashWidth;
-  final double dashGap;
-
-  const TKDashedCard({super.key, required this.child, this.dashColor = TKColors.neonBlue, this.dashWidth = 6, this.dashGap = 4});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DashedRectPainter(color: dashColor, strokeWidth: 2, dashWidth: dashWidth, dashGap: dashGap, radius: 12),
-      child: Padding(padding: const EdgeInsets.all(2), child: child),
-    );
-  }
-}
-
-class _DashedRectPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double dashWidth;
-  final double dashGap;
-  final double radius;
-
-  _DashedRectPainter({required this.color, required this.strokeWidth, required this.dashWidth, required this.dashGap, required this.radius});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = radius;
-    final w = size.width;
-    final h = size.height;
-
-    // 画虚线圆角矩形
-    void drawDashedLine(Offset p1, Offset p2) {
-      final distance = (p2 - p1).distance;
-      final dashCount = (distance / (dashWidth + dashGap)).floor();
-      for (int i = 0; i < dashCount; i++) {
-        final start = p1 + (p2 - p1) * (i * (dashWidth + dashGap) / distance);
-        final end = p1 + (p2 - p1) * ((i * (dashWidth + dashGap) + dashWidth) / distance);
-        canvas.drawLine(start, end, Paint()..color = color..strokeWidth = strokeWidth..style = PaintingStyle.stroke);
-      }
-    }
-
-    // 四条边 + 圆角（简化：用直线近似）
-    drawDashedLine(Offset(r, 0), Offset(w - r, 0));
-    drawDashedLine(Offset(w, r), Offset(w, h - r));
-    drawDashedLine(Offset(w - r, h), Offset(r, h));
-    drawDashedLine(Offset(0, h - r), Offset(0, r));
-    // 圆角用贝塞尔近似（简化忽略，或用 arcTo）
-  }
-
-  // 简化：直接用虚线矩形无圆角
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// 简化版虚线卡片（用 Container + 装饰器近似）
-class TKDashedBorderCard extends StatelessWidget {
-  final Widget child;
-  final Color borderColor;
-
-  const TKDashedBorderCard({super.key, required this.child, this.borderColor = TKColors.neonBlue});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: borderColor.withOpacity(0.5), width: 1.5, style: BorderStyle.solid), // 简化用实线，如需虚线需 CustomPaint
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: child,
-    );
-  }
-}
-
 // 科技大图标展示（设置页子页面中央大图标）
 class TKBigIcon extends StatelessWidget {
   final IconData icon;
@@ -684,51 +527,6 @@ class TKBigIcon extends StatelessWidget {
         boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 20, spreadRadius: 3)],
       ),
       child: Icon(icon, color: color, size: size * 0.6),
-    );
-  }
-}
-
-// 空状态占位
-class TKEmptyState extends StatelessWidget {
-  final String message;
-  final IconData icon;
-  final Color color;
-
-  const TKEmptyState({super.key, required this.message, this.icon = Icons.inbox, this.color = TKColors.textMuted});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color.withOpacity(0.5), size: 48),
-          const SizedBox(height: 12),
-          Text(message, style: TextStyle(color: color, fontSize: 14)),
-        ],
-      ),
-    );
-  }
-}
-
-// 加载指示器
-class TKLoader extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const TKLoader({super.key, this.color = TKColors.neonBlue, this.size = 28});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: CircularProgressIndicator(
-          strokeWidth: 3,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-        ),
-      ),
     );
   }
 }
@@ -794,7 +592,7 @@ class TianKeyApp extends StatelessWidget {
   }
 }
 
-enum PageTab { vehicle, borrow, settings, admin }
+enum PageTab { vehicle, borrow, settings }
 enum AccessMode { admin, borrower }
 
 // ==================== 模拟ESP32逻辑层 ====================
@@ -807,7 +605,6 @@ class SimulatedEsp32 {
   String deviceName = '陕A0P92Y';
   bool timeSynced = false;
   DateTime? espTime;
-  bool autoLockEnabled = true;
 
   SimulatedEsp32();
 
@@ -840,27 +637,6 @@ class SimulatedEsp32 {
     return true;
   }
 
-  String executeCommand(String command) {
-    String detail;
-    switch (command) {
-      case 'suoche':
-        detail = 'GPIO14 锁车脉冲';
-      case 'jiesuo':
-        detail = 'GPIO33 解锁脉冲';
-      case 'xunche':
-        detail = 'GPIO14 连续两次锁车脉冲';
-      case 'chuangsheng':
-        detail = 'GPIO14 保持7秒';
-      case 'chuangjiang':
-        detail = 'GPIO33 保持7秒';
-      case 'houbeixiang':
-        detail = 'GPIO4 保持7秒';
-      default:
-        detail = '未知命令';
-    }
-    return detail;
-  }
-
   String generateBorrowCode(int hours) {
     // 哈希基于密码+过期时间戳，不再依赖6小时窗口
     final now = DateTime.now();
@@ -885,16 +661,6 @@ class SimulatedEsp32 {
     return true;
   }
 
-  bool resetPassword() {
-    adminPassword = '123456789';
-    return true;
-  }
-
-  bool changeDeviceName(String name) {
-    deviceName = name;
-    return true;
-  }
-
   void factoryReset() {
     adminPassword = '123456789';
     adminDevice = null;
@@ -904,13 +670,6 @@ class SimulatedEsp32 {
     deviceName = '陕A0P92Y';
     timeSynced = false;
     espTime = null;
-  }
-
-  void disconnect() {
-    timeSynced = false;
-    espTime = null;
-    if (autoLockEnabled) {
-    }
   }
 }
 
@@ -923,7 +682,6 @@ class TianKeyHome extends StatefulWidget {
 
 class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   static const defaultPassword = '123456789';
-  static const legacyPhoneId = 'PHONE-TIANKY-01';
   static const defaultName = '陕A0P92Y';
 
   final TianKeyBleService ble = TianKeyBleService();
@@ -931,19 +689,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   late final SimulatedEsp32 esp32 = SimulatedEsp32();
   final List<String> logs = <String>[];
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController newPasswordController = TextEditingController();
-  final TextEditingController nameController = TextEditingController();
   final TextEditingController hoursController = TextEditingController(text: '2');
-  final TextEditingController searchController = TextEditingController();
 
   SharedPreferences? prefs;
   PageTab tab = PageTab.vehicle;
   AccessMode? mode;
   BleScanItem? foundDevice;
   List<BleScanItem> scannedDevices = [];
-  String searchQuery = '';
   Timer? borrowExpiryTimer;
   Timer? commandTimer;
+  Timer? _heartbeatTimer;
+  bool _connectCooldown = false;
+
   bool ready = false;
   bool scanning = false;
   bool connecting = false;
@@ -952,13 +709,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool authorized = true;
   bool adminSession = false;
   bool autoConnect = true;
-  bool locked = true;
+  bool simulationMode = false;
   bool timeSynced = false;
   bool timeFail = false;
   int rssiValue = 0;
   int commandSeconds = 0;
-  String activeCommand = '';
   String deviceName = defaultName;
+  String carModel = '未设置';
   String adminPassword = defaultPassword;
   String? installId;
   String? adminDevice;
@@ -967,14 +724,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   DateTime? borrowStart;
   DateTime? borrowEnd;
   DateTime? espTime;
-  bool borrowTimeConfirmed = false;
   bool sleepEnabled = false;
   int sleepHours = 0;
   int sleepMinutes = 30;
   int wakeMinutes = 30;
   bool esp32Sleeping = false;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
-  String lastCommand = '';
   bool splashDone = false;
 
   bool get borrowValid {
@@ -985,9 +740,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   bool get adminEnabled => adminSession;
 
-  bool get vehicleEnabled => connected && authorized &&
-      ((mode == AccessMode.admin && adminSession) ||
-          (mode == AccessMode.borrower && borrowValid && borrowTimeConfirmed));
+  bool get vehicleEnabled => connected && authorized;
+
+  void _msg(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text, style: const TextStyle(color: Colors.white, fontSize: 13)), backgroundColor: const Color(0xFF1A2332), duration: const Duration(seconds: 2), behavior: SnackBarBehavior.floating, margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+    );
+  }
 
   @override
   void initState() {
@@ -1001,9 +762,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
+    _stopHeartbeat();
     passwordController.dispose();
-    newPasswordController.dispose();
-    nameController.dispose();
     hoursController.dispose();
     unawaited(bleGateway.dispose());
     unawaited(ble.dispose());
@@ -1012,21 +772,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      // APP退到后台 → 断开BLE → ESP32重新广播 → 其他手机能扫到
-      if (connected) {
-        _log('[APP] APP进入后台，断开BLE连接');
-        disconnect();
-      }
-    } else if (state == AppLifecycleState.resumed) {
-      // APP回到前台 → 自动重连
+    if (state == AppLifecycleState.resumed) {
       if (!connected && !connecting && authorized && savedRemoteId != null) {
-        _log('[APP] APP回到前台，尝试自动重连');
         connect();
-        // 3秒后如果还没连上，重试一次
         Future.delayed(const Duration(seconds: 3), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            _log('[APP] 自动重连重试');
             connect();
           }
         });
@@ -1043,6 +793,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       await p.setString('install_id', installId!);
     }
     deviceName = p.getString('device_name') ?? defaultName;
+    carModel = p.getString('car_model') ?? '未设置';
     adminPassword = p.getString('admin_password') ?? defaultPassword;
     adminDevice = p.getString('admin_device_id');
     savedRemoteId = p.getString('ble_remote_id');
@@ -1053,12 +804,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     borrowEnd = end == null ? null : DateTime.fromMillisecondsSinceEpoch(end);
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
+    simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
-    esp32.autoLockEnabled = p.getBool('auto_lock') ?? true;
     sleepEnabled = p.getBool('sleep_enabled') ?? false;
     sleepHours = p.getInt('sleep_hours') ?? 0;
     sleepMinutes = p.getInt('sleep_minutes') ?? 30;
     wakeMinutes = p.getInt('wake_minutes') ?? 30;
+    esp32Sleeping = sleepEnabled;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1068,8 +820,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     esp32.borrowEnd = borrowEnd;
 
     ready = true;
-    _cleanupOldLogs();
-    _log('[APP] 启动');
     _scheduleBorrowExpiry();
     if (borrowEnd != null && !DateTime.now().isBefore(borrowEnd!)) {
       await _clearBorrow();
@@ -1079,39 +829,132 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) setState(() => splashDone = true);
 
-    if (autoConnect && authorized && adminDevice != null && adminDevice == installId && savedRemoteId != null) {
-      // 只有管理员才自动连接，临时借车不自动连接（每次需重新认证）
-      _log('[APP] 真实BLE自动连接：尝试连接已保存设备');
+    // 检查蓝牙是否开启，没开就弹窗提示
+    if (!simulationMode && mounted) {
+      try {
+        final adapterState = await FlutterBluePlus.adapterState.first;
+        final isOn = adapterState == BluetoothAdapterState.on;
+        if (!isOn && mounted) {
+          final shouldEnable = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF0A1628),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.bluetooth_disabled, color: Color(0xFFFF8800), size: 24),
+                  SizedBox(width: 8),
+                  Text('蓝牙未开启', style: TextStyle(color: Colors.white, fontSize: 18)),
+                ],
+              ),
+              content: const Text('请开启蓝牙以搜索和连接设备', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('稍后', style: TextStyle(color: Colors.white54)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('去开启', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+          if (shouldEnable == true) {
+            try {
+              await FlutterBluePlus.turnOn();
+            } catch (_) {}
+            // 等待蓝牙就绪
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (simulationMode && autoConnect) {
+      await _autoConnectSimulation();
+    } else if (!simulationMode && autoConnect && savedRemoteId != null) {
       await _autoConnectReal();
-    } else if (!connected && !connecting && !_autoConnecting) {
-      _log('[APP] 自动弹出扫描：开始搜索设备');
-      await scan(timeout: const Duration(seconds: 6));
+    }
+
+    // 自动连接失败或首次使用（无保存设备），自动扫描弹出设备列表让用户手动选
+    if (!connected && !simulationMode && mounted) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted && !connected && !scanning) {
+        try {
+          final adapterState2 = await FlutterBluePlus.adapterState.first;
+          if (adapterState2 == BluetoothAdapterState.on) scan();
+        } catch (_) {
+          scan();
+        }
+      }
     }
 
     if (mounted) setState(() {});
   }
 
-  Future<void> _autoConnectReal() async {
-    if (connected || connecting || _autoConnecting) return;
+  Future<void> _autoConnectSimulation() async {
+    if (!simulationMode || connected || connecting || _autoConnecting) return;
     _autoConnecting = true;
     setState(() {
       connecting = true;
       status = '正在自动连接...';
     });
-    _log('[APP] 真实BLE自动连接开始');
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+    final simDevice = BleScanItem(name: esp32.deviceName, remoteId: 'SIM-ESP32-TIANKY');
+    foundDevice = simDevice;
+    savedRemoteId = simDevice.remoteId;
+    final esp32HasAdmin = esp32.adminDevice != null && esp32.adminDevice!.isNotEmpty;
+    final isCurrentAdmin = esp32HasAdmin && esp32.adminDevice == installId;
+    if (isCurrentAdmin) {
+      adminSession = true;
+      mode = AccessMode.admin;
+      await prefs?.setBool('authorized', true);
+      authorized = true;
+    } else {
+      adminSession = false;
+      mode = AccessMode.borrower;
+      await prefs?.setBool('authorized', false);
+      authorized = false;
+    }
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    setState(() {
+      connected = true;
+      connecting = false;
+      timeSynced = false;
+      status = adminSession ? '自动连接成功，管理员模式' : '自动连接成功，非管理员模式，需输入密码';
+    });
+      _autoConnecting = false;
+      await syncTime();
+      _startHeartbeat();
+      _querySleepState();
+    }
+
+  Future<void> _autoConnectReal() async {
+    if (simulationMode || connected || connecting || _autoConnecting) return;
+    _autoConnecting = true;
+    setState(() {
+      connecting = true;
+      status = '正在自动连接...';
+    });
     try {
       if (savedRemoteId == null || savedRemoteId!.isEmpty) {
         setState(() { connecting = false; status = '自动连接失败：无保存设备'; });
-        _log('[APP] 自动连接失败：无保存设备');
         return;
       }
       final savedPwd = prefs?.getString('admin_password');
       if (savedPwd == null || savedPwd.isEmpty) {
         setState(() { connecting = false; status = '自动连接失败：无保存的密码'; });
+        _msg('无保存密码，请手动连接');
         return;
       }
       // 用扫描方式找到设备（替代不可靠的fromId）
-      _log('[APP] 扫描寻找已保存设备: $savedRemoteId');
       setState(() => status = '正在扫描已保存设备...');
       final devices = await ble.scan(timeout: const Duration(milliseconds: 1500));
       if (!mounted) return;
@@ -1125,11 +968,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
       if (target == null) {
         setState(() { connecting = false; status = '自动连接失败：设备不在附近'; });
-        _log('[APP] 自动连接失败：扫描未找到已保存设备');
         return;
       }
       foundDevice = target;
-      _log('[APP] 扫描找到设备: ${target.name} / ${target.remoteId}');
       // BLE连接
       await ble.connect(target.device!);
       if (ble.discoveredServices.isEmpty) {
@@ -1156,8 +997,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       String? reply;
       for (int retry = 0; retry < 3; retry++) {
         reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
-        _log('[BLE] 自动认证回复: $reply (尝试${retry + 1}/3)');
-        if (reply != null) break;
+        if (reply != null && reply.contains('OK')) break;
         if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
       }
       if (reply != null && reply.contains('OK')) {
@@ -1165,6 +1005,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         adminDevice = installId;
         adminSession = true;
         authorized = true;
+        mode = AccessMode.admin;
         esp32.adminDevice = installId;
         await prefs?.setString('admin_device_id', installId!);
         await prefs?.setBool('authorized', true);
@@ -1174,62 +1015,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           timeSynced = false;
           status = '自动连接成功，管理员模式';
         });
-        _log('[APP] 管理员自动认证通过');
         await syncTime();
-        await _syncSettings();
+        _startHeartbeat();
+        _querySleepState();
       } else {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
-        _log('[APP] 自动连接密码认证失败');
+        _msg('自动认证失败，请手动连接');
       }
     } catch (e) {
       setState(() { connecting = false; status = '自动连接失败：$e'; });
-      _log('[APP] 自动连接失败：$e');
+      _msg('自动连接失败');
     } finally {
       _autoConnecting = false;
     }
-  }
-
-  void _log(String message) {}
-
-  void _cleanupOldLogs() {}
-
-  Future<void> _syncSettings() async {
-    if (!bleGateway.readyForWrite) return;
-    try {
-      // 查询管理员设备ID
-      final devIdReply = await bleGateway.sendAndWait(utf8.encode('!DEVICEID?'));
-      if (devIdReply != null && devIdReply.startsWith('DEVICEID:')) {
-        final remoteAdminId = devIdReply.substring(9);
-        if (remoteAdminId != 'NONE' && remoteAdminId != adminDevice) {
-          _log('[SYNC] 管理员设备已变更: $remoteAdminId (本地: $adminDevice)');
-          _message('⚠️ 管理员设备已变更，可能已被其他设备接管');
-        }
-      }
-      // 查询设备名
-      final nameReply = await bleGateway.sendAndWait(utf8.encode('!NAME?'));
-      if (nameReply != null && nameReply.startsWith('NAME:')) {
-        final remoteName = nameReply.substring(5);
-        if (remoteName != deviceName) {
-          _log('[SYNC] 设备名已变更: $remoteName (本地: $deviceName)');
-          _message('⚠️ 设备名已变更: $remoteName');
-          deviceName = remoteName;
-          await prefs?.setString('device_name', remoteName);
-        }
-      }
-    } catch (e) {
-      _log('[SYNC] 同步设置异常: $e');
-    }
-  }
-
-  void _message(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: const TextStyle(color: TKColors.textPrimary)),
-      backgroundColor: TKColors.bgCard,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: TKColors.neonBlue, width: 1)),
-    ));
   }
 
   void _scheduleBorrowExpiry() {
@@ -1238,10 +1037,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (end == null) return;
     final delay = end.difference(DateTime.now());
     if (delay <= Duration.zero) {
+      _showBorrowExpiredDialog();
       unawaited(_clearBorrow());
       return;
     }
-    borrowExpiryTimer = Timer(delay, () => unawaited(_clearBorrow()));
+    borrowExpiryTimer = Timer(delay, () {
+      _showBorrowExpiredDialog();
+      unawaited(_clearBorrow());
+    });
+  }
+
+  void _showBorrowExpiredDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: TKColors.bgCard,
+        title: const Text('借车授权已过期', style: TextStyle(color: TKColors.neonOrange)),
+        content: const Text('临时借车密码已过期，车辆功能已重新锁定。', style: TextStyle(color: TKColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('知道了', style: TextStyle(color: TKColors.neonBlue))),
+        ],
+      ),
+    );
   }
 
   Future<void> scan({Duration? timeout}) async {
@@ -1250,39 +1068,41 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       scanning = true;
       foundDevice = null;
       scannedDevices = [];
-      status = '正在扫描 BLE 设备...';
+      status = simulationMode ? '模拟扫描中...' : '正在扫描 BLE 设备...';
     });
-    _log('[APP] BLE真实扫描开始');
     try {
-      if (!await ble.isSupported()) {
-        throw StateError('当前手机不支持 BLE');
-      }
-      final devices = await ble.scan(timeout: timeout ?? const Duration(seconds: 6));
-      if (!mounted) return;
-      scannedDevices = devices;
-      if (devices.isEmpty) {
-        setState(() => status = 'BLE扫描结束：未发现设备');
-        _log('[APP] BLE扫描结束：未发现设备');
-        _message('未发现 BLE 设备，请确认 ESP32 正在广播');
-        return;
-      }
-      if (devices.length == 1) {
-        final selected = devices.first;
-        foundDevice = selected;
-        savedRemoteId = selected.remoteId;
-        await prefs?.setString('ble_remote_id', selected.remoteId);
-        setState(() => status = '发现设备：${selected.name}');
-        _log('[APP] 发现 BLE：${selected.name} / ${selected.remoteId}');
-        _message('发现 ${selected.name}');
+      if (simulationMode) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+        final simDevice = BleScanItem(name: '陕A0P92Y', remoteId: 'SIM-ESP32-TIANKY');
+        scannedDevices = [simDevice];
+        foundDevice = simDevice;
+        savedRemoteId = simDevice.remoteId;
+        setState(() => status = '发现设备：${simDevice.name}');
       } else {
-        setState(() => status = '发现 ${devices.length} 个设备，请选择');
-        _log('[APP] 发现 ${devices.length} 个BLE设备');
+        if (!await ble.isSupported()) {
+          throw StateError('当前手机不支持 BLE');
+        }
+        final devices = await ble.scan(timeout: timeout ?? const Duration(seconds: 6));
+        if (!mounted) return;
+        scannedDevices = devices;
+        if (devices.isEmpty) {
+          setState(() => status = 'BLE扫描结束：未发现设备');
+          return;
+        }
+        if (devices.length == 1) {
+          final selected = devices.first;
+          foundDevice = selected;
+          savedRemoteId = selected.remoteId;
+          await prefs?.setString('ble_remote_id', selected.remoteId);
+          setState(() => status = '发现设备：${selected.name}');
+        } else {
+          setState(() => status = '发现 ${devices.length} 个设备，请选择');
+        }
       }
     } catch (error) {
       if (!mounted) return;
-      setState(() => status = 'BLE扫描失败：$error');
-      _log('[APP] 扫描失败：$error');
-      _message('扫描失败：$error');
+      setState(() => status = '${simulationMode ? "模拟" : "BLE"}扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
     }
@@ -1315,7 +1135,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (!mounted) return;
       if (scannedDevices.isEmpty) {
         setState(() { status = '未发现设备，请确认ESP32已开启'; });
-        _message('未发现设备，请确认ESP32在附近并已开启');
         return;
       }
       // 已保存设备优先匹配
@@ -1355,33 +1174,32 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (connecting || connected) return;
     setState(() {
       connecting = true;
-      status = '正在建立 BLE 连接...';
+      status = simulationMode ? '模拟连接中...' : '正在建立 BLE 连接...';
     });
-    _log('[APP] 开始建立BLE连接');
     try {
-      if (target.device == null) throw StateError('BLE设备对象无效');
-      // 整个连接+服务发现流程带重试
-      bool bleReady = false;
-      for (int attempt = 1; attempt <= 3; attempt++) {
-        try {
-          await ble.connect(target.device!);
-          if (ble.discoveredServices.isEmpty) {
-            throw StateError('服务列表为空');
-          }
-          bleReady = true;
-          break;
-        } catch (e) {
-          _log('[APP] 第${attempt}次BLE连接/服务发现失败：$e');
-          if (attempt < 3) {
-            await Future.delayed(const Duration(milliseconds: 500));
+      if (!simulationMode) {
+        if (target.device == null) throw StateError('BLE设备对象无效');
+        // 整个连接+服务发现流程带重试
+        bool bleReady = false;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+          try {
+            await ble.connect(target.device!, timeout: const Duration(seconds: 3));
+            if (ble.discoveredServices.isEmpty) {
+              throw StateError('服务列表为空');
+            }
+            bleReady = true;
+            break;
+          } catch (e) {
+            if (attempt < 2) {
+              await Future.delayed(const Duration(milliseconds: 300));
+            }
           }
         }
-      }
-      if (!bleReady) {
-        throw StateError('BLE连接失败，请确认设备在附近并重试');
-      }
-      ble.onDisconnect = () {
-        try {
+        if (!bleReady) {
+          throw StateError('BLE连接失败，请确认设备在附近并重试');
+        }
+        ble.onDisconnect = () {
+          _stopHeartbeat();
           if (mounted && connected) {
             setState(() {
               connected = false;
@@ -1389,15 +1207,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               adminSession = false;
               timeSynced = false;
               espTime = null;
-              borrowTimeConfirmed = false;
               commandSeconds = 0;
-              activeCommand = '';
               status = 'BLE连接已断开，车辆功能锁定';
             });
-            _log('[APP] BLE非主动断开，车辆功能锁定');
-            _message('BLE连接已断开');
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
           }
-          } catch (e) { _log('[APP] onDisconnect回调异常: $e'); }
         };
         // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
         bool serviceFound = false;
@@ -1416,9 +1230,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               if (notifyChar != null) {
                 await bleGateway.startNotify();
                 await Future.delayed(const Duration(milliseconds: 200));
-                _log('[APP] NUS通知通道已启动，可以接收ESP32回复');
               }
-              _log('[APP] NUS通道绑定成功，可以发送指令');
             }
             serviceFound = true;
             break;
@@ -1427,9 +1239,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (!serviceFound) {
           throw StateError('无法发现NUS服务，请确认ESP32固件正常');
         }
+      } else {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
 
       // 自动连接验证：根据身份发送不同验证命令
-      if (autoConnectVerify && bleGateway.readyForWrite) {
+      if (autoConnectVerify && !simulationMode && bleGateway.readyForWrite) {
         final savedMode = prefs?.getString('access_mode');
         if (savedMode == 'borrower') {
           // 临时借车自动连接：发送!VERIFYBORROW验证
@@ -1442,18 +1257,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           setState(() => status = 'BLE已连接，正在验证临时借车授权...');
           String? reply;
           for (int retry = 0; retry < 3; retry++) {
-            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $savedCode'));
-            _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+            reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $savedCode'), expectPrefix: 'OK');
             if (reply != null && reply.contains('OK')) break;
             if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
           if (reply != null && reply.contains('OK')) {
             esp32.verifyBorrowPassword(savedCode);
-            _log('[APP] 临时借车授权验证通过');
           } else {
             await ble.disconnect();
             setState(() { connecting = false; status = '临时借车授权已过期或无效'; });
-            _message('临时借车授权已过期，请联系管理员重新授权');
             return;
           }
         } else {
@@ -1462,12 +1274,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           String? reply;
           for (int retry = 0; retry < 3; retry++) {
             reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
-            _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
             if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
             if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
           if (reply != null && reply.contains('OK')) {
-            _log('[APP] 管理员席位验证通过');
             adminSession = true;
             adminDevice = installId;
             await prefs?.setString('admin_device_id', installId!);
@@ -1476,18 +1286,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             adminSession = false;
             final savedPwd = prefs?.getString('admin_password');
             if (savedPwd == null || savedPwd.isEmpty) {
-              _log('[APP] 无保存密码，自动连接失败');
               await ble.disconnect();
               setState(() { connecting = false; status = '无保存密码，需手动认证'; });
-              _message('无保存的管理员密码，请手动连接并认证');
               return;
             }
-            _log('[APP] !DEVID失败($reply)，自动用保存密码认证');
             String? authReply;
             for (int retry = 0; retry < 3; retry++) {
               authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
-              _log('[BLE] ESP32回复: $authReply (尝试${retry + 1}/3)');
-              if (authReply != null) break;
+              if (authReply != null && authReply.contains('OK')) break;
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (authReply != null && authReply.contains('OK')) {
@@ -1498,11 +1304,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               esp32.adminDevice = installId;
               await prefs?.setString('admin_device_id', installId!);
               await prefs?.setBool('authorized', true);
-              _log('[APP] 管理员自动认证通过');
             } else {
               await ble.disconnect();
               setState(() { connecting = false; status = '自动认证失败'; });
-              _message('自动认证失败，请手动连接');
               return;
             }
           }
@@ -1511,21 +1315,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
       if (!skipPassword && password != null && !autoConnectVerify) {
         // 真实模式：BLE连上后，发送密码给ESP32验证
-        if (bleGateway.readyForWrite) {
+        if (!simulationMode && bleGateway.readyForWrite) {
           setState(() => status = 'BLE已连接，正在验证密码...');
           String? reply;
           if (selected == AccessMode.admin) {
-            final esp32Admin = esp32.adminDevice;
-            final seatBlocked = esp32Admin != null && esp32Admin.isNotEmpty && esp32Admin != installId && esp32Admin != legacyPhoneId;
-            if (seatBlocked) {
-              await ble.disconnect();
-              setState(() { connecting = false; status = '管理员席位已被其他设备占用'; });
-              _message('管理员席位已被其他设备占用');
-              return;
-            }
             for (int retry = 0; retry < 3; retry++) {
-              reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'), expectPrefix: 'OK');
-              _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
+              reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $installId'));
               if (reply != null) break;
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
@@ -1537,23 +1332,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               esp32.adminDevice = installId;
               await prefs?.setString('admin_device_id', installId!);
               await prefs?.setBool('authorized', true);
-              _log('[APP] 管理员密码验证通过');
             } else {
               await ble.disconnect();
-              setState(() { connecting = false; status = '密码错误'; });
-              _message('密码错误');
+              final errMsg = (reply != null && reply.contains('ERR')) ? '密码错误（ESP32已锁定10秒）' : '密码错误或蓝牙断开';
+              setState(() { connecting = false; status = errMsg; });
               return;
             }
           } else {
             for (int retry = 0; retry < 3; retry++) {
               reply = await bleGateway.sendAndWait(utf8.encode('!VERIFYBORROW $password'));
-              _log('[BLE] ESP32回复: $reply (尝试${retry + 1}/3)');
-              if (reply != null && reply.contains('OK')) break;
+              if (reply != null) break;
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (reply != null && reply.contains('OK')) {
               esp32.verifyBorrowPassword(password);
-              _log('[APP] 临时密码验证通过');
               // 保存临时借车授权状态
               await prefs?.setBool('authorized', true);
               await prefs?.setString('ble_remote_id', target.remoteId);
@@ -1566,8 +1358,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               savedRemoteId = target.remoteId;
             } else {
               await ble.disconnect();
-              setState(() { connecting = false; status = '密码错误或已过期'; });
-              _message('密码错误或临时密码已过期');
+              final errMsg = (reply != null && reply.contains('ERR')) ? '借车码无效或已过期' : '借车码验证失败或蓝牙断开';
+              setState(() { connecting = false; status = errMsg; });
               return;
             }
           }
@@ -1576,7 +1368,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           if (selected == AccessMode.admin) {
             if (!esp32.verifyAdminPassword(password, installId ?? '')) {
               setState(() { connecting = false; status = '密码错误'; });
-              _message('密码错误');
               return;
             }
             adminDevice = installId;
@@ -1586,7 +1377,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           } else {
             if (!esp32.verifyBorrowPassword(password)) {
               setState(() { connecting = false; status = '密码错误或已过期'; });
-              _message('密码错误或临时密码已过期');
               return;
             }
           }
@@ -1616,11 +1406,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         connecting = false;
         mode = selected;
         timeSynced = false;
-        status = 'BLE真实连接成功，正在同步时间...';
+        status = simulationMode ? '连接成功，正在同步时间...' : 'BLE真实连接成功，正在同步时间...';
       });
-      _log('[APP] BLE真实连接成功：${target.name}');
       await syncTime();
-      await _syncSettings();
+      _startHeartbeat();
+      _querySleepState();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1628,8 +1418,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         connected = false;
         status = '连接失败：$error';
       });
-      _log('[APP] 连接失败：$error');
-      _message('连接失败：$error');
     }
   }
 
@@ -1702,20 +1490,24 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     return result;
   }
 
-
   Future<void> syncTime() async {
     if (!connected) return;
-    _log('[APP] 自动同步时间...');
-    if (bleGateway.readyForWrite) {
-      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'));
-      if (reply != null && reply.contains('TIME OK')) {
-        _log('[BLE] 时间同步成功');
-      } else {
-        _log('[BLE] 时间同步失败，ESP32回复: $reply');
+    try {
+      if (!simulationMode && bleGateway.readyForWrite) {
+        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'OK');
+        if (!mounted) return;
+        if (reply != null && reply.contains('OK')) {
+          setState(() { timeSynced = true; });
+          _msg('时间同步成功');
+        } else {
+          _msg('时间同步失败');
+        }
       }
+    } catch (e) {
+      if (!mounted) return;
+      _msg('时间同步异常');
     }
-    _log('[ESP32] 收到时间同步请求');
     await Future<void>.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
     if (timeFail) {
@@ -1724,19 +1516,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         espTime = null;
         status = mode == AccessMode.admin ? '时间同步失败：管理员仍可使用' : '时间同步失败：无法确认临时授权有效期';
       });
-      _log('[ESP32] 时间同步失败');
-      _log('[APP] 时间同步失败');
+      _msg('时间同步失败');
       if (mode == AccessMode.admin) {
         authorized = true;
         await prefs?.setBool('authorized', true);
-        _log('[APP] 管理员时间同步失败，但仍开放权限');
-      } else {
-        borrowTimeConfirmed = false;
-        _log('[APP] 临时借车时间同步失败，授权未确认');
       }
       return;
     }
-    borrowTimeConfirmed = mode == AccessMode.borrower;
     esp32.syncTime(DateTime.now());
     setState(() {
       timeSynced = true;
@@ -1745,27 +1531,68 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
     });
     await prefs?.setBool('authorized', true);
-    _log('[ESP32] 时间同步成功：$espTime');
-    _log('[APP] 时间同步成功');
+    _msg('时间同步成功');
+  }
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (connected && !simulationMode) {
+        queryRssi();
+      }
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
   }
 
   Future<void> queryRssi() async {
-    if (!connected || !bleGateway.readyForWrite) return;
+    if (!connected || simulationMode || !bleGateway.readyForWrite) return;
     try {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!RSSI?'));
+      final reply = await bleGateway.sendAndWait(utf8.encode('!RSSI?'), expectPrefix: 'RSSI');
       if (reply != null && reply.startsWith('RSSI:')) {
         final val = int.tryParse(reply.substring(5)) ?? 0;
         if (mounted) setState(() => rssiValue = val);
       }
     } catch (e) {
-      _log('[BLE] RSSI查询失败: $e');
+      debugPrint('queryRssi error: $e');
+    }
+  }
+
+  Future<void> _querySleepState() async {
+    if (!connected || simulationMode || !bleGateway.readyForWrite) return;
+    try {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP?'), expectPrefix: 'SLEEP');
+      if (reply != null && reply.startsWith('SLEEP:')) {
+        final parts = reply.substring(6).split(':');
+        if (parts.length >= 2) {
+          final enabled = parts[0] == '1';
+          final minutes = int.tryParse(parts[1]) ?? 30;
+          if (mounted) setState(() {
+            esp32Sleeping = enabled;
+            sleepEnabled = enabled;
+            sleepHours = minutes ~/ 60;
+            sleepMinutes = minutes % 60;
+          });
+          await prefs?.setBool('sleep_enabled', enabled);
+          await prefs?.setInt('sleep_hours', minutes ~/ 60);
+          await prefs?.setInt('sleep_minutes', minutes % 60);
+        }
+      }
+    } catch (e) {
+      debugPrint('querySleepState error: $e');
     }
   }
 
   Future<void> disconnect() async {
+    _stopHeartbeat();
     commandTimer?.cancel();
-    await bleGateway.dispose();
-    await ble.disconnect();
+    if (!simulationMode) {
+      await bleGateway.dispose();
+      await ble.disconnect();
+    }
     if (!mounted) return;
     setState(() {
       connected = false;
@@ -1773,106 +1600,88 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       adminSession = false;
       timeSynced = false;
       espTime = null;
-      borrowTimeConfirmed = false;
       commandSeconds = 0;
-      activeCommand = '';
       status = '已断开：车辆功能重新锁定';
     });
-    _log('[APP] 已断开连接');
-    _log('[ESP32] BLE连接断开，执行安全保护');
-    _message('已断开，车辆功能已锁定');
+    _msg('已断开，车辆功能已锁定');
   }
 
   Future<void> vehicleCommand(String command) async {
     if (!vehicleEnabled) {
-      _message('当前没有车辆控制权限');
-      _log('[APP] 拒绝车辆指令 $command');
+      _msg('未连接，无法执行');
       return;
     }
     late final String protocol;
-    late final String detail;
-    late final int gpio;
     final timed = command == '车窗升' || command == '车窗降' || command == '后备箱';
     switch (command) {
       case '锁车':
-        protocol = 'suoche'; gpio = 14; detail = 'GPIO14 锁车脉冲'; locked = true;
+        protocol = 'suoche';
       case '解锁':
-        protocol = 'jiesuo'; gpio = 33; detail = 'GPIO33 解锁脉冲'; locked = false;
+        protocol = 'jiesuo';
       case '寻车':
-        protocol = 'xunche'; gpio = 14; detail = 'GPIO14 连续两次锁车脉冲';
+        protocol = 'xunche';
       case '车窗升':
-        protocol = 'chuangsheng'; gpio = 14; detail = 'GPIO14 保持7秒';
+        protocol = 'chuangsheng';
       case '车窗降':
-        protocol = 'chuangjiang'; gpio = 33; detail = 'GPIO33 保持7秒';
+        protocol = 'chuangjiang';
       default:
-        protocol = 'houbeixiang'; gpio = 4; detail = 'GPIO4 保持7秒';
+        protocol = 'houbeixiang';
     }
-    _log('[APP] 发送指令：$protocol');
     // 真实模式：直接发送，不等回复（ESP32瞬间执行）
-    if (bleGateway.readyForWrite) {
+    if (!simulationMode && bleGateway.readyForWrite) {
       try {
         await bleGateway.writeCommand(utf8.encode(protocol), withoutResponse: true);
-        _log('[BLE] 已发送：$protocol');
       } catch (e) {
-        _message('发送失败：$e');
-        _log('[BLE] 发送失败：$e');
+        _msg('$command 发送失败');
         return;
       }
-    } else if (!bleGateway.readyForWrite) {
-      _message('BLE通道未就绪，请重新连接');
+    } else if (!simulationMode && !bleGateway.readyForWrite) {
+      _msg('BLE通道未就绪，请重新连接');
       return;
     }
-    final espDetail = esp32.executeCommand(protocol);
-    _log('[ESP32] $espDetail');
     setState(() { status = '✅ $command 已发送'; });
-    _message('$command\n✅ 已发送');
+    _msg(timed ? '$command 已发送（保持4秒）' : '$command 执行成功');
     commandTimer?.cancel();
     if (timed) {
-      commandSeconds = 7;
-      activeCommand = command;
+      commandSeconds = 4;
       commandTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (!mounted) { timer.cancel(); return; }
         if (commandSeconds <= 1) {
           timer.cancel();
-          setState(() { commandSeconds = 0; activeCommand = ''; status = '✅ $command 完成'; });
+          setState(() { commandSeconds = 0; status = '✅ $command 完成'; });
           return;
         }
         setState(() => commandSeconds -= 1);
       });
-    } else {
-      _log('[ESP32] $protocol 执行成功');
-    }
-    lastCommand = '$protocol → GPIO$gpio → $detail';
-    setState(() => status = timed ? '⏳ $command 7秒保持中（$commandSeconds）' : '✅ $command 成功：$lastCommand');
-    _message(timed ? '$command\n⏳ 7秒保持中' : '$command\n✅ 执行成功\n$detail');
+    setState(() => status = timed ? '⏳ $command 4秒保持中（$commandSeconds）' : '✅ $command 成功');
   }
 
   Future<void> generateBorrowCode() async {
-    if (!adminEnabled) { _message('请先完成管理员认证'); return; }
+    if (!adminEnabled) { return; }
     final hours = (int.tryParse(hoursController.text.trim()) ?? 24).clamp(0, 168).toInt();
-    final duration = hours == 0 ? '5分钟' : '$hours小时';
-    _log('[APP] 生成临时借车密码，有效期 $duration');
     final code = esp32.generateBorrowCode(hours);
     borrowCode = esp32.borrowCode;
     borrowStart = esp32.borrowStart;
     borrowEnd = esp32.borrowEnd;
-    // 先发到ESP32，确认成功才存本地
-    if (bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'));
-      _log('[BLE] ESP32回复: $reply');
-      if (reply == null || !reply.contains('OK')) {
-        _message('ESP32未确认借车码，请重试');
-        borrowCode = null; borrowStart = null; borrowEnd = null;
-        return;
-      }
-      _log('[BLE] 已发送临时密码到ESP32：$code 有效期：${hours}小时');
-    }
     await prefs?.setString('borrow_code', code);
     await prefs?.setInt('borrow_start', borrowStart!.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
+    // 真实模式：发送 !BORROW 命令到ESP32
+    try {
+      if (!simulationMode && bleGateway.readyForWrite) {
+        final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'), expectPrefix: 'OK');
+        if (reply == null || !reply.contains('OK')) {
+          _msg('ESP32设置借车码失败');
+          return;
+        }
+      }
+    } catch (e) {
+      _msg('借车码设置异常');
+      return;
+    }
     _scheduleBorrowExpiry();
     setState(() => status = '临时借车密码已生成');
-    _message('临时密码：$code\n有效期：$duration');
+    _msg('临时密码已生成：$code');
   }
 
   Future<void> _clearBorrow() async {
@@ -1881,218 +1690,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await prefs?.remove('borrow_code');
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
-    if (bleGateway.readyForWrite) {
-      await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'));
+    try {
+      if (!simulationMode && bleGateway.readyForWrite) {
+        final reply = await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'), expectPrefix: 'OK');
+        if (reply == null || !reply.contains('OK')) {
+          _msg('ESP32取消借车码失败');
+          return;
+        }
+      }
+    } catch (e) {
+      _msg('取消借车码异常');
+      return;
     }
+    _msg('借车授权已取消');
     if (mounted) {
       if (mode == AccessMode.borrower) {
-        await ble.disconnect();
+        if (!simulationMode) {
+          await ble.disconnect();
+        }
         connected = false; mode = null; timeSynced = false; espTime = null;
         status = '临时借车授权已失效，车辆功能重新锁定';
       }
       setState(() {});
     }
-  }
-
-  Future<void> toggleAuthorization() async {
-    if (!adminEnabled) { _message('请先完成管理员认证'); return; }
-    authorized = !authorized;
-    await prefs?.setBool('authorized', authorized);
-    _log(authorized ? '[APP] 恢复设备授权' : '[APP] 关闭设备授权');
-    // 真实模式：发送 !SAFE 命令到ESP32
-    if (bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!SAFE ${authorized ? 1 : 0}'));
-      _log('[BLE] ESP32授权回复: $reply');
-    }
-    setState(() => status = authorized ? '授权已恢复：管理员会话仍有效，车辆功能已开放' : '授权已关闭：车辆锁定，但管理员会话保留，可再次打开授权');
-    _message(authorized ? '授权已恢复' : '授权已关闭，管理员会话保留');
-  }
-
-  Future<void> changePassword() async {
-    if (!adminEnabled) { _message('请先完成管理员认证'); return; }
-    newPasswordController.clear();
-    final confirmController = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => TKDialog(
-        borderColor: TKColors.neonBlue,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const TKPageTitle(title: '修改管理员/蓝牙密码'),
-            const SizedBox(height: 16),
-            TKTextField(controller: newPasswordController, label: '新密码', hint: '输入新密码', obscureText: true, keyboardType: TextInputType.number),
-            const SizedBox(height: 12),
-            TKTextField(controller: confirmController, label: '确认新密码', hint: '再次输入新密码', obscureText: true, keyboardType: TextInputType.number),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
-                const SizedBox(width: 12),
-                Expanded(child: TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () => Navigator.pop(context, true), isEnabled: true)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-    if (ok != true) return;
-    final value = newPasswordController.text.trim();
-    if (value.length < 6) { _message('密码至少6位'); return; }
-    if (value != confirmController.text.trim()) { _message('两次输入不一致'); return; }
-    // 真实模式：先发送到ESP32并确认成功
-    if (bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!PWD $value'));
-      _log('[BLE] ESP32密码修改回复: $reply');
-      if (reply == null || !reply.contains('OK')) {
-        _message('ESP32密码修改失败，请重试');
-        return;
-      }
-    }
-    adminPassword = value;
-    esp32.changePassword(value);
-    await prefs?.setString('admin_password', value);
-    _log('[APP] 管理员密码已保存');
-    setState(() {});
-    _message('新密码已生效，旧密码已失效');
-  }
-
-  Future<void> changeDeviceName() async {
-    if (!adminEnabled) { _message('请先完成管理员认证'); return; }
-    nameController.text = deviceName;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => TKDialog(
-        borderColor: TKColors.neonBlue,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const TKPageTitle(title: '修改设备名称'),
-            const SizedBox(height: 16),
-            TKTextField(controller: nameController, label: 'BLE设备名称', hint: '输入设备名称'),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
-                const SizedBox(width: 12),
-                Expanded(child: TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () => Navigator.pop(context, true), isEnabled: true)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-    if (ok != true) return;
-    final value = nameController.text.trim();
-    if (value.isEmpty) return;
-    // 真实模式：先发送到ESP32并确认成功
-    if (bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $value'));
-      _log('[BLE] ESP32名称修改回复: $reply');
-      if (reply == null || !reply.contains('OK')) {
-        _message('ESP32名称修改失败，请重试');
-        return;
-      }
-    }
-    deviceName = value;
-    esp32.changeDeviceName(value);
-    await prefs?.setString('device_name', value);
-    _log('[APP] 设备名称已保存');
-    setState(() {});
-    _message('设备名称已更新');
-  }
-
-  Future<void> _migrateAdmin() async {
-    final ctrl = TextEditingController();
-    final passOk = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: TKColors.bgCard,
-        title: const Text('验证管理员密码', style: TextStyle(color: TKColors.textPrimary)),
-        content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number, style: const TextStyle(color: TKColors.textPrimary), decoration: const InputDecoration(hintText: '请输入管理员密码', hintStyle: TextStyle(color: TKColors.textMuted))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim() == adminPassword), child: const Text('确认')),
-        ],
-      ),
-    );
-    if (passOk != true) { _message('密码错误或已取消'); return; }
-    adminDevice = null;
-    adminSession = false;
-    authorized = false;
-    esp32.adminDevice = null;
-    await prefs?.remove('admin_device_id');
-    _log('[APP] 管理员席位已释放（迁移）');
-    _message('管理员席位已释放\n新设备可用密码重新接管');
-    setState(() {});
-  }
-
-  Future<void> factoryReset() async {
-    if (!adminEnabled) { _message('请先完成管理员认证'); return; }
-    final ctrl = TextEditingController();
-    final passOk = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: TKColors.bgCard,
-        title: const Text('验证管理员密码', style: TextStyle(color: TKColors.textPrimary)),
-        content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number, style: const TextStyle(color: TKColors.textPrimary), decoration: const InputDecoration(hintText: '请输入管理员密码', hintStyle: TextStyle(color: TKColors.textMuted))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim() == adminPassword), child: const Text('确认')),
-        ],
-      ),
-    );
-    if (passOk != true) { _message('密码错误或已取消'); return; }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => TKDialog(
-        borderColor: TKColors.neonRed,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const TKPageTitle(title: '恢复出厂'),
-            const SizedBox(height: 16),
-            const Icon(Icons.warning_amber_rounded, color: TKColors.neonRed, size: 48),
-            const SizedBox(height: 16),
-            const Text('此操作将清除所有管理员绑定、授权状态、临时借车授权和已保存 BLE 设备，并恢复为未绑定初始状态。', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(child: TKNeonButton(label: '取消', icon: Icons.cancel, neonColor: TKColors.textMuted, onTap: () => Navigator.pop(context), isEnabled: true)),
-                const SizedBox(width: 12),
-                Expanded(child: TKNeonButton(label: '确认恢复出厂', icon: Icons.delete_forever, neonColor: TKColors.neonRed, onTap: () => Navigator.pop(context, true), isEnabled: true)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-    if (ok != true) return;
-    try {
-      // 发送恢复出厂到ESP32并确认
-      if (bleGateway.readyForWrite) {
-        for (int retry = 0; retry < 3; retry++) {
-          final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'));
-          _log('[BLE] ESP32恢复出厂回复: $reply');
-          if (reply != null && reply.contains('OK')) break;
-          if (retry < 2) await Future.delayed(const Duration(milliseconds: 500));
-        }
-      }
-      await bleGateway.dispose();
-      await ble.disconnect();
-      esp32.factoryReset();
-      await prefs?.clear();
-      adminPassword = defaultPassword;
-      adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true;
-      deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
-      connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
-      final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
-    installId = newId;
-    await prefs?.setString('install_id', newId);
-    _log('[APP] 恢复出厂');
-    if (mounted) setState(() { status = '已恢复未绑定初始状态'; tab = PageTab.vehicle; });
-    _message('恢复出厂完成，管理员初始密码恢复为123456789');
-    } catch (e) { _message('恢复出厂失败: $e'); }
   }
 
   Future<void> _requireAdminAuth(VoidCallback onVerified) async {
@@ -2110,14 +1730,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       ),
     );
     if (ok == true) {
-      _log('[APP] 管理员密码验证通过');
       onVerified();
     } else {
-      _message('密码错误或已取消');
     }
   }
-
-  void _toggleAutoConnect(bool _) async { autoConnect = !autoConnect; await prefs?.setBool('auto_connect', autoConnect); _log(autoConnect ? '[APP] 自动连接开启' : '[APP] 自动连接关闭'); setState(() {}); }
 
   Widget vehiclePage() => Scaffold(
         backgroundColor: TKColors.bgPrimary,
@@ -2144,7 +1760,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             title: const Text('功能说明', style: TextStyle(color: TKColors.neonBlue)),
                             content: const SingleChildScrollView(
                               child: Text(
-                                '锁车/解锁/后备箱/寻车：\n  点击按钮立即执行\n\n升降窗：\n  长按执行4秒\n\n自动落锁：\n  蓝牙断开后自动锁车\n\n深度睡眠：\n  省电模式，定时唤醒\n\n临时借车：\n  生成临时密码借给他人',
+                                '锁车/解锁/后备箱/寻车：\n  点击按钮立即执行\n\n升降窗：\n  点击一次自动保持4秒\n\n深度睡眠：\n  省电模式，定时唤醒\n\n临时借车：\n  生成临时密码借给他人',
                                 style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
                               ),
                             ),
@@ -2252,7 +1868,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                               const SizedBox(height: 8),
                             ],
                             Row(children: [
-                              Expanded(child: TKNeonButton(label: connected ? '断开连接' : '快速连接', icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : () => connect(), isEnabled: true)),
+                              Expanded(child: TKNeonButton(label: connected ? '断开连接' : (_connectCooldown ? '请稍候...' : '快速连接'), icon: Icons.bluetooth, neonColor: TKColors.neonBlue, onTap: connected ? () => disconnect() : (_connectCooldown ? null : () async { _connectCooldown = true; setState(() {}); try { await connect(); } finally { Future.delayed(const Duration(seconds: 3), () { if (mounted) { _connectCooldown = false; setState(() {}); } }); } }), isEnabled: true)),
                             ]),
                             const SizedBox(height: 8),
                             Row(children: [
@@ -2327,19 +1943,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           Text(borrowValid ? borrowCode! : '无有效临时密码', style: const TextStyle(color: TKColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                         ],
                       ),
-                      if (borrowValid && borrowCode != null) ...[
-                        const SizedBox(height: 12),
-                        TKNeonButton(
-                          label: '复制密码',
-                          icon: Icons.content_copy,
-                          neonColor: TKColors.neonBlue,
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: borrowCode!));
-                            _message('密码已复制到剪贴板');
-                          },
-                          isEnabled: true,
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -2384,17 +1987,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.lock, color: TKColors.neonOrange, size: 48),
+                      Icon(borrowValid ? Icons.vpn_key : Icons.lock, color: TKColors.neonOrange, size: 48),
                       const SizedBox(height: 12),
-                      const Text('尚未生成', style: TextStyle(color: TKColors.textSecondary, fontSize: 16)),
+                      Text(
+                        borrowValid && borrowCode != null ? borrowCode! : '尚未生成',
+                        style: TextStyle(
+                          color: borrowValid ? TKColors.neonBlue : TKColors.textSecondary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 4,
+                        ),
+                      ),
                       const SizedBox(height: 16),
-                      // 复制密码按钮（未生成时禁用）
                       TKNeonButton(
                         label: '复制密码',
                         icon: Icons.content_copy,
                         neonColor: TKColors.neonBlue,
-                        onTap: null,
-                        isEnabled: false,
+                        onTap: borrowValid && borrowCode != null
+                            ? () {
+                                Clipboard.setData(ClipboardData(text: borrowCode!));
+                                _msg('密码已复制到剪贴板');
+                              }
+                            : null,
+                        isEnabled: borrowValid && borrowCode != null,
                       ),
                     ],
                   ),
@@ -2415,7 +2030,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         label: '生成临时密码',
                         icon: Icons.vpn_key,
                         neonColor: TKColors.neonBlue,
-                        onTap: adminEnabled ? () => generateBorrowCode() : () => _message('请先完成管理员认证'),
+                        onTap: adminEnabled ? () => generateBorrowCode() : () => {},
                         isEnabled: adminEnabled,
                         height: 56,
                         fontSize: 16,
@@ -2446,13 +2061,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
 // 时间选择按钮
   Widget _buildTimeSelectButton(String label, int hours) {
+    final isSelected = hoursController.text.trim() == hours.toString();
     return SizedBox(
       width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
       height: 56,
       child: TKNeonButton(
         label: label,
-        icon: Icons.access_time,
-        neonColor: TKColors.neonBlue,
+        icon: isSelected ? Icons.check_circle : Icons.access_time,
+        neonColor: isSelected ? TKColors.neonOrange : TKColors.neonBlue,
         onTap: () {
           setState(() {
             hoursController.text = hours.toString();
@@ -2511,19 +2127,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
                     ),
                     TKSettingTile(
-                      title: '自动落锁',
-                      leadingIcon: Icons.lock_outline,
-                      trailingText: esp32.autoLockEnabled ? '已开启' : '已关闭',
+                      title: '模拟模式',
+                      leadingIcon: Icons.science,
+                      trailingText: simulationMode ? '已开启' : '已关闭',
                       onTap: () {
-                        final newVal = !esp32.autoLockEnabled;
-                        setState(() => esp32.autoLockEnabled = newVal);
-                        prefs?.setBool('auto_lock', newVal);
-                        if (bleGateway.readyForWrite) {
-                          bleGateway.writeCommand(
-                              utf8.encode('!AUTOLOCK ${newVal ? 1 : 0}'),
-                              withoutResponse: true);
-                        }
-                        _message('自动落锁已${newVal ? "开启" : "关闭"}');
+                        setState(() => simulationMode = !simulationMode);
+                        await prefs?.setBool('simulation_mode', simulationMode);
                       },
                     ),
                     TKSettingTile(
@@ -2555,157 +2164,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         ),
       );
 
-  Widget adminPage() => Scaffold(
-        backgroundColor: TKColors.bgPrimary,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // 顶部栏
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => setState(() => tab = PageTab.vehicle)),
-                    const TKPageTitle(title: '管理员操作'),
-                    Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: connected ? TKColors.neonBlue : TKColors.textMuted, size: 28),
-                  ],
-                ),
-              ),
-
-              // 内容区
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  children: [
-                    // 管理员权限状态卡
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: TKColors.bgCard,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: adminEnabled ? TKColors.neonOrange.withOpacity(0.5) : TKColors.borderSubtle, width: 1.5),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.admin_panel_settings, color: adminEnabled ? TKColors.neonOrange : TKColors.textMuted, size: 24),
-                              const SizedBox(width: 12),
-                              Expanded(child: Text('管理员权限', style: const TextStyle(color: TKColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold))),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: adminEnabled ? TKColors.neonOrange.withOpacity(0.2) : TKColors.textMuted.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  adminEnabled ? '已开启' : '未认证',
-                                  style: TextStyle(color: adminEnabled ? TKColors.neonOrange : TKColors.textMuted, fontSize: 12, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(adminEnabled ? '管理员权限已开启：可修改设备保存信息。' : '请先通过管理员密码认证。', style: const TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 操作列表
-                    _AdminActionTile(title: '修改管理员/蓝牙密码', icon: Icons.password, onTap: adminEnabled ? () => changePassword() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '修改设备名称', icon: Icons.edit, onTap: adminEnabled ? () => changeDeviceName() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '生成临时借车密码', icon: Icons.key, onTap: adminEnabled ? () => generateBorrowCode() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: authorized ? '关闭授权' : '恢复授权', icon: Icons.verified_user, onTap: adminEnabled ? () => toggleAuthorization() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '重新同步时间', icon: Icons.sync, onTap: adminEnabled ? () => syncTime() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '自动连接：${autoConnect ? '开启' : '关闭'}', icon: Icons.bluetooth, onTap: () { _toggleAutoConnect(autoConnect); }),
-                    _AdminActionTile(title: '管理员迁移', icon: Icons.swap_horiz, onTap: adminEnabled ? () => _migrateAdmin() : () => _message('请先完成管理员认证')),
-                    _AdminActionTile(title: '恢复出厂', icon: Icons.delete_forever, onTap: adminEnabled ? () => factoryReset() : () => _message('请先完成管理员认证'), isDanger: true),
-                    const SizedBox(height: 20),
-
-                    // 关键状态卡
-                    _buildAdminStatusCard(),
-                    const SizedBox(height: 16),
-                    _buildBoundaryCard(),
-                  ],
-                ),
-              ),
-
-              // 底部导航栏
-              TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
-            ],
-          ),
-        ),
-      );
-
-  Widget _buildAdminStatusCard() {
-    final seatStatus = adminDevice == installId ? '当前安装' : adminDevice == null ? '未绑定' : '其他安装';
-    final bleStatus = connected ? '已连接' : '未连接';
-    final authorizationStatus = authorized ? '有效' : '关闭';
-    final timeStatus = timeSynced ? '已同步' : '未同步';
-    final vehicleStatus = locked ? '已锁定' : '已解锁';
-    final borrowStatus = borrowValid ? '有效至 ${_formatTime(borrowEnd!)}' : '无有效授权';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TKColors.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TKColors.borderSubtle, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('关键状态', style: TextStyle(color: TKColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          _buildStatusRow('管理员席位', seatStatus, TKColors.neonOrange),
-          _buildStatusRow('BLE', bleStatus, connected ? TKColors.neonBlue : TKColors.textMuted),
-          _buildStatusRow('授权', authorizationStatus, authorized ? TKColors.neonBlue : TKColors.neonRed),
-          _buildStatusRow('时间', timeStatus, timeSynced ? TKColors.neonBlue : TKColors.neonOrange),
-          _buildStatusRow('车辆', vehicleStatus, locked ? TKColors.neonRed : TKColors.neonBlue),
-          _buildStatusRow('临时借车', borrowStatus, borrowValid ? TKColors.neonBlue : TKColors.textMuted),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusRow(String label, String value, Color valueColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-          Text(value, style: TextStyle(color: valueColor, fontSize: 13, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBoundaryCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TKColors.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TKColors.borderSubtle, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('当前实现边界', style: TextStyle(color: TKColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('真实 BLE 扫描、连接、断开已接入；车辆指令帧、ESP32 时间写入、密码持久化、设备名写入仍未接入，等待既有硬件协议/固件代码。', style: TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
   // ==================== 设置二级子页面 ====================
 
   // 1. 修改蓝牙密码
@@ -2714,83 +2172,143 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '修改管理员密码'),
-          const SizedBox(width: 48),
+    bool saving = false;
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    return StatefulBuilder(
+      builder: (context, setLocalState) => Scaffold(
+        backgroundColor: TKColors.bgPrimary,
+        body: SafeArea(child: Column(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+            const TKPageTitle(title: '修改管理员密码'),
+            const SizedBox(width: 48),
+          ])),
+          Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+            const SizedBox(height: 24),
+            TKBigIcon(icon: Icons.admin_panel_settings, color: TKColors.neonOrange, size: 80),
+            const SizedBox(height: 24),
+            TKTextField(controller: currentCtrl, label: '当前管理员密码', hint: '请输入当前管理员密码', obscureText: obscureCurrent, keyboardType: TextInputType.number, showToggle: true, onVisibilityChanged: (v) => setLocalState(() => obscureCurrent = v)),
+            const SizedBox(height: 16),
+            TKTextField(controller: newCtrl, label: '新管理员密码', hint: '请输入新管理员密码', obscureText: obscureNew, keyboardType: TextInputType.number, showToggle: true, onVisibilityChanged: (v) => setLocalState(() => obscureNew = v)),
+            const SizedBox(height: 16),
+            TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: obscureConfirm, keyboardType: TextInputType.number, showToggle: true, onVisibilityChanged: (v) => setLocalState(() => obscureConfirm = v)),
+            const SizedBox(height: 32),
+            TKNeonButton(
+              label: saving ? '正在保存...' : '保存新密码',
+              icon: saving ? Icons.hourglass_top : Icons.check,
+              neonColor: TKColors.neonOrange,
+              onTap: saving ? null : () async {
+                if (currentCtrl.text.trim() != adminPassword) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('当前密码错误', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                if (newCtrl.text.trim().length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('新密码至少6位', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                if (newCtrl.text.trim() != confirmCtrl.text.trim()) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('两次密码不一致', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                setLocalState(() => saving = true);
+                try {
+                  if (!simulationMode && bleGateway.readyForWrite) {
+                    final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
+                    if (reply == null || !reply.contains('OK')) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ESP32修改密码失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                      setLocalState(() => saving = false);
+                      return;
+                    }
+                  }
+                  adminPassword = newCtrl.text.trim();
+                  esp32.changePassword(adminPassword);
+                  await prefs?.setString('admin_password', adminPassword);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('密码修改成功', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
+                  Navigator.pop(pageCtx);
+                } catch (e) {
+                  setLocalState(() => saving = false);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('修改失败：$e', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                }
+              },
+              isEnabled: !saving,
+            ),
+          ])),
         ])),
-        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-          const SizedBox(height: 24),
-          TKBigIcon(icon: Icons.admin_panel_settings, color: TKColors.neonOrange, size: 80),
-          const SizedBox(height: 24),
-          TKTextField(controller: currentCtrl, label: '当前管理员密码', hint: '请输入当前管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 16),
-          TKTextField(controller: newCtrl, label: '新管理员密码', hint: '请输入新管理员密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 16),
-          TKTextField(controller: confirmCtrl, label: '确认新密码', hint: '请再次输入新密码', obscureText: true, keyboardType: TextInputType.number, showToggle: true),
-          const SizedBox(height: 32),
-          TKNeonButton(label: '保存新密码', icon: Icons.check, neonColor: TKColors.neonOrange, onTap: () async {
-            if (currentCtrl.text.trim() != adminPassword) { _message('当前密码错误'); return; }
-            if (newCtrl.text.trim().length < 6) { _message('新密码至少6位'); return; }
-            if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
-            if (bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
-              _log('[BLE] ESP32回复: $reply');
-              if (reply == null || !reply.contains('OK')) {
-                _message('ESP32未确认密码修改，请重试');
-                return;
-              }
-            }
-            adminPassword = newCtrl.text.trim();
-            esp32.changePassword(adminPassword);
-            prefs?.setString('admin_password', adminPassword);
-            _log('[ESP32] 管理员密码已更新'); _log('[APP] 管理员密码已修改'); _message('管理员密码已更新'); Navigator.pop(pageCtx);
-          }, isEnabled: true),
-        ])),
-      ])),
+      ),
     );
   }
-
 
   // 设备名称
   Widget _deviceNamePage(BuildContext pageCtx) {
     final ctrl = TextEditingController(text: deviceName);
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '设备名称'),
-          const SizedBox(width: 48),
+    final modelCtrl = TextEditingController(text: carModel);
+    bool saving = false;
+    return StatefulBuilder(
+      builder: (context, setLocalState) => Scaffold(
+        backgroundColor: TKColors.bgPrimary,
+        body: SafeArea(child: Column(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+            const TKPageTitle(title: '设备名称'),
+            const SizedBox(width: 48),
+          ])),
+          Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+            const SizedBox(height: 24),
+            TKBigIcon(icon: Icons.device_hub, color: TKColors.neonBlue, size: 80),
+            const SizedBox(height: 24),
+            TKTextField(controller: ctrl, label: '设备名称', hint: '输入设备名称'),
+            const SizedBox(height: 16),
+            TKTextField(controller: modelCtrl, label: '车型', hint: '输入车型，如：马自达昂克赛拉'),
+            const SizedBox(height: 12),
+            const Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
+            const SizedBox(height: 32),
+            TKNeonButton(
+              label: saving ? '正在保存...' : '保存',
+              icon: saving ? Icons.hourglass_top : Icons.check,
+              neonColor: TKColors.neonBlue,
+              onTap: saving ? null : () async {
+                final v = ctrl.text.trim();
+                if (v.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('名称不能为空', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
+                setLocalState(() => saving = true);
+                try {
+                  if (!simulationMode && bleGateway.readyForWrite) {
+                    final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
+                    if (reply == null || !reply.contains('OK')) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ESP32修改名称失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                      setLocalState(() => saving = false);
+                      return;
+                    }
+                  }
+                  deviceName = v;
+                  await prefs?.setString('device_name', v);
+                  final m = modelCtrl.text.trim();
+                  if (m.isNotEmpty) {
+                    carModel = m;
+                    await prefs?.setString('car_model', m);
+                  }
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('设备名称已更新', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
+                  Navigator.pop(pageCtx);
+                } catch (e) {
+                  setLocalState(() => saving = false);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('修改失败：$e', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                }
+              },
+              isEnabled: !saving,
+            ),
+          ])),
         ])),
-        Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-          const SizedBox(height: 24),
-          TKBigIcon(icon: Icons.device_hub, color: TKColors.neonBlue, size: 80),
-          const SizedBox(height: 24),
-          TKTextField(controller: ctrl, label: '设备名称', hint: '输入设备名称'),
-          const SizedBox(height: 12),
-          const Text('设备名称将用于蓝牙连接和设备识别', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 32),
-          TKNeonButton(label: '保存', icon: Icons.check, neonColor: TKColors.neonBlue, onTap: () async {
-            final v = ctrl.text.trim();
-            if (v.isEmpty) { _message('名称不能为空'); return; }
-            if (bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
-              _log('[BLE] ESP32回复: $reply');
-              if (reply == null || !reply.contains('OK')) {
-                _message('ESP32未确认设备名修改，请重试');
-                return;
-              }
-            }
-            deviceName = v;
-            prefs?.setString('device_name', v);
-            _log('[APP] 设备名称已修改为 $v'); _message('设备名称已更新'); Navigator.pop(pageCtx);
-          }, isEnabled: true),
-        ])),
-      ])),
+      ),
     );
   }
 
@@ -2844,7 +2362,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             title: '自动连接',
             subtitle: '开启后，APP启动时将自动连接已配对设备',
             value: autoConnect,
-            onChanged: (v) { setLocalState(() {}); setState(() { autoConnect = v; }); prefs?.setBool('auto_connect', v); _log(v ? '[APP] 自动连接开启' : '[APP] 自动连接关闭'); },
+            onChanged: (v) { setLocalState(() {}); setState(() { autoConnect = v; }); prefs?.setBool('auto_connect', v); },
             leadingIcon: Icons.bluetooth,
           ),
         ])))),
@@ -2852,11 +2370,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
-
   // 6.5 深度睡眠设置
   Widget _deepSleepPage(BuildContext pageCtx) {
     final hoursCtrl = TextEditingController(text: sleepHours.toString());
     final minutesCtrl = TextEditingController(text: sleepMinutes.toString());
+    final wakeCtrl = TextEditingController(text: wakeMinutes.toString());
     return Scaffold(
       backgroundColor: TKColors.bgPrimary,
       body: SafeArea(child: Column(children: [
@@ -2875,6 +2393,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             onChanged: (v) { setLocalState(() {}); setState(() { sleepEnabled = v; }); prefs?.setBool('sleep_enabled', v); },
             leadingIcon: Icons.power_settings_new,
           ),
+          if (sleepEnabled) const Padding(padding: EdgeInsets.only(top: 4), child: Text('⚠️ 修改后需点下方"保存设置"才生效', style: TextStyle(color: TKColors.neonOrange, fontSize: 12))),
           const SizedBox(height: 16),
           if (sleepEnabled) ...[
             const Text('睡眠时长', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
@@ -2937,7 +2456,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 suffixText: '分钟',
                 suffixStyle: const TextStyle(color: TKColors.textSecondary, fontSize: 14),
               ),
-              controller: TextEditingController(text: wakeMinutes.toString()),
+              controller: wakeCtrl,
               onChanged: (v) { wakeMinutes = int.tryParse(v) ?? 30; },
             )),
           ],
@@ -2953,29 +2472,47 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             neonColor: TKColors.neonBlue,
             isEnabled: connected,
             onTap: connected ? () async {
-              try {
               final totalMinutes = sleepHours * 60 + sleepMinutes;
-              if (totalMinutes <= 0) {
-                _message('请设置睡眠时长');
+              if (!sleepEnabled) {
+                if (!simulationMode && bleGateway.readyForWrite) {
+                  final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
+                  if (!context.mounted) return;
+                  if (reply == null || !reply.contains('OK')) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('关闭睡眠失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                    return;
+                  }
+                }
+                setState(() { esp32Sleeping = false; });
+                await prefs?.setInt('sleep_hours', sleepHours);
+                await prefs?.setInt('sleep_minutes', sleepMinutes);
+                await prefs?.setInt('wake_minutes', wakeMinutes);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('深度睡眠已关闭', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
                 return;
               }
-              if (bleGateway.readyForWrite) {
-                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'));
+              if (totalMinutes <= 0) {
+                return;
+              }
+              if (!simulationMode && bleGateway.readyForWrite) {
+                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'), expectPrefix: 'OK');
+                if (!context.mounted) return;
                 if (reply == null || !reply.contains('OK')) {
-                  _message('睡眠设置失败: ${reply ?? "无响应"}');
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('睡眠设置失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
                 }
-                final wakeReply = await bleGateway.sendAndWait(utf8.encode('!WAKE $wakeMinutes'));
+                final wakeReply = await bleGateway.sendAndWait(utf8.encode('!WAKE $wakeMinutes'), expectPrefix: 'OK');
+                if (!context.mounted) return;
                 if (wakeReply == null || !wakeReply.contains('OK')) {
-                  _message('唤醒设置失败: ${wakeReply ?? "无响应"}');
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('唤醒设置失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
                 }
               }
               await prefs?.setInt('sleep_hours', sleepHours);
               await prefs?.setInt('sleep_minutes', sleepMinutes);
               await prefs?.setInt('wake_minutes', wakeMinutes);
-              _message('已设置: 睡眠${sleepHours}时${sleepMinutes}分, 唤醒广播${wakeMinutes}分钟');
-              } catch (e) { _message('操作失败: $e'); }
+              setState(() { esp32Sleeping = true; });
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('睡眠设置已保存', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
             } : null,
           )),
           const SizedBox(height: 16),
@@ -2985,18 +2522,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             neonColor: TKColors.neonOrange,
             isEnabled: connected,
             onTap: connected ? () async {
-              try {
-              if (bleGateway.readyForWrite) {
-                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'));
+              if (!simulationMode && bleGateway.readyForWrite) {
+                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
+                if (!context.mounted) return;
                 if (reply == null || !reply.contains('OK')) {
-                  _message('唤醒失败: ${reply ?? "无响应"}');
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('唤醒失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
                 }
               }
               setState(() { sleepEnabled = false; esp32Sleeping = false; });
               setLocalState(() {});
-              _message('ESP32已唤醒，深度睡眠已关闭');
-              } catch (e) { _message('唤醒失败: $e'); }
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已唤醒', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
             } : null,
           )),
           const SizedBox(height: 16),
@@ -3023,7 +2560,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           const Text('此操作将清除所有管理员绑定、授权状态、\n临时借车授权和已保存 BLE 设备，\n并恢复为未绑定初始状态。', style: TextStyle(color: TKColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
           const SizedBox(height: 32),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '确认恢复出厂', icon: Icons.delete_forever, neonColor: TKColors.neonRed, onTap: () async {
-            try {
             final ctrl = TextEditingController();
             final ok = await showDialog<bool>(context: pageCtx, builder: (ctx) => AlertDialog(
               backgroundColor: TKColors.bgCard,
@@ -3035,24 +2571,28 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               ],
             ));
             if (ok == true) {
-              if (bleGateway.readyForWrite) {
-                await bleGateway.sendAndWait(utf8.encode('!RESET'));
+              if (!simulationMode && bleGateway.readyForWrite) {
+                final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
+                if (reply == null || reply.contains('ERR')) {
+                  ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('ESP32恢复出厂失败，请重试', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                  return;
+                }
               }
-              await ble.disconnect();
+              if (!simulationMode) await ble.disconnect();
               esp32.factoryReset();
               await prefs?.clear();
+              ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('已恢复出厂设置', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
               adminPassword = defaultPassword;
-              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true;
+              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; simulationMode = false;
               deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
               connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
               final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
               installId = newId;
               await prefs?.setString('install_id', newId);
-              _log('[APP] 恢复出厂'); _message('恢复出厂完成'); Navigator.pop(pageCtx);
+              setState(() {});
+              Navigator.pop(pageCtx);
             } else {
-              _message('密码错误或已取消');
             }
-            } catch (e) { _message('恢复出厂失败: $e'); }
           }, isEnabled: true)),
         ]))),
       ])),
@@ -3081,13 +2621,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: TKColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: TKColors.borderSubtle)),
             child: Column(children: [
-              _infoRow('车型', '马自达昂克赛拉'),
+              _infoRow('车型', carModel),
               _infoRow('车牌', deviceName),
               _infoRow('设备ID', installId ?? '未知'),
               const Divider(color: TKColors.divider, height: 20),
               _infoRow('连接状态', connected ? '已连接' : '未连接'),
               _infoRow('管理员', adminEnabled ? '已授权' : '未授权'),
-              _infoRow('自动落锁', esp32.autoLockEnabled ? '已开启' : '已关闭'),
+              _infoRow('模拟模式', simulationMode ? '已开启' : '已关闭'),
               _infoRow('版本', '1.0.0+1'),
             ]),
           ),
@@ -3104,43 +2644,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       Text(value, style: const TextStyle(color: TKColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
     ]));
   }
-
-  // 管理员操作列表项
-  Widget _AdminActionTile({
-    required String title,
-    required IconData icon,
-    required VoidCallback? onTap,
-    bool isDanger = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: TKColors.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TKColors.borderSubtle, width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Icon(icon, color: isDanger ? TKColors.neonRed : TKColors.neonBlue, size: 24),
-                const SizedBox(width: 14),
-                Expanded(child: Text(title, style: const TextStyle(color: TKColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w500))),
-                const Icon(Icons.chevron_right, color: TKColors.textMuted, size: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime value) { String two(int v) => v.toString().padLeft(2, '0'); return '${value.month}/${value.day} ${two(value.hour)}:${two(value.minute)}'; }
 
   @override
   Widget build(BuildContext context) {

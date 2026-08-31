@@ -15,7 +15,6 @@ except ImportError:
 PIN_LOCK_DEFAULT    = 14
 PIN_UNLOCK_DEFAULT  = 33
 PIN_TRUNK_DEFAULT   = 4
-PIN_LED             = 2
 DEFAULT_NAME = "陕A0P92Y"
 DEFAULT_PWD  = "123456789"
 AUTH_TIMEOUT = 10
@@ -27,7 +26,6 @@ AUTH_FAILURE = 10000
 TEMP_VALID = 6 * 3600
 CONFIG_FILE = "config.json"
 RSSI_LOCK_THRESHOLD = -80
-VOLTAGE_MIN = 3300
 
 wdt = WDT(timeout=8000)
 
@@ -38,15 +36,12 @@ TRUNK_PIN = PIN_TRUNK_DEFAULT
 lock_pin = None
 unlock_pin = None
 trunk_pin = None
-led_pin = Pin(PIN_LED, Pin.OUT, value=0)
 safe_state = False
 gpio_busy = False
-voltage_adc = None
 
 LOCK_DURATION = LOCK_DEFAULT_DURATION
 TRUNK_DURATION = TRUNK_DEFAULT_DURATION
 AUTO_LOCK_ENABLED = 1
-vehicle_enabled = True
 sleep_minutes = 0
 sleep_enabled = False
 wake_minutes = 30
@@ -70,6 +65,10 @@ adv_fail_count = 0
 last_adv_ok = 0
 last_rssi_check = 0
 ble_error_count = 0
+last_cmd_time = 0
+HEARTBEAT_TIMEOUT = 30000
+
+VALID_GPIO = {0,2,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,32,33}
 
 def init_pins():
     global lock_pin, unlock_pin, trunk_pin
@@ -79,25 +78,9 @@ def init_pins():
         unlock_pin.init(Pin.IN)
     if trunk_pin is not None:
         trunk_pin.init(Pin.IN)
-    lock_pin = Pin(LOCK_PIN, Pin.OUT, value=1)
-    unlock_pin = Pin(UNLOCK_PIN, Pin.OUT, value=1)
-    trunk_pin = Pin(TRUNK_PIN, Pin.OUT, value=1)
-
-def safe_pins():
-    global safe_state
-    try:
-        lock_pin.value(1)
-    except:
-        pass
-    try:
-        unlock_pin.value(1)
-    except:
-        pass
-    try:
-        trunk_pin.value(1)
-    except:
-        pass
-    safe_state = False
+    lock_pin = Pin(LOCK_PIN if LOCK_PIN in VALID_GPIO else PIN_LOCK_DEFAULT, Pin.OUT, value=1)
+    unlock_pin = Pin(UNLOCK_PIN if UNLOCK_PIN in VALID_GPIO else PIN_UNLOCK_DEFAULT, Pin.OUT, value=1)
+    trunk_pin = Pin(TRUNK_PIN if TRUNK_PIN in VALID_GPIO else PIN_TRUNK_DEFAULT, Pin.OUT, value=1)
 
 def act_lock():
     global gpio_busy
@@ -149,48 +132,53 @@ def act_chuangjiang():
     unlock_pin.value(1)
     gpio_busy = False
 
-def read_voltage():
-    global voltage_adc
-    try:
-        if voltage_adc is None:
-            voltage_adc = ADC(Pin(34))
-            voltage_adc.atten(ADC.ATTN_11DB)
-            voltage_adc.width(ADC.WIDTH_12BIT)
-        raw = voltage_adc.read()
-        if raw == 0:
-            return 4200
-        mv = raw * 3300 // 4095
-        return mv
-    except:
-        return 4200
+_XOR_KEY = 0x5A
+
+def _obfuscate(s):
+    if not s:
+        return s
+    return ''.join(chr(ord(c) ^ _XOR_KEY) for c in s)
+
+def _deobfuscate(s):
+    if not s:
+        return s
+    return ''.join(chr(ord(c) ^ _XOR_KEY) for c in s)
 
 def load_config():
     global LOCK_DURATION, TRUNK_DURATION, AUTO_LOCK_ENABLED
     global LOCK_PIN, UNLOCK_PIN, TRUNK_PIN
     global admin_device_id, borrow_code, borrow_expiry
     global DEVICE_NAME, PASSWORD
-    global sleep_minutes, sleep_enabled, wake_minutes, vehicle_enabled
+    global sleep_minutes, sleep_enabled, wake_minutes
     try:
         with open(CONFIG_FILE, "r") as f:
             cfg = json.loads(f.read())
+        ver = int(cfg.get("ver", 1))
         DEVICE_NAME = cfg.get("name", DEFAULT_NAME)
-        PASSWORD = cfg.get("pwd", DEFAULT_PWD)
+        raw_pwd = cfg.get("pwd", None)
+        if raw_pwd is not None:
+            PASSWORD = _deobfuscate(raw_pwd) if ver >= 2 else raw_pwd
+        else:
+            PASSWORD = _obfuscate(DEFAULT_PWD) if ver >= 2 else DEFAULT_PWD
         admin_device_id = cfg.get("admin_device", None)
-        borrow_code = cfg.get("borrow_code", None)
+        raw_borrow = cfg.get("borrow_code", None)
+        if raw_borrow is not None:
+            borrow_code = _deobfuscate(raw_borrow) if ver >= 2 else raw_borrow
+        else:
+            borrow_code = None
         borrow_expiry = int(cfg.get("borrow_expiry", 0))
         AUTO_LOCK_ENABLED = int(cfg.get("auto_lock", 1))
         LOCK_PIN = int(cfg.get("lock_pin", PIN_LOCK_DEFAULT))
         UNLOCK_PIN = int(cfg.get("unlock_pin", PIN_UNLOCK_DEFAULT))
         TRUNK_PIN = int(cfg.get("trunk_pin", PIN_TRUNK_DEFAULT))
-        LOCK_DURATION = int(cfg.get("lock_dur", LOCK_DEFAULT_DURATION))
-        TRUNK_DURATION = int(cfg.get("trunk_dur", TRUNK_DEFAULT_DURATION))
+        LOCK_DURATION = min(int(cfg.get("lock_dur", LOCK_DEFAULT_DURATION)), 7000)
+        TRUNK_DURATION = min(int(cfg.get("trunk_dur", TRUNK_DEFAULT_DURATION)), 7000)
         sleep_minutes = int(cfg.get("sleep_min", 0))
         sleep_enabled = bool(cfg.get("sleep_en", 0))
         wake_minutes = int(cfg.get("wake_min", 30))
-        vehicle_enabled = bool(cfg.get("vehicle_en", 1))
         return
-    except:
-        pass
+    except Exception as e:
+        print("config.json load error:", e)
     try:
         with open("door.cfg", "r") as f:
             lines = f.read().strip().split("\n")
@@ -201,8 +189,8 @@ def load_config():
                     d[k.strip()] = v.strip()
         DEVICE_NAME = d.get("name", DEFAULT_NAME)
         PASSWORD = d.get("pwd", DEFAULT_PWD)
-        LOCK_DURATION = int(d.get("lock_dur", str(LOCK_DEFAULT_DURATION)))
-        TRUNK_DURATION = int(d.get("trunk_dur", str(TRUNK_DEFAULT_DURATION)))
+        LOCK_DURATION = min(int(d.get("lock_dur", str(LOCK_DEFAULT_DURATION))), 7000)
+        TRUNK_DURATION = min(int(d.get("trunk_dur", str(TRUNK_DEFAULT_DURATION))), 7000)
         AUTO_LOCK_ENABLED = int(d.get("auto_lock", "1"))
         LOCK_PIN = int(d.get("lock_pin", str(PIN_LOCK_DEFAULT)))
         UNLOCK_PIN = int(d.get("unlock_pin", str(PIN_UNLOCK_DEFAULT)))
@@ -213,17 +201,18 @@ def load_config():
         save_config()
         try:
             os.remove("door.cfg")
-        except:
+        except Exception:
             pass
         return
-    except:
+    except Exception:
         pass
 
 def save_config():
     try:
         cfg = {
+            "ver": 2,
             "name": DEVICE_NAME,
-            "pwd": PASSWORD,
+            "pwd": _obfuscate(PASSWORD),
             "lock_dur": LOCK_DURATION,
             "trunk_dur": TRUNK_DURATION,
             "auto_lock": AUTO_LOCK_ENABLED,
@@ -231,17 +220,18 @@ def save_config():
             "unlock_pin": UNLOCK_PIN,
             "trunk_pin": TRUNK_PIN,
             "admin_device": admin_device_id if admin_device_id else None,
-            "borrow_code": borrow_code if borrow_code else None,
+            "borrow_code": _obfuscate(borrow_code) if borrow_code else None,
             "borrow_expiry": borrow_expiry,
             "sleep_min": sleep_minutes,
             "sleep_en": 1 if sleep_enabled else 0,
-            "wake_min": wake_minutes,
-            "vehicle_en": 1 if vehicle_enabled else 0
+            "wake_min": wake_minutes
         }
-        with open(CONFIG_FILE, "w") as f:
+        tmp = CONFIG_FILE + ".tmp"
+        with open(tmp, "w") as f:
             f.write(json.dumps(cfg))
-    except:
-        pass
+        os.rename(tmp, CONFIG_FILE)
+    except Exception as e:
+        print("save_config error:", e)
 
 DEVICE_NAME = DEFAULT_NAME
 PASSWORD = DEFAULT_PWD
@@ -261,7 +251,7 @@ def verify_temp_code(code):
         return True, (window_now + 1) * TEMP_VALID
     window_prev = window_now - 1
     if code == _temp_code_for_window(window_prev):
-        return True, window_now * TEMP_VALID
+        return True, (window_now + 1) * TEMP_VALID
     return False, 0
 
 def reset_auth():
@@ -296,7 +286,7 @@ def start_adv():
         time.sleep_ms(20)
         ble.gap_advertise(50, gen_adv())
         return True
-    except:
+    except Exception:
         return False
 
 def ble_reset():
@@ -311,15 +301,15 @@ def ble_reset():
                 (TX_UUID, 0x0010),
                 (RX_UUID, 0x000C),
             )),))
-        except:
-            pass
+        except Exception as e:
+            print("BLE reset service register failed:", e)
         connected = False
         conn_handle = None
         reset_auth()
         safe_state = False
         ble_error_count = 0
         start_adv()
-    except:
+    except Exception:
         ble_error_count += 1
         if ble_error_count >= 5:
             machine.reset()
@@ -328,28 +318,30 @@ def notify(data):
     try:
         if conn_handle is not None and connected:
             ble.gatts_notify(conn_handle, tx, data)
-    except:
+    except Exception:
         pass
 
 def disconnect_and_cleanup():
-    global connected, conn_handle, safe_state
+    global connected, conn_handle, safe_state, gpio_busy
     if connected and conn_handle is not None:
         try:
             ble.gap_disconnect(conn_handle)
-        except:
+        except Exception:
             pass
+    gpio_busy = False
     if authenticated:
         try:
             act_lock()
             time.sleep_ms(100)
             wdt.feed()
             act_lock()
-        except:
+        except Exception:
             pass
     connected = False
     reset_auth()
     safe_state = False
     conn_handle = None
+    gpio_busy = False
     gc.collect()
     start_adv()
 
@@ -365,7 +357,7 @@ def check_rssi():
         rssi = ble.gap_readRSSI(conn_handle)
         if rssi < RSSI_LOCK_THRESHOLD:
             disconnect_and_cleanup()
-    except:
+    except Exception:
         pass
 
 def process_command(cmd):
@@ -373,9 +365,20 @@ def process_command(cmd):
     global authenticated, temp_auth, temp_expire, auth_level, safe_state
     global admin_device_id, borrow_code, borrow_expiry, config_dirty
     global DEVICE_NAME, PASSWORD, AUTO_LOCK_ENABLED
-    global LOCK_PIN, UNLOCK_PIN, TRUNK_PIN
+    global wake_minutes, last_cmd_time
+
+    last_cmd_time = time.ticks_ms()
 
     if not authenticated:
+        if cmd == PASSWORD:
+            authenticated = True
+            temp_auth = False
+            temp_expire = 0
+            auth_level = 2
+            safe_state = True
+            lock_until = 0
+            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
+            return
         if cmd.upper().startswith("!AUTH "):
             parts = cmd.split(" ", 2)
             if len(parts) >= 3:
@@ -392,8 +395,10 @@ def process_command(cmd):
                     notify(b"OK AUTH")
                     return
                 notify(b"ERR AUTH_FAIL")
+                lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
                 return
             notify(b"ERR AUTH_FMT")
+            lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
             return
         if cmd.upper().startswith("!DEVID "):
             device_id = cmd.split(" ", 1)[1] if len(cmd.split(" ")) > 1 else ""
@@ -430,9 +435,6 @@ def process_command(cmd):
             lock_until = 0
             notify(b"OK VERIFYBORROW")
             return
-        if cmd.upper() == "!TIMEREQ":
-            notify(b"OK TIMEREQ")
-            return
         if len(cmd) == 6 and cmd.isdigit():
             ok, expire_time = verify_temp_code(cmd)
             if ok:
@@ -444,178 +446,100 @@ def process_command(cmd):
                 lock_until = 0
                 notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
                 return
-        if cmd == PASSWORD:
-            authenticated = True
-            temp_auth = False
-            temp_expire = 0
-            auth_level = 2
-            safe_state = True
-            lock_until = 0
-            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
-            return
+        notify(b"ERR AUTH_FAIL")
         lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
         disconnect_and_cleanup()
         return
 
-    if temp_auth and time.time() > temp_expire:
-        act_lock()
+    if temp_auth and time.time() > 0 and time.time() > temp_expire:
         disconnect_and_cleanup()
         return
 
     cmd_upper = cmd.upper()
-    parts = cmd_upper.split()
 
     if gpio_busy:
         notify(b"ERR BUSY")
         return
 
-    if parts:
-        head = parts[0]
-        if head == "!LOCKPIN?":
-            notify("LOCKPIN:{}".format(LOCK_PIN).encode())
-            return
-        if head == "!UNLOCKPIN?":
-            notify("UNLOCKPIN:{}".format(UNLOCK_PIN).encode())
-            return
-        if head == "!TRUNKPIN?":
-            notify("TRUNKPIN:{}".format(TRUNK_PIN).encode())
-            return
-        if len(parts) >= 2 and not temp_auth and auth_level >= 2:
-            try:
-                pin_num = int(parts[1])
-            except:
-                pin_num = None
-            if pin_num is not None:
-                if head == "!LOCKPIN":
-                    LOCK_PIN = pin_num
-                    config_dirty = True
-                    init_pins()
-                    notify(b"LOCKPIN OK")
-                    return
-                elif head == "!UNLOCKPIN":
-                    UNLOCK_PIN = pin_num
-                    config_dirty = True
-                    init_pins()
-                    notify(b"UNLOCKPIN OK")
-                    return
-                elif head == "!TRUNKPIN":
-                    TRUNK_PIN = pin_num
-                    config_dirty = True
-                    init_pins()
-                    notify(b"TRUNKPIN OK")
-                    return
-
     if cmd_upper == "L" or cmd_upper == "SUOCHE":
-        if not vehicle_enabled and auth_level < 2:
-            notify(b"ERR SAFE_OFF")
-            return
         act_lock()
     elif cmd_upper == "U" or cmd_upper == "JIESUO":
-        if not vehicle_enabled and auth_level < 2:
-            notify(b"ERR SAFE_OFF")
-            return
         act_unlock()
     elif cmd_upper == "T" or cmd_upper == "HOUBEIXIANG":
-        if not vehicle_enabled and auth_level < 2:
-            notify(b"ERR SAFE_OFF")
-            return
         act_trunk()
     elif cmd_upper == "XUNCHE":
-        if not vehicle_enabled and auth_level < 2:
-            notify(b"ERR SAFE_OFF")
-            return
         act_lock()
         time.sleep_ms(100)
         act_lock()
     elif cmd_upper == "CHUANGSHENG":
-        if not vehicle_enabled and auth_level < 2:
-            notify(b"ERR SAFE_OFF")
-            return
         act_chuangsheng()
     elif cmd_upper == "CHUANGJIANG":
-        if not vehicle_enabled and auth_level < 2:
-            notify(b"ERR SAFE_OFF")
-            return
         act_chuangjiang()
     elif cmd_upper.startswith("!NAME "):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         new_name = cmd[6:].strip()
         if new_name:
             DEVICE_NAME = new_name
+            config_dirty = True
             pending_actions.append(("save_restart_adv", None))
-            notify(b"NAME OK")
+            notify(b"OK NAME")
+        else:
+            notify(b"ERR NAME_FMT")
     elif cmd_upper.startswith("!PWD "):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         new_pwd = cmd[5:].strip()
         if new_pwd:
             PASSWORD = new_pwd
             config_dirty = True
-            notify(b"PWD OK")
+            notify(b"OK PWD")
+        else:
+            notify(b"ERR PWD_FMT")
     elif cmd_upper.startswith("!TIME "):
-        if temp_auth or auth_level < 2:
+        if temp_auth or auth_level < 1:
+            notify(b"ERR NO_PERM")
             return
         try:
             ts = int(cmd[6:].strip())
             rtc = machine.RTC()
             tm = time.localtime(ts)
             rtc.datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
-            notify(b"TIME OK")
-        except:
+            notify(b"OK TIME")
+        except Exception:
             notify(b"ERR TIME")
-    elif cmd_upper == "!AUTOLOCK?":
-        notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
-    elif cmd_upper.startswith("!AUTOLOCK"):
-        if temp_auth or auth_level < 2:
-            return
-        try:
-            val = int(cmd_upper[10:].strip())
-            if val in (0, 1):
-                AUTO_LOCK_ENABLED = val
-                config_dirty = True
-                notify(b"AUTOLOCK OK")
-        except:
-            pass
-    elif cmd_upper == "!SAFE?":
-        notify("SAFE:{}".format(1 if vehicle_enabled else 0).encode())
-    elif cmd_upper.startswith("!SAFE"):
-        if temp_auth or auth_level < 2:
-            return
-        try:
-            val = int(cmd_upper[5:].strip())
-            if val in (0, 1):
-                vehicle_enabled = val
-                config_dirty = True
-                notify(b"SAFE OK")
-        except:
-            pass
-    elif cmd_upper == "!NAME?":
-        notify("NAME:{}".format(DEVICE_NAME).encode())
-    elif cmd_upper.startswith("!BORROW ") and not temp_auth:
+    elif cmd_upper.startswith("!BORROW "):
         if auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         parts_borrow = cmd.split(" ")
         if len(parts_borrow) >= 3:
             borrow_code = parts_borrow[1]
             try:
                 hours = int(parts_borrow[2])
+                if hours < 1:
+                    notify(b"ERR BORROW_FMT")
+                    return
                 borrow_expiry = int(time.time()) + hours * 3600
-            except:
+            except Exception:
                 borrow_expiry = 0
             config_dirty = True
             notify(b"OK BORROW")
         else:
             notify(b"ERR BORROW_FMT")
-    elif cmd_upper == "!BORROWCLEAR" and not temp_auth:
+    elif cmd_upper == "!BORROWCLEAR":
         if auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         borrow_code = None
         borrow_expiry = 0
         config_dirty = True
         notify(b"OK BORROWCLEAR")
-    elif cmd_upper == "!RESET" and not temp_auth:
+    elif cmd_upper == "!RESET":
         if auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         DEVICE_NAME = DEFAULT_NAME
         PASSWORD = DEFAULT_PWD
@@ -629,17 +553,19 @@ def process_command(cmd):
         config_dirty = True
         init_pins()
         notify(b"OK RESET")
-    elif cmd_upper == "!DEVICEID?":
-        if auth_level >= 2:
-            notify("DEVICEID:{}".format(admin_device_id if admin_device_id else "NONE").encode())
     elif cmd_upper.startswith("!SLEEP"):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         if cmd_upper == "!SLEEP?":
             notify("SLEEP:{}:{}".format(1 if sleep_enabled else 0, sleep_minutes).encode())
             return
+        parts_sleep = cmd.split(" ")
+        if len(parts_sleep) < 2 or not parts_sleep[1].isdigit():
+            notify(b"ERR SLEEP_FMT")
+            return
         try:
-            val = int(cmd_upper[7:].strip())
+            val = int(parts_sleep[1])
             if val <= 0:
                 sleep_enabled = False
                 sleep_minutes = 0
@@ -648,32 +574,39 @@ def process_command(cmd):
                 sleep_minutes = val
             config_dirty = True
             notify(b"OK SLEEP")
-        except:
+        except Exception:
             notify(b"ERR SLEEP_FMT")
     elif cmd_upper.startswith("!WAKE"):
         if temp_auth or auth_level < 2:
+            notify(b"ERR NO_PERM")
             return
         if cmd_upper == "!WAKE?":
             notify("WAKE:{}".format(wake_minutes).encode())
             return
+        parts_wake = cmd.split(" ")
+        if len(parts_wake) < 2 or not parts_wake[1].isdigit():
+            notify(b"ERR WAKE_FMT")
+            return
         try:
-            val = int(cmd_upper[6:].strip())
+            val = int(parts_wake[1])
             if val < 1:
                 val = 1
             wake_minutes = val
             config_dirty = True
             notify(b"OK WAKE")
-        except:
+        except Exception:
             notify(b"ERR WAKE_FMT")
     elif cmd_upper == "!RSSI?":
         if connected and conn_handle is not None:
             try:
                 rssi = ble.gap_readRSSI(conn_handle)
                 notify("RSSI:{}".format(rssi).encode())
-            except:
+            except Exception:
                 notify(b"RSSI:0")
         else:
             notify(b"RSSI:0")
+    else:
+        notify(b"ERR UNKNOWN_CMD")
 
 def ble_cb(event, data):
     global connected, conn_handle, auth_start, lock_until, ble_error_count
@@ -687,7 +620,7 @@ def ble_cb(event, data):
             if lock_until > 0 and time.ticks_diff(now_ticks, lock_until) < 0:
                 try:
                     ble.gap_disconnect(h)
-                except:
+                except Exception:
                     pass
                 return
             conn_handle = h
@@ -696,6 +629,7 @@ def ble_cb(event, data):
             temp_auth = False
             temp_expire = 0
             auth_start = now_ticks
+            last_cmd_time = now_ticks
 
         elif event == 2:
             disconnect_and_cleanup()
@@ -709,9 +643,15 @@ def ble_cb(event, data):
             buf = ble.gatts_read(rx)
             if buf is None:
                 return
-            process_command(buf.decode().strip())
+            try:
+                cmd_str = buf.decode().strip()
+            except Exception:
+                return
+            if len(cmd_str) > 128:
+                return
+            process_command(cmd_str)
 
-    except:
+    except Exception:
         ble_error_count += 1
         if ble_error_count >= 5:
             machine.reset()
@@ -727,8 +667,16 @@ try:
         (TX_UUID, 0x0010),
         (RX_UUID, 0x000C),
     )),))
-except:
-    pass
+except Exception as e:
+    print("BLE service register failed:", e)
+    time.sleep_ms(500)
+    try:
+        ((tx, rx),) = ble.gatts_register_services(((UART_UUID, (
+            (TX_UUID, 0x0010),
+            (RX_UUID, 0x000C),
+        )),))
+    except Exception as e2:
+        print("BLE service register retry failed:", e2)
 
 adv_success = start_adv()
 last_adv_ok = time.ticks_ms() if adv_success else 0
@@ -739,10 +687,6 @@ wake_start = time.ticks_ms()
 while True:
     now = time.ticks_ms()
 
-    if config_dirty:
-        save_config()
-        config_dirty = False
-
     if pending_actions:
         actions = pending_actions
         pending_actions = []
@@ -752,6 +696,10 @@ while True:
                 init_pins()
                 start_adv()
         gc.collect()
+
+    if config_dirty:
+        save_config()
+        config_dirty = False
 
     if not connected:
         if time.ticks_diff(now, last_adv_ok) > 30000:
@@ -786,25 +734,14 @@ while True:
     if connected:
         try:
             check_rssi()
-        except:
+        except Exception:
             pass
+        if authenticated and last_cmd_time > 0 and time.ticks_diff(now, last_cmd_time) > HEARTBEAT_TIMEOUT:
+            disconnect_and_cleanup()
         machine.lightsleep(100)
     else:
-        mv = read_voltage()
         wdt.feed()
-        if mv < VOLTAGE_MIN:
-            try:
-                ble.active(False)
-            except:
-                pass
-            for _ in range(5):
-                wdt.feed()
-                time.sleep_ms(2000)
-            try:
-                machine.reset()
-            except:
-                pass
-        elif sleep_enabled and sleep_minutes > 0:
+        if sleep_enabled and sleep_minutes > 0:
             wake_elapsed_ms = time.ticks_diff(now, wake_start)
             if wake_minutes > 0 and wake_elapsed_ms < wake_minutes * 60 * 1000:
                 machine.lightsleep(500)
@@ -814,10 +751,11 @@ while True:
                     config_dirty = False
                 try:
                     ble.active(False)
-                except:
+                except Exception:
                     pass
                 time.sleep_ms(100)
                 wdt.feed()
+                wake_start = time.ticks_ms()
                 machine.deepsleep(sleep_minutes * 60 * 1000)
         else:
             ble_error_count = 0
