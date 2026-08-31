@@ -83,7 +83,10 @@ class TianKeyBleService {
       _services = <BluetoothService>[];
       throw StateError('BLE设备未连接，无法发现服务');
     }
-    final services = await current.discoverServices();
+    final services = await current.discoverServices().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw StateError('服务发现超时，请重试'),
+    );
     _services = List<BluetoothService>.from(services);
     return discoveredServices;
   }
@@ -129,14 +132,14 @@ class TianKeyBleService {
     try {
       await target.connect(timeout: timeout, autoConnect: false);
       // 等待ESP32 GATT服务就绪
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < 2; i++) {
         await Future.delayed(const Duration(milliseconds: 300));
         if (!target.isConnected) throw StateError('BLE设备未连接');
         try {
           await discoverServices();
           break;
         } catch (e) {
-          if (i == 2) rethrow;
+          if (i == 1) rethrow;
         }
       }
     } catch (error) {
