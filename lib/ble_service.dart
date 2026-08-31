@@ -83,10 +83,7 @@ class TianKeyBleService {
       _services = <BluetoothService>[];
       throw StateError('BLE设备未连接，无法发现服务');
     }
-    final services = await current.discoverServices().timeout(
-      const Duration(seconds: 5),
-      onTimeout: () => throw StateError('服务发现超时，请重试'),
-    );
+    final services = await current.discoverServices();
     _services = List<BluetoothService>.from(services);
     return discoveredServices;
   }
@@ -101,7 +98,7 @@ class TianKeyBleService {
     await connect(BluetoothDevice.fromId(normalized));
   }
 
-  Future<void> connect(BluetoothDevice target, {Duration timeout = const Duration(seconds: 3)}) async {
+  Future<void> connect(BluetoothDevice target, {Duration timeout = const Duration(seconds: 10)}) async {
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
     device = target;
@@ -115,26 +112,27 @@ class TianKeyBleService {
       }
     });
 
-    // FlutterBluePlus clears the discovered GATT service cache when the
-    // peripheral reports a Services Changed event. Re-discover immediately
-    // so the real connection remains ready for the future protocol layer.
-    // No service/characteristic UUID is invented here.
     _servicesResetSubscription = target.onServicesReset.listen((_) async {
       if (!target.isConnected) return;
       try {
         await discoverServices();
       } catch (_) {
-        // The app-level connection state remains authoritative; the next
-        // operation can retry discovery after the peripheral is stable.
       }
     });
 
     try {
-      await target.connect(timeout: timeout, autoConnect: false);
+      await target.connect(timeout: timeout);
       // 等待ESP32 GATT服务就绪
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!target.isConnected) throw StateError('BLE设备未连接');
-      await discoverServices();
+      for (int i = 0; i < 3; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (!target.isConnected) throw StateError('BLE设备未连接');
+        try {
+          await discoverServices();
+          break;
+        } catch (e) {
+          if (i == 2) rethrow;
+        }
+      }
     } catch (error) {
       await _connectionSubscription?.cancel();
       await _servicesResetSubscription?.cancel();

@@ -2,10 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-/// Real GATT characteristic gateway.
-///
-/// No TianKey protocol UUID or vehicle command is assumed here.
-/// Characteristics must come from actual discovery results.
 class BleCharacteristicGateway {
   StreamSubscription<List<int>>? _notifySubscription;
   StreamController<List<int>>? _notifyController;
@@ -33,9 +29,6 @@ class BleCharacteristicGateway {
     await characteristic.write(
       data,
       withoutResponse: withoutResponse,
-    ).timeout(
-      const Duration(seconds: 3),
-      onTimeout: () => throw StateError('写入超时'),
     );
   }
 
@@ -53,10 +46,7 @@ class BleCharacteristicGateway {
       completer.complete(msg);
     });
 
-    await characteristic.write(data, withoutResponse: true).timeout(
-      const Duration(seconds: 3),
-      onTimeout: () => throw StateError('写入超时'),
-    );
+    await characteristic.write(data, withoutResponse: true);
 
     final result = await completer.future.timeout(timeout, onTimeout: () {
       return null;
@@ -73,10 +63,7 @@ class BleCharacteristicGateway {
     }
 
     await _notifySubscription?.cancel();
-    await characteristic.setNotifyValue(true).timeout(
-      const Duration(seconds: 3),
-      onTimeout: () => throw StateError('通知订阅超时'),
-    );
+    await characteristic.setNotifyValue(true);
 
     _notifyController ??= StreamController<List<int>>.broadcast();
     _notifySubscription = characteristic.onValueReceived.listen(
