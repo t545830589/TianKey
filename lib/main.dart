@@ -1179,25 +1179,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     try {
       if (!simulationMode) {
         if (target.device == null) throw StateError('BLE设备对象无效');
-        // 整个连接+服务发现流程带重试
-        bool bleReady = false;
-        for (int attempt = 1; attempt <= 2; attempt++) {
-          try {
-            setState(() => status = '正在连接蓝牙设备...');
-            await ble.connect(target.device!, timeout: const Duration(seconds: 3));
-            setState(() => status = '蓝牙已连接，正在发现服务...');
-            if (ble.discoveredServices.isEmpty) {
-              throw StateError('服务列表为空');
-            }
-            bleReady = true;
-            break;
-          } catch (e) {
-            if (attempt < 2) {
-              await Future.delayed(const Duration(milliseconds: 300));
-            }
-          }
-        }
-        if (!bleReady) {
+        // 连接+服务发现（ble.connect内部已有重试）
+        setState(() => status = '正在连接蓝牙设备...');
+        await ble.connect(target.device!, timeout: const Duration(seconds: 3));
+        setState(() => status = '蓝牙已连接，正在发现服务...');
+        if (ble.discoveredServices.isEmpty) {
           throw StateError('BLE连接失败，请确认设备在附近并重试');
         }
         ble.onDisconnect = () {
