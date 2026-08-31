@@ -709,7 +709,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool authorized = true;
   bool adminSession = false;
   bool autoConnect = true;
-  bool simulationMode = false; // 已禁用，保留变量避免大改
+  bool simulationMode = false;
   bool timeSynced = false;
   bool timeFail = false;
   int rssiValue = 0;
@@ -2127,6 +2127,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
                     ),
                     TKSettingTile(
+                      title: '模拟模式',
+                      leadingIcon: Icons.science,
+                      trailingText: simulationMode ? '已开启' : '已关闭',
+                      onTap: () {
+                        setState(() => simulationMode = !simulationMode);
+                        await prefs?.setBool('simulation_mode', simulationMode);
+                      },
+                    ),
+                    TKSettingTile(
                       title: '深度睡眠',
                       leadingIcon: Icons.bedtime,
                       trailingText: sleepEnabled ? '已开启' : '已关闭',
@@ -2618,6 +2627,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               const Divider(color: TKColors.divider, height: 20),
               _infoRow('连接状态', connected ? '已连接' : '未连接'),
               _infoRow('管理员', adminEnabled ? '已授权' : '未授权'),
+              _infoRow('模拟模式', simulationMode ? '已开启' : '已关闭'),
               _infoRow('版本', '1.0.0+1'),
             ]),
           ),
