@@ -1653,7 +1653,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         setState(() => commandSeconds -= 1);
       });
-    setState(() => status = timed ? '⏳ $command 4秒保持中（$commandSeconds）' : '✅ $command 成功');
+      setState(() => status = timed ? '⏳ $command 4秒保持中（$commandSeconds）' : '✅ $command 成功');
+    } else {
+      setState(() => status = '✅ $command 成功');
+    }
   }
 
   Future<void> generateBorrowCode() async {
@@ -1906,6 +1909,25 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         bottomNavigationBar: TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
       );
 
+  Widget _buildTimeSelectButton(String label, int hours) {
+    final isSelected = hoursController.text.trim() == hours.toString();
+    return SizedBox(
+      width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
+      height: 56,
+      child: TKNeonButton(
+        label: label,
+        icon: isSelected ? Icons.check_circle : Icons.access_time,
+        neonColor: isSelected ? TKColors.neonOrange : TKColors.neonBlue,
+        onTap: () {
+          setState(() {
+            hoursController.text = hours.toString();
+          });
+        },
+        isEnabled: true,
+      ),
+    );
+  }
+
   Widget borrowPage() => Scaffold(
         backgroundColor: TKColors.bgPrimary,
         body: SafeArea(
@@ -2063,114 +2085,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         ),
       );
 
-// 时间选择按钮
-  Widget _buildTimeSelectButton(String label, int hours) {
-    final isSelected = hoursController.text.trim() == hours.toString();
-    return SizedBox(
-      width: (MediaQuery.of(context).size.width - 16 * 2 - 10 * 3) / 4,
-      height: 56,
-      child: TKNeonButton(
-        label: label,
-        icon: isSelected ? Icons.check_circle : Icons.access_time,
-        neonColor: isSelected ? TKColors.neonOrange : TKColors.neonBlue,
-        onTap: () {
-          setState(() {
-            hoursController.text = hours.toString();
-          });
-        },
-        isEnabled: true,
-      ),
-    );
-  }
-
-  Widget settingsPage() => Scaffold(
-        backgroundColor: TKColors.bgPrimary,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // 顶部栏
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => setState(() => tab = PageTab.vehicle)),
-                    const TKPageTitle(title: '设置'),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-
-              // 设置列表
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  children: [
-                    TKSettingTile(
-                      title: '修改密码',
-                      leadingIcon: Icons.lock,
-                      trailingText: '>',
-                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changeAdminPasswordPage(ctx))))),
-                    ),
-                    TKSettingTile(
-                      title: '设备名称',
-                      leadingIcon: Icons.device_hub,
-                      trailingText: deviceName,
-                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deviceNamePage(ctx))))),
-                    ),
-                    TKSettingTile(
-                      title: '时间同步设置',
-                      leadingIcon: Icons.access_time,
-                      trailingText: '>',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx)))),
-                    ),
-                    TKSettingTile(
-                      title: '自动连接设置',
-                      leadingIcon: Icons.bluetooth_connected,
-                      trailingText: autoConnect ? '已开启' : '已关闭',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
-                    ),
-                    TKSettingTile(
-                      title: '模拟模式',
-                      leadingIcon: Icons.science,
-                      trailingText: simulationMode ? '已开启' : '已关闭',
-                      onTap: () {
-                        setState(() => simulationMode = !simulationMode);
-                        await prefs?.setBool('simulation_mode', simulationMode);
-                      },
-                    ),
-                    TKSettingTile(
-                      title: '深度睡眠',
-                      leadingIcon: Icons.bedtime,
-                      trailingText: sleepEnabled ? '已开启' : '已关闭',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deepSleepPage(ctx)))),
-                    ),
-                    TKSettingTile(
-                      title: '恢复出厂',
-                      leadingIcon: Icons.delete_forever,
-                      trailingText: '>',
-                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _factoryResetPage(ctx))))),
-                    ),
-                    TKSettingTile(
-                      title: '关于系统',
-                      leadingIcon: Icons.info_outline,
-                      trailingText: '>',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _aboutPage())),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 底部导航栏
-              TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
-            ],
-          ),
-        ),
-      );
-
-  // ==================== 设置二级子页面 ====================
-
-  // 1. 修改蓝牙密码
 
   Widget _changeAdminPasswordPage(BuildContext pageCtx) {
     final currentCtrl = TextEditingController();
@@ -2603,6 +2517,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
+  Widget _infoRow(String label, String value) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: const TextStyle(color: TKColors.textSecondary, fontSize: 13)),
+      Text(value, style: const TextStyle(color: TKColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+    ]));
+  }
+
   // 8. 关于系统
   Widget _aboutPage() {
     return Scaffold(
@@ -2642,12 +2563,94 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
-  Widget _infoRow(String label, String value) {
-    return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: const TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-      Text(value, style: const TextStyle(color: TKColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
-    ]));
-  }
+  Widget settingsPage() => Scaffold(
+        backgroundColor: TKColors.bgPrimary,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 顶部栏
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => setState(() => tab = PageTab.vehicle)),
+                    const TKPageTitle(title: '设置'),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+
+              // 设置列表
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  children: [
+                    TKSettingTile(
+                      title: '修改密码',
+                      leadingIcon: Icons.lock,
+                      trailingText: '>',
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _changeAdminPasswordPage(ctx))))),
+                    ),
+                    TKSettingTile(
+                      title: '设备名称',
+                      leadingIcon: Icons.device_hub,
+                      trailingText: deviceName,
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deviceNamePage(ctx))))),
+                    ),
+                    TKSettingTile(
+                      title: '时间同步设置',
+                      leadingIcon: Icons.access_time,
+                      trailingText: '>',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _timeSyncPage(ctx)))),
+                    ),
+                    TKSettingTile(
+                      title: '自动连接设置',
+                      leadingIcon: Icons.bluetooth_connected,
+                      trailingText: autoConnect ? '已开启' : '已关闭',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
+                    ),
+                    TKSettingTile(
+                      title: '模拟模式',
+                      leadingIcon: Icons.science,
+                      trailingText: simulationMode ? '已开启' : '已关闭',
+                      onTap: () async {
+                        setState(() => simulationMode = !simulationMode);
+                        await prefs?.setBool('simulation_mode', simulationMode);
+                      },
+                    ),
+                    TKSettingTile(
+                      title: '深度睡眠',
+                      leadingIcon: Icons.bedtime,
+                      trailingText: sleepEnabled ? '已开启' : '已关闭',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deepSleepPage(ctx)))),
+                    ),
+                    TKSettingTile(
+                      title: '恢复出厂',
+                      leadingIcon: Icons.delete_forever,
+                      trailingText: '>',
+                      onTap: () => _requireAdminAuth(() => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _factoryResetPage(ctx))))),
+                    ),
+                    TKSettingTile(
+                      title: '关于系统',
+                      leadingIcon: Icons.info_outline,
+                      trailingText: '>',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _aboutPage())),
+                    ),
+                  ],
+                ),
+              ),
+
+              // 底部导航栏
+              TKBottomNav(currentTab: tab, onTabChanged: (t) => setState(() => tab = t)),
+            ],
+          ),
+        ),
+      );
+
+  // ==================== 设置二级子页面 ====================
+
+  // 1. 修改蓝牙密码
 
   @override
   Widget build(BuildContext context) {
