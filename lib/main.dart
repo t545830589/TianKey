@@ -709,6 +709,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool authorized = true;
   bool adminSession = false;
   bool autoConnect = true;
+  bool simulationMode = false; // 已禁用，保留变量避免大改
   bool timeSynced = false;
   bool timeFail = false;
   int rssiValue = 0;
@@ -803,6 +804,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     borrowEnd = end == null ? null : DateTime.fromMillisecondsSinceEpoch(end);
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
+    simulationMode = p.getBool('simulation_mode') ?? false;
     timeFail = p.getBool('time_fail') ?? false;
     sleepEnabled = p.getBool('sleep_enabled') ?? false;
     sleepHours = p.getInt('sleep_hours') ?? 0;
@@ -828,7 +830,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (mounted) setState(() => splashDone = true);
 
     // 检查蓝牙是否开启，没开就弹窗提示
-    if (mounted) {
+    if (!simulationMode && mounted) {
       try {
         final adapterState = await FlutterBluePlus.adapterState.first;
         final isOn = adapterState == BluetoothAdapterState.on;
@@ -873,12 +875,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    if (autoConnect && savedRemoteId != null) {
+    if (simulationMode && autoConnect) {
+      await _autoConnectSimulation();
+    } else if (!simulationMode && autoConnect && savedRemoteId != null) {
       await _autoConnectReal();
     }
 
     // 自动连接失败或首次使用（无保存设备），自动扫描弹出设备列表让用户手动选
-    if (!connected && mounted) {
+    if (!connected && !simulationMode && mounted) {
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted && !connected && !scanning) {
         try {
@@ -893,8 +897,47 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
+  Future<void> _autoConnectSimulation() async {
+    if (!simulationMode || connected || connecting || _autoConnecting) return;
+    _autoConnecting = true;
+    setState(() {
+      connecting = true;
+      status = '正在自动连接...';
+    });
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+    final simDevice = BleScanItem(name: esp32.deviceName, remoteId: 'SIM-ESP32-TIANKY');
+    foundDevice = simDevice;
+    savedRemoteId = simDevice.remoteId;
+    final esp32HasAdmin = esp32.adminDevice != null && esp32.adminDevice!.isNotEmpty;
+    final isCurrentAdmin = esp32HasAdmin && esp32.adminDevice == installId;
+    if (isCurrentAdmin) {
+      adminSession = true;
+      mode = AccessMode.admin;
+      await prefs?.setBool('authorized', true);
+      authorized = true;
+    } else {
+      adminSession = false;
+      mode = AccessMode.borrower;
+      await prefs?.setBool('authorized', false);
+      authorized = false;
+    }
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    setState(() {
+      connected = true;
+      connecting = false;
+      timeSynced = false;
+      status = adminSession ? '自动连接成功，管理员模式' : '自动连接成功，非管理员模式，需输入密码';
+    });
+      _autoConnecting = false;
+      await syncTime();
+      _startHeartbeat();
+      _querySleepState();
+    }
+
   Future<void> _autoConnectReal() async {
-    if (connected || connecting || _autoConnecting) return;
+    if (simulationMode || connected || connecting || _autoConnecting) return;
     _autoConnecting = true;
     setState(() {
       connecting = true;
@@ -1025,9 +1068,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       scanning = true;
       foundDevice = null;
       scannedDevices = [];
-      status = '正在扫描 BLE 设备...';
+      status = simulationMode ? '模拟扫描中...' : '正在扫描 BLE 设备...';
     });
     try {
+      if (simulationMode) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+        final simDevice = BleScanItem(name: '陕A0P92Y', remoteId: 'SIM-ESP32-TIANKY');
+        scannedDevices = [simDevice];
+        foundDevice = simDevice;
+        savedRemoteId = simDevice.remoteId;
+        setState(() => status = '发现设备：${simDevice.name}');
+      } else {
         if (!await ble.isSupported()) {
           throw StateError('当前手机不支持 BLE');
         }
@@ -1047,9 +1099,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         } else {
           setState(() => status = '发现 ${devices.length} 个设备，请选择');
         }
+      }
     } catch (error) {
       if (!mounted) return;
-      setState(() => status = 'BLE扫描失败：$error');
+      setState(() => status = '${simulationMode ? "模拟" : "BLE"}扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
     }
@@ -1121,9 +1174,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (connecting || connected) return;
     setState(() {
       connecting = true;
-      status = '正在建立 BLE 连接...';
+      status = simulationMode ? '模拟连接中...' : '正在建立 BLE 连接...';
     });
     try {
+      if (!simulationMode) {
         if (target.device == null) throw StateError('BLE设备对象无效');
         // 整个连接+服务发现流程带重试
         bool bleReady = false;
@@ -1185,9 +1239,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (!serviceFound) {
           throw StateError('无法发现NUS服务，请确认ESP32固件正常');
         }
+      } else {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
 
       // 自动连接验证：根据身份发送不同验证命令
-      if (autoConnectVerify && bleGateway.readyForWrite) {
+      if (autoConnectVerify && !simulationMode && bleGateway.readyForWrite) {
         final savedMode = prefs?.getString('access_mode');
         if (savedMode == 'borrower') {
           // 临时借车自动连接：发送!VERIFYBORROW验证
@@ -1258,7 +1315,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
       if (!skipPassword && password != null && !autoConnectVerify) {
         // 真实模式：BLE连上后，发送密码给ESP32验证
-        if (bleGateway.readyForWrite) {
+        if (!simulationMode && bleGateway.readyForWrite) {
           setState(() => status = 'BLE已连接，正在验证密码...');
           String? reply;
           if (selected == AccessMode.admin) {
@@ -1349,7 +1406,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         connecting = false;
         mode = selected;
         timeSynced = false;
-        status = 'BLE真实连接成功，正在同步时间...';
+        status = simulationMode ? '连接成功，正在同步时间...' : 'BLE真实连接成功，正在同步时间...';
       });
       await syncTime();
       _startHeartbeat();
@@ -1436,7 +1493,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> syncTime() async {
     if (!connected) return;
     try {
-      if (bleGateway.readyForWrite) {
+      if (!simulationMode && bleGateway.readyForWrite) {
         final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'OK');
         if (!mounted) return;
@@ -1480,7 +1537,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (connected) {
+      if (connected && !simulationMode) {
         queryRssi();
       }
     });
@@ -1492,7 +1549,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> queryRssi() async {
-    if (!connected || !bleGateway.readyForWrite) return;
+    if (!connected || simulationMode || !bleGateway.readyForWrite) return;
     try {
       final reply = await bleGateway.sendAndWait(utf8.encode('!RSSI?'), expectPrefix: 'RSSI');
       if (reply != null && reply.startsWith('RSSI:')) {
@@ -1505,7 +1562,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> _querySleepState() async {
-    if (!connected || !bleGateway.readyForWrite) return;
+    if (!connected || simulationMode || !bleGateway.readyForWrite) return;
     try {
       final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP?'), expectPrefix: 'SLEEP');
       if (reply != null && reply.startsWith('SLEEP:')) {
@@ -1532,8 +1589,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> disconnect() async {
     _stopHeartbeat();
     commandTimer?.cancel();
-    await bleGateway.dispose();
-    await ble.disconnect();
+    if (!simulationMode) {
+      await bleGateway.dispose();
+      await ble.disconnect();
+    }
     if (!mounted) return;
     setState(() {
       connected = false;
@@ -1568,15 +1627,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       default:
         protocol = 'houbeixiang';
     }
-    // 直接发送，不等回复（ESP32瞬间执行）
-    if (bleGateway.readyForWrite) {
+    // 真实模式：直接发送，不等回复（ESP32瞬间执行）
+    if (!simulationMode && bleGateway.readyForWrite) {
       try {
         await bleGateway.writeCommand(utf8.encode(protocol), withoutResponse: true);
       } catch (e) {
         _msg('$command 发送失败');
         return;
       }
-    } else {
+    } else if (!simulationMode && !bleGateway.readyForWrite) {
       _msg('BLE通道未就绪，请重新连接');
       return;
     }
@@ -1594,7 +1653,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         setState(() => commandSeconds -= 1);
       });
-    }
     setState(() => status = timed ? '⏳ $command 4秒保持中（$commandSeconds）' : '✅ $command 成功');
   }
 
@@ -1610,7 +1668,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
     // 真实模式：发送 !BORROW 命令到ESP32
     try {
-      if (bleGateway.readyForWrite) {
+      if (!simulationMode && bleGateway.readyForWrite) {
         final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'), expectPrefix: 'OK');
         if (reply == null || !reply.contains('OK')) {
           _msg('ESP32设置借车码失败');
@@ -1633,7 +1691,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     await prefs?.remove('borrow_start');
     await prefs?.remove('borrow_end');
     try {
-      if (bleGateway.readyForWrite) {
+      if (!simulationMode && bleGateway.readyForWrite) {
         final reply = await bleGateway.sendAndWait(utf8.encode('!BORROWCLEAR'), expectPrefix: 'OK');
         if (reply == null || !reply.contains('OK')) {
           _msg('ESP32取消借车码失败');
@@ -1647,6 +1705,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _msg('借车授权已取消');
     if (mounted) {
       if (mode == AccessMode.borrower) {
+        if (!simulationMode) {
           await ble.disconnect();
         }
         connected = false; mode = null; timeSynced = false; espTime = null;
@@ -2146,7 +2205,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 }
                 setLocalState(() => saving = true);
                 try {
-                  if (bleGateway.readyForWrite) {
+                  if (!simulationMode && bleGateway.readyForWrite) {
                     final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
                     if (reply == null || !reply.contains('OK')) {
                       if (!context.mounted) return;
@@ -2211,7 +2270,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 }
                 setLocalState(() => saving = true);
                 try {
-                  if (bleGateway.readyForWrite) {
+                  if (!simulationMode && bleGateway.readyForWrite) {
                     final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
                     if (reply == null || !reply.contains('OK')) {
                       if (!context.mounted) return;
@@ -2406,7 +2465,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             onTap: connected ? () async {
               final totalMinutes = sleepHours * 60 + sleepMinutes;
               if (!sleepEnabled) {
-                if (bleGateway.readyForWrite) {
+                if (!simulationMode && bleGateway.readyForWrite) {
                   final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
                   if (!context.mounted) return;
                   if (reply == null || !reply.contains('OK')) {
@@ -2425,7 +2484,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               if (totalMinutes <= 0) {
                 return;
               }
-              if (bleGateway.readyForWrite) {
+              if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'), expectPrefix: 'OK');
                 if (!context.mounted) return;
                 if (reply == null || !reply.contains('OK')) {
@@ -2454,7 +2513,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             neonColor: TKColors.neonOrange,
             isEnabled: connected,
             onTap: connected ? () async {
-              if (bleGateway.readyForWrite) {
+              if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
                 if (!context.mounted) return;
                 if (reply == null || !reply.contains('OK')) {
@@ -2503,19 +2562,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               ],
             ));
             if (ok == true) {
-              if (bleGateway.readyForWrite) {
+              if (!simulationMode && bleGateway.readyForWrite) {
                 final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
                 if (reply == null || reply.contains('ERR')) {
                   ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('ESP32恢复出厂失败，请重试', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                   return;
                 }
               }
-              await ble.disconnect();
+              if (!simulationMode) await ble.disconnect();
               esp32.factoryReset();
               await prefs?.clear();
               ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('已恢复出厂设置', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
               adminPassword = defaultPassword;
-              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true;
+              adminDevice = null; savedRemoteId = null; authorized = false; autoConnect = true; simulationMode = false;
               deviceName = defaultName; borrowCode = null; borrowStart = null; borrowEnd = null;
               connected = false; foundDevice = null; mode = null; adminSession = false; timeSynced = false;
               final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
