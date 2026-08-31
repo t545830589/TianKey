@@ -1942,9 +1942,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (value != confirmController.text.trim()) { _message('两次输入不一致'); return; }
     // 真实模式：先发送到ESP32并确认成功
     if (bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!PWD $value'), expectPrefix: 'OK');
+      final reply = await bleGateway.sendAndWait(utf8.encode('!PWD $value'));
       _log('[BLE] ESP32密码修改回复: $reply');
-      if (reply == null) {
+      if (reply == null || !reply.contains('OK')) {
         _message('ESP32密码修改失败，请重试');
         return;
       }
@@ -1987,9 +1987,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (value.isEmpty) return;
     // 真实模式：先发送到ESP32并确认成功
     if (bleGateway.readyForWrite) {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $value'), expectPrefix: 'OK');
+      final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $value'));
       _log('[BLE] ESP32名称修改回复: $reply');
-      if (reply == null) {
+      if (reply == null || !reply.contains('OK')) {
         _message('ESP32名称修改失败，请重试');
         return;
       }
@@ -2737,9 +2737,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             if (newCtrl.text.trim().length < 6) { _message('新密码至少6位'); return; }
             if (newCtrl.text.trim() != confirmCtrl.text.trim()) { _message('两次输入不一致'); return; }
             if (bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'), expectPrefix: 'OK');
+              final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${newCtrl.text.trim()}'));
               _log('[BLE] ESP32回复: $reply');
-              if (reply == null) {
+              if (reply == null || !reply.contains('OK')) {
                 _message('ESP32未确认密码修改，请重试');
                 return;
               }
@@ -2778,9 +2778,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             final v = ctrl.text.trim();
             if (v.isEmpty) { _message('名称不能为空'); return; }
             if (bleGateway.readyForWrite) {
-              final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'), expectPrefix: 'OK');
+              final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
               _log('[BLE] ESP32回复: $reply');
-              if (reply == null) {
+              if (reply == null || !reply.contains('OK')) {
                 _message('ESP32未确认设备名修改，请重试');
                 return;
               }
