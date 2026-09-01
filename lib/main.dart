@@ -749,16 +749,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
+  StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    // 监听蓝牙开关状态：关了再开 → 自动重连
+    _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
+      if (state == BluetoothAdapterState.on && authorized && savedRemoteId != null && mounted) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+            connect();
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _btAdapterSub?.cancel();
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
     _stopHeartbeat();
@@ -775,6 +788,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       // 重置连接状态，防止上次连接中断导致卡死
       _autoConnecting = false;
       connecting = false;
+      // 检查实际BLE连接状态：如果我们的connected是true但BLE实际已断开，强制修正
+      if (connected && !ble.isConnected) {
+        connected = false;
+        mode = null;
+        adminSession = false;
+        timeSynced = false;
+        espTime = null;
+        commandSeconds = 0;
+        foundDevice = null;
+        _stopHeartbeat();
+      }
       if (!connected && authorized && savedRemoteId != null) {
         // 等2秒让蓝牙适配器初始化好再扫描
         Future.delayed(const Duration(seconds: 2), () {
