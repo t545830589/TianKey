@@ -905,19 +905,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         setState(() { connecting = false; status = '自动连接失败：无保存设备'; });
         return;
       }
-      final savedPwd = prefs?.getString('admin_password');
-      if (savedPwd == null || savedPwd.isEmpty) {
-        setState(() { connecting = false; status = '自动连接失败：无保存的密码'; });
-        _msg('无保存密码，请手动连接');
-        return;
-      }
-      // 用扫描方式找到设备（替代不可靠的fromId）
       setState(() => status = '正在扫描已保存设备...');
       final devices = await ble.scan(timeout: const Duration(milliseconds: 1500));
       if (!mounted) return;
       BleScanItem? target;
       if (devices.isNotEmpty) {
-        // 优先用remoteId精确匹配
         final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
         if (match.isNotEmpty) {
           target = match.first;
@@ -928,37 +920,76 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         return;
       }
       foundDevice = target;
-      // BLE连接
+      setState(() => status = '正在连接蓝牙...');
       await ble.connect(target.device!);
       if (ble.discoveredServices.isEmpty) {
         throw StateError('服务列表为空');
       }
-      // 绑定NUS通道
-      BluetoothCharacteristic? writeChar;
-      BluetoothCharacteristic? notifyChar;
+      setState(() => status = '已连接，正在绑定通信通道...');
+      bool serviceFound = false;
       for (final s in ble.discoveredServices) {
-        for (final c in s.characteristics) {
-          final uuid = c.characteristicUuid.str.toUpperCase();
-          if (uuid.contains('6E400002')) writeChar = c;
-          if (uuid.contains('6E400003')) notifyChar = c;
+        if (s.serviceUuid.str.toUpperCase().contains('6E400001')) {
+          BluetoothCharacteristic? writeChar;
+          BluetoothCharacteristic? notifyChar;
+          for (final c in s.characteristics) {
+            final uuid = c.characteristicUuid.str.toUpperCase();
+            if (uuid.contains('6E400002')) writeChar = c;
+            if (uuid.contains('6E400003')) notifyChar = c;
+          }
+          if (writeChar != null) {
+            bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
+            if (notifyChar != null) {
+              await bleGateway.startNotify();
+              await Future.delayed(const Duration(milliseconds: 100));
+            }
+          }
+          serviceFound = true;
+          break;
         }
       }
-      if (writeChar != null) {
-        bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
+      if (!serviceFound || !bleGateway.readyForWrite) {
+        throw StateError('NUS通道绑定失败');
       }
-      if (bleGateway.readyForWrite) {
-        await bleGateway.startNotify();
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      // 用保存的密码认证
+      // 先用 !DEVID 验证管理员席位
+      setState(() => status = '正在验证管理员席位...');
       String? reply;
       for (int retry = 0; retry < 3; retry++) {
-        reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
-        if (reply != null && reply.contains('OK')) break;
+        reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
+        if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
         if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
       }
       if (reply != null && reply.contains('OK')) {
-        esp32.verifyAdminPassword(savedPwd, installId ?? '');
+        adminDevice = installId;
+        adminSession = true;
+        authorized = true;
+        mode = AccessMode.admin;
+        await prefs?.setString('admin_device_id', installId!);
+        await prefs?.setBool('authorized', true);
+        setState(() {
+          connected = true;
+          connecting = false;
+          timeSynced = false;
+          status = '自动连接成功，管理员模式';
+        });
+        await syncTime();
+        _startHeartbeat();
+        return;
+      }
+      // !DEVID失败，用保存密码认证
+      final savedPwd = prefs?.getString('admin_password');
+      if (savedPwd == null || savedPwd.isEmpty) {
+        await ble.disconnect();
+        setState(() { connecting = false; status = '自动连接失败：无保存密码，请手动连接'; });
+        return;
+      }
+      setState(() => status = '席位验证失败，正在用密码认证...');
+      String? authReply;
+      for (int retry = 0; retry < 3; retry++) {
+        authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
+        if (authReply != null && authReply.contains('OK')) break;
+        if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
+      }
+      if (authReply != null && authReply.contains('OK')) {
         adminDevice = installId;
         adminSession = true;
         authorized = true;
@@ -974,15 +1005,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         });
         await syncTime();
         _startHeartbeat();
-        _querySleepState();
       } else {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
-        _msg('自动认证失败，请手动连接');
       }
     } catch (e) {
       setState(() { connecting = false; status = '自动连接失败：$e'; });
-      _msg('自动连接失败');
     } finally {
       _autoConnecting = false;
     }
@@ -1158,9 +1186,16 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               timeSynced = false;
               espTime = null;
               commandSeconds = 0;
-              status = 'BLE连接已断开，车辆功能锁定';
+              foundDevice = null;
+              status = 'BLE连接已断开，正在自动重连...';
             });
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
+            // 自动重连：3秒后尝试
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
           }
         };
         // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
