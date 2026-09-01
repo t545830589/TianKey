@@ -405,10 +405,8 @@ def process_command(cmd):
                     notify(b"OK AUTH")
                     return
                 notify(b"ERR AUTH_FAIL")
-                lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
                 return
             notify(b"ERR AUTH_FMT")
-            lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
             return
         if cmd.upper().startswith("!DEVID "):
             device_id = cmd.split(" ", 1)[1] if len(cmd.split(" ")) > 1 else ""
