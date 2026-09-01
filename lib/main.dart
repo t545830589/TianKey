@@ -772,9 +772,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (!connected && !connecting && authorized && savedRemoteId != null) {
-        connect();
-        Future.delayed(const Duration(seconds: 3), () {
+      // 重置连接状态，防止上次连接中断导致卡死
+      _autoConnecting = false;
+      connecting = false;
+      if (!connected && authorized && savedRemoteId != null) {
+        // 等2秒让蓝牙适配器初始化好再扫描
+        Future.delayed(const Duration(seconds: 2), () {
+          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+            connect();
+          }
+        });
+        Future.delayed(const Duration(seconds: 8), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
             connect();
           }
