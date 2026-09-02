@@ -49,7 +49,6 @@ AUTO_LOCK_ENABLED = 1
 sleep_minutes = 0
 sleep_enabled = False
 wake_minutes = 30
-admin_device_id = None
 borrow_code = None
 borrow_expiry = 0
 
@@ -167,7 +166,7 @@ def read_voltage():
 def load_config():
     global LOCK_DURATION, TRUNK_DURATION, AUTO_LOCK_ENABLED
     global LOCK_PIN, UNLOCK_PIN, TRUNK_PIN
-    global admin_device_id, borrow_code, borrow_expiry
+    global borrow_code, borrow_expiry
     global DEVICE_NAME, PASSWORD
     global sleep_minutes, sleep_enabled, wake_minutes
     try:
@@ -175,7 +174,6 @@ def load_config():
             cfg = json.loads(f.read())
         DEVICE_NAME = cfg.get("name", DEFAULT_NAME)
         PASSWORD = cfg.get("pwd", DEFAULT_PWD)
-        admin_device_id = cfg.get("admin_device", None)
         borrow_code = cfg.get("borrow_code", None)
         borrow_expiry = int(cfg.get("borrow_expiry", 0))
         AUTO_LOCK_ENABLED = int(cfg.get("auto_lock", 1))
@@ -206,7 +204,6 @@ def load_config():
         LOCK_PIN = int(d.get("lock_pin", str(PIN_LOCK_DEFAULT)))
         UNLOCK_PIN = int(d.get("unlock_pin", str(PIN_UNLOCK_DEFAULT)))
         TRUNK_PIN = int(d.get("trunk_pin", str(PIN_TRUNK_DEFAULT)))
-        admin_device_id = d.get("admin_device", None)
         borrow_code = d.get("borrow_code", None)
         borrow_expiry = int(d.get("borrow_expiry", "0"))
         save_config()
@@ -229,7 +226,6 @@ def save_config():
             "lock_pin": LOCK_PIN,
             "unlock_pin": UNLOCK_PIN,
             "trunk_pin": TRUNK_PIN,
-            "admin_device": admin_device_id if admin_device_id else None,
             "borrow_code": borrow_code if borrow_code else None,
             "borrow_expiry": borrow_expiry,
             "sleep_min": sleep_minutes,
@@ -309,7 +305,7 @@ def ble_reset():
         try:
             ((tx, rx),) = ble.gatts_register_services(((UART_UUID, (
                 (TX_UUID, 0x0010),
-                (RX_UUID, 0x000C),
+                (RX_UUID, 0x0008),
             )),))
         except:
             pass
@@ -386,7 +382,7 @@ def process_pending_actions():
 def process_command(cmd):
     global connected, conn_handle, auth_start, lock_until
     global authenticated, temp_auth, temp_expire, auth_level, safe_state
-    global admin_device_id, borrow_code, borrow_expiry, config_dirty
+    global borrow_code, borrow_expiry, config_dirty
     global DEVICE_NAME, PASSWORD, AUTO_LOCK_ENABLED
     global wake_minutes, last_cmd_time
 
@@ -406,34 +402,17 @@ def process_command(cmd):
             parts = cmd.split(" ", 2)
             if len(parts) >= 3:
                 pwd = parts[1]
-                device_id = parts[2]
                 if pwd == PASSWORD:
-                    admin_device_id = device_id
-                    config_dirty = True
                     authenticated = True
                     temp_auth = False
                     auth_level = 2
                     safe_state = True
                     lock_until = 0
-                    pending_actions.append(("notify_only", b"OK AUTH"))
+                    pending_actions.append(("notify_only", b"OK"))
                     return
                 pending_actions.append(("notify_only", b"ERR AUTH_FAIL"))
                 return
             pending_actions.append(("notify_only", b"ERR AUTH_FMT"))
-            return
-        if cmd.upper().startswith("!DEVID "):
-            device_id = cmd.split(" ", 1)[1] if len(cmd.split(" ")) > 1 else ""
-            if admin_device_id is None:
-                pending_actions.append(("notify_only", b"ERR NO_ADMIN"))
-            elif admin_device_id == device_id:
-                authenticated = True
-                temp_auth = False
-                auth_level = 2
-                safe_state = True
-                lock_until = 0
-                pending_actions.append(("notify_only", b"OK DEVID"))
-            else:
-                pending_actions.append(("notify_only", b"ERR NOT_ADMIN"))
             return
         if cmd.upper().startswith("!VERIFYBORROW "):
             code = cmd.split(" ", 1)[1] if len(cmd.split(" ")) > 1 else ""
@@ -618,15 +597,11 @@ def process_command(cmd):
         UNLOCK_PIN = PIN_UNLOCK_DEFAULT
         TRUNK_PIN = PIN_TRUNK_DEFAULT
         AUTO_LOCK_ENABLED = 1
-        admin_device_id = None
         borrow_code = None
         borrow_expiry = 0
         config_dirty = True
         init_pins()
         pending_actions.append(("notify_only", b"OK RESET"))
-    elif cmd_upper == "!DEVICEID?":
-        if auth_level >= 2:
-            pending_actions.append(("notify_only", "DEVICEID:{}".format(admin_device_id if admin_device_id else "NONE").encode()))
     elif cmd_upper.startswith("!SLEEP"):
         if temp_auth or auth_level < 2:
             pending_actions.append(("notify_only", b"ERR NO_PERM"))
@@ -739,7 +714,7 @@ ble.irq(ble_cb)
 try:
     ((tx, rx),) = ble.gatts_register_services(((UART_UUID, (
         (TX_UUID, 0x0010),
-        (RX_UUID, 0x000C),
+        (RX_UUID, 0x0008),
     )),))
 except:
     pass

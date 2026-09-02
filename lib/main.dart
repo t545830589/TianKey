@@ -982,64 +982,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (!serviceFound || !bleGateway.readyForWrite) {
         throw StateError('NUS通道绑定失败');
       }
-      // 先用 !DEVID 验证管理员席位
-      setState(() => status = '正在验证管理员席位...');
-      String? reply;
-      for (int retry = 0; retry < 3; retry++) {
-        reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
-        if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
-        if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
-      }
-      if (reply != null && reply.contains('OK')) {
-        adminDevice = installId;
-        adminSession = true;
-        authorized = true;
-        mode = AccessMode.admin;
-        await prefs?.setString('admin_device_id', installId!);
-        await prefs?.setBool('authorized', true);
-        setState(() {
-          connected = true;
-          connecting = false;
-          timeSynced = false;
-          status = '自动连接成功，管理员模式';
-        });
-        ble.onDisconnect = () {
-          _stopHeartbeat();
-          if (mounted && connected) {
-            setState(() {
-              connected = false;
-              mode = null;
-              adminSession = false;
-              timeSynced = false;
-              espTime = null;
-              commandSeconds = 0;
-              foundDevice = null;
-              status = 'BLE连接已断开，正在自动重连...';
-            });
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
-              }
-            });
-            Future.delayed(const Duration(seconds: 8), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
-              }
-            });
-          }
-        };
-        await syncTime();
-        _startHeartbeat();
-        return;
-      }
-      // !DEVID失败，用保存密码认证
+      // 直接用保存密码认证（和"他的.py"一致，不依赖设备ID）
       final savedPwd = prefs?.getString('admin_password');
       if (savedPwd == null || savedPwd.isEmpty) {
         await ble.disconnect();
         setState(() { connecting = false; status = '自动连接失败：无保存密码，请手动连接'; });
         return;
       }
-      setState(() => status = '席位验证失败，正在用密码认证...');
+      setState(() => status = '正在用密码认证...');
       String? authReply;
       for (int retry = 0; retry < 3; retry++) {
         authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
@@ -1212,7 +1162,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         return;
       }
     }
-    if (autoConnect && authorized && adminDevice != null && adminDevice == installId) {
+    if (autoConnect && authorized) {
       setState(() { status = '自动连接中...'; });
       await _connectBle(target, AccessMode.admin, autoConnectVerify: true);
       return;
