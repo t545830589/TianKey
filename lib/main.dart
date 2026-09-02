@@ -758,12 +758,24 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _load();
     // 监听蓝牙开关状态：关了再开 → 自动重连
     _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
-      if (state == BluetoothAdapterState.on && authorized && savedRemoteId != null && mounted) {
-        Future.delayed(const Duration(seconds: 2), () {
-          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            connect();
-          }
-        });
+      if (state == BluetoothAdapterState.on && mounted) {
+        // 强制重置所有可能卡死的状态
+        _autoConnecting = false;
+        connecting = false;
+        scanning = false;
+        if (authorized && savedRemoteId != null) {
+          // 等5秒让蓝牙适配器完全就绪
+          Future.delayed(const Duration(seconds: 5), () {
+            if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+              connect();
+            }
+          });
+          Future.delayed(const Duration(seconds: 12), () {
+            if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+              connect();
+            }
+          });
+        }
       }
     });
   }
@@ -785,9 +797,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 重置连接状态，防止上次连接中断导致卡死
+      // 强制重置所有可能卡死的状态
       _autoConnecting = false;
       connecting = false;
+      scanning = false;
       // 检查实际BLE连接状态：如果我们的connected是true但BLE实际已断开，强制修正
       if (connected && !ble.isConnected) {
         connected = false;
@@ -800,13 +813,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         _stopHeartbeat();
       }
       if (!connected && authorized && savedRemoteId != null) {
-        // 等2秒让蓝牙适配器初始化好再扫描
-        Future.delayed(const Duration(seconds: 2), () {
+        // 第一次：等3秒让蓝牙适配器初始化好
+        Future.delayed(const Duration(seconds: 3), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
             connect();
           }
         });
-        Future.delayed(const Duration(seconds: 8), () {
+        // 第二次：10秒后兜底重试
+        Future.delayed(const Duration(seconds: 10), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
             connect();
           }
