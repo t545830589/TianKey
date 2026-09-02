@@ -70,6 +70,7 @@ last_rssi_check = 0
 ble_error_count = 0
 last_cmd_time = 0
 HEARTBEAT_TIMEOUT = 30000
+pending_disconnect = False
 
 def init_pins():
     global lock_pin, unlock_pin, trunk_pin
@@ -333,11 +334,6 @@ def notify(data):
 
 def disconnect_and_cleanup():
     global connected, conn_handle, safe_state, gpio_busy
-    if connected and conn_handle is not None:
-        try:
-            ble.gap_disconnect(conn_handle)
-        except:
-            pass
     gpio_busy = False
     if authenticated:
         try:
@@ -366,12 +362,16 @@ def check_rssi():
     try:
         rssi = ble.gap_readRSSI(conn_handle)
         if rssi < RSSI_LOCK_THRESHOLD:
+            try:
+                ble.gap_disconnect(conn_handle)
+            except:
+                pass
             disconnect_and_cleanup()
     except:
         pass
 
 def process_command(cmd):
-    global connected, conn_handle, auth_start, lock_until
+    global connected, conn_handle, auth_start, lock_until, pending_disconnect
     global authenticated, temp_auth, temp_expire, auth_level, safe_state
     global admin_device_id, borrow_code, borrow_expiry, config_dirty
     global DEVICE_NAME, PASSWORD, AUTO_LOCK_ENABLED
@@ -455,7 +455,9 @@ def process_command(cmd):
                 notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
                 return
         lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
-        disconnect_and_cleanup()
+        connected = False
+        conn_handle = None
+        pending_disconnect = True
         return
 
     if temp_auth and time.time() > 0 and time.time() > temp_expire:
@@ -671,7 +673,7 @@ def process_command(cmd):
 
 def ble_cb(event, data):
     global connected, conn_handle, auth_start, lock_until, ble_error_count
-    global authenticated, temp_auth, temp_expire, safe_state
+    global authenticated, temp_auth, temp_expire, safe_state, pending_disconnect
     try:
         if event == 1:
             if len(data) < 1:
@@ -693,7 +695,9 @@ def ble_cb(event, data):
             last_cmd_time = now_ticks
 
         elif event == 2:
-            disconnect_and_cleanup()
+            connected = False
+            conn_handle = None
+            pending_disconnect = True
 
         elif event == 3:
             if not connected or len(data) < 2:
@@ -739,6 +743,23 @@ adv_fail_count = 0 if adv_success else 1
 while True:
     now = time.ticks_ms()
 
+    if pending_disconnect:
+        pending_disconnect = False
+        was_auth = authenticated
+        reset_auth()
+        safe_state = False
+        gpio_busy = False
+        if was_auth:
+            try:
+                act_lock()
+                time.sleep_ms(100)
+                wdt.feed()
+                act_lock()
+            except:
+                pass
+        gc.collect()
+        start_adv()
+
     if config_dirty:
         save_config()
         config_dirty = False
@@ -779,6 +800,10 @@ while True:
     if connected and not authenticated:
         if time.ticks_diff(now, auth_start) >= AUTH_TIMEOUT * 1000:
             lock_until = time.ticks_add(now, AUTH_FAILURE)
+            try:
+                ble.gap_disconnect(conn_handle)
+            except:
+                pass
             disconnect_and_cleanup()
 
     gc.collect()
@@ -789,6 +814,10 @@ while True:
         except:
             pass
         if authenticated and last_cmd_time > 0 and time.ticks_diff(now, last_cmd_time) > HEARTBEAT_TIMEOUT:
+            try:
+                ble.gap_disconnect(conn_handle)
+            except:
+                pass
             disconnect_and_cleanup()
         time.sleep_ms(100)
     else:
