@@ -1233,9 +1233,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         ble.onDisconnect = () {
           _stopHeartbeat();
-          if (mounted && connected) {
+          if (mounted) {
             setState(() {
               connected = false;
+              connecting = false;
+              _autoConnecting = false;
               mode = null;
               adminSession = false;
               timeSynced = false;
@@ -1245,12 +1247,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               status = 'BLE连接已断开，正在自动重连...';
             });
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
-            // 自动重连：3秒后尝试
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
-              }
-            });
+            _scheduleReconnect('onDisconnect');
           }
         };
         // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
@@ -1626,6 +1623,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() {
       connected = false;
+      connecting = false;
+      _autoConnecting = false;
       foundDevice = null;
       mode = null;
       adminSession = false;
