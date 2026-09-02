@@ -1290,41 +1290,28 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             return;
           }
         } else {
-          // 管理员自动连接：发送!DEVID检查管理员席位
-          setState(() => status = 'BLE已连接，正在验证管理员席位...');
-          String? reply;
+          // 管理员自动连接：直接用保存密码认证（不依赖设备ID）
+          final savedPwd = prefs?.getString('admin_password');
+          if (savedPwd == null || savedPwd.isEmpty) {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '无保存密码，需手动认证'; });
+            return;
+          }
+          setState(() => status = 'BLE已连接，正在用密码认证...');
+          String? authReply;
           for (int retry = 0; retry < 3; retry++) {
-            reply = await bleGateway.sendAndWait(utf8.encode('!DEVID $installId'));
-            if (reply != null && (reply.contains('OK') || reply.contains('NO_ADMIN'))) break;
+            authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
+            if (authReply != null && authReply.contains('OK')) break;
             if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
-          if (reply != null && reply.contains('OK')) {
-            adminSession = true;
+          if (authReply != null && authReply.contains('OK')) {
+            esp32.verifyAdminPassword(savedPwd, installId ?? '');
             adminDevice = installId;
+            adminSession = true;
+            authorized = true;
+            esp32.adminDevice = installId;
             await prefs?.setString('admin_device_id', installId!);
-          } else {
-            // !DEVID失败（无管理员/席位被占/其他），自动用保存密码认证，不弹密码框
-            adminSession = false;
-            final savedPwd = prefs?.getString('admin_password');
-            if (savedPwd == null || savedPwd.isEmpty) {
-              await ble.disconnect();
-              setState(() { connecting = false; status = '无保存密码，需手动认证'; });
-              return;
-            }
-            String? authReply;
-            for (int retry = 0; retry < 3; retry++) {
-              authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
-              if (authReply != null && authReply.contains('OK')) break;
-              if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
-            }
-            if (authReply != null && authReply.contains('OK')) {
-              esp32.verifyAdminPassword(savedPwd, installId ?? '');
-              adminDevice = installId;
-              adminSession = true;
-              authorized = true;
-              esp32.adminDevice = installId;
-              await prefs?.setString('admin_device_id', installId!);
-              await prefs?.setBool('authorized', true);
+            await prefs?.setBool('authorized', true);
             } else {
               await ble.disconnect();
               setState(() { connecting = false; status = '自动认证失败'; });
