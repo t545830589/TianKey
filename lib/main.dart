@@ -971,6 +971,27 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           timeSynced = false;
           status = '自动连接成功，管理员模式';
         });
+        ble.onDisconnect = () {
+          _stopHeartbeat();
+          if (mounted && connected) {
+            setState(() {
+              connected = false;
+              mode = null;
+              adminSession = false;
+              timeSynced = false;
+              espTime = null;
+              commandSeconds = 0;
+              foundDevice = null;
+              status = 'BLE连接已断开，正在自动重连...';
+            });
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
+          }
+        };
         await syncTime();
         _startHeartbeat();
         return;
@@ -1003,6 +1024,27 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           timeSynced = false;
           status = '自动连接成功，管理员模式';
         });
+        ble.onDisconnect = () {
+          _stopHeartbeat();
+          if (mounted && connected) {
+            setState(() {
+              connected = false;
+              mode = null;
+              adminSession = false;
+              timeSynced = false;
+              espTime = null;
+              commandSeconds = 0;
+              foundDevice = null;
+              status = 'BLE连接已断开，正在自动重连...';
+            });
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
+          }
+        };
         await syncTime();
         _startHeartbeat();
       } else {
