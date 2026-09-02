@@ -324,13 +324,6 @@ def ble_reset():
         if ble_error_count >= 5:
             machine.reset()
 
-def notify(data):
-    try:
-        if conn_handle is not None and connected:
-            ble.gatts_notify(conn_handle, tx, data)
-    except:
-        pass
-
 def disconnect_and_cleanup():
     global connected, conn_handle, safe_state, gpio_busy
     if connected and conn_handle is not None:
@@ -370,6 +363,26 @@ def check_rssi():
     except:
         pass
 
+def process_pending_actions():
+    """在主循环中安全执行所有BLE通知和保存操作"""
+    global pending_actions
+    if not pending_actions:
+        return
+    actions = pending_actions
+    pending_actions = []
+    for action_type, data in actions:
+        try:
+            if action_type == "notify_only":
+                if conn_handle is not None and connected:
+                    ble.gatts_notify(conn_handle, tx, data)
+            elif action_type == "save_restart_adv":
+                save_config()
+                init_pins()
+                start_adv()
+        except:
+            pass
+    gc.collect()
+
 def process_command(cmd):
     global connected, conn_handle, auth_start, lock_until
     global authenticated, temp_auth, temp_expire, auth_level, safe_state
@@ -387,7 +400,7 @@ def process_command(cmd):
             auth_level = 2
             safe_state = True
             lock_until = 0
-            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
+            pending_actions.append(("notify_only", "AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode()))
             return
         if cmd.upper().startswith("!AUTH "):
             parts = cmd.split(" ", 2)
@@ -402,46 +415,46 @@ def process_command(cmd):
                     auth_level = 2
                     safe_state = True
                     lock_until = 0
-                    notify(b"OK AUTH")
+                    pending_actions.append(("notify_only", b"OK AUTH"))
                     return
-                notify(b"ERR AUTH_FAIL")
+                pending_actions.append(("notify_only", b"ERR AUTH_FAIL"))
                 return
-            notify(b"ERR AUTH_FMT")
+            pending_actions.append(("notify_only", b"ERR AUTH_FMT"))
             return
         if cmd.upper().startswith("!DEVID "):
             device_id = cmd.split(" ", 1)[1] if len(cmd.split(" ")) > 1 else ""
             if admin_device_id is None:
-                notify(b"ERR NO_ADMIN")
+                pending_actions.append(("notify_only", b"ERR NO_ADMIN"))
             elif admin_device_id == device_id:
                 authenticated = True
                 temp_auth = False
                 auth_level = 2
                 safe_state = True
                 lock_until = 0
-                notify(b"OK DEVID")
+                pending_actions.append(("notify_only", b"OK DEVID"))
             else:
-                notify(b"ERR NOT_ADMIN")
+                pending_actions.append(("notify_only", b"ERR NOT_ADMIN"))
             return
         if cmd.upper().startswith("!VERIFYBORROW "):
             code = cmd.split(" ", 1)[1] if len(cmd.split(" ")) > 1 else ""
             if borrow_code is None:
-                notify(b"ERR NO_BORROW")
+                pending_actions.append(("notify_only", b"ERR NO_BORROW"))
                 return
             if code != borrow_code:
-                notify(b"ERR BORROW_FAIL")
+                pending_actions.append(("notify_only", b"ERR BORROW_FAIL"))
                 return
             if borrow_expiry > 0 and time.time() > borrow_expiry:
                 borrow_code = None
                 borrow_expiry = 0
                 config_dirty = True
-                notify(b"ERR BORROW_EXPIRED")
+                pending_actions.append(("notify_only", b"ERR BORROW_EXPIRED"))
                 return
             authenticated = True
             temp_auth = False
             auth_level = 1
             safe_state = True
             lock_until = 0
-            notify(b"OK VERIFYBORROW")
+            pending_actions.append(("notify_only", b"OK VERIFYBORROW"))
             return
         if len(cmd) == 6 and cmd.isdigit():
             ok, expire_time = verify_temp_code(cmd)
@@ -452,7 +465,7 @@ def process_command(cmd):
                 auth_level = 1
                 safe_state = True
                 lock_until = 0
-                notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
+                pending_actions.append(("notify_only", "AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode()))
                 return
         lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
         disconnect_and_cleanup()
@@ -466,19 +479,19 @@ def process_command(cmd):
     parts = cmd_upper.split()
 
     if gpio_busy:
-        notify(b"ERR BUSY")
+        pending_actions.append(("notify_only", b"ERR BUSY"))
         return
 
     if parts:
         head = parts[0]
         if head == "!LOCKPIN?":
-            notify("LOCKPIN:{}".format(LOCK_PIN).encode())
+            pending_actions.append(("notify_only", "LOCKPIN:{}".format(LOCK_PIN).encode()))
             return
         if head == "!UNLOCKPIN?":
-            notify("UNLOCKPIN:{}".format(UNLOCK_PIN).encode())
+            pending_actions.append(("notify_only", "UNLOCKPIN:{}".format(UNLOCK_PIN).encode()))
             return
         if head == "!TRUNKPIN?":
-            notify("TRUNKPIN:{}".format(TRUNK_PIN).encode())
+            pending_actions.append(("notify_only", "TRUNKPIN:{}".format(TRUNK_PIN).encode()))
             return
         if len(parts) >= 2 and not temp_auth and auth_level >= 2:
             try:
@@ -490,19 +503,19 @@ def process_command(cmd):
                     LOCK_PIN = pin_num
                     config_dirty = True
                     init_pins()
-                    notify(b"LOCKPIN OK")
+                    pending_actions.append(("notify_only", b"LOCKPIN OK"))
                     return
                 elif head == "!UNLOCKPIN":
                     UNLOCK_PIN = pin_num
                     config_dirty = True
                     init_pins()
-                    notify(b"UNLOCKPIN OK")
+                    pending_actions.append(("notify_only", b"UNLOCKPIN OK"))
                     return
                 elif head == "!TRUNKPIN":
                     TRUNK_PIN = pin_num
                     config_dirty = True
                     init_pins()
-                    notify(b"TRUNKPIN OK")
+                    pending_actions.append(("notify_only", b"TRUNKPIN OK"))
                     return
 
     if cmd_upper == "L" or cmd_upper == "SUOCHE":
@@ -521,56 +534,56 @@ def process_command(cmd):
         act_chuangjiang()
     elif cmd_upper.startswith("!NAME "):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         new_name = cmd[6:].strip()
         if new_name:
             DEVICE_NAME = new_name
             config_dirty = True
             pending_actions.append(("save_restart_adv", None))
-            notify(b"OK NAME")
+            pending_actions.append(("notify_only", b"OK NAME"))
         else:
-            notify(b"ERR NAME_FMT")
+            pending_actions.append(("notify_only", b"ERR NAME_FMT"))
     elif cmd_upper.startswith("!PWD "):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         new_pwd = cmd[5:].strip()
         if new_pwd:
             PASSWORD = new_pwd
             config_dirty = True
-            notify(b"OK PWD")
+            pending_actions.append(("notify_only", b"OK PWD"))
         else:
-            notify(b"ERR PWD_FMT")
+            pending_actions.append(("notify_only", b"ERR PWD_FMT"))
     elif cmd_upper.startswith("!TIME "):
         if temp_auth or auth_level < 1:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         try:
             ts = int(cmd[6:].strip())
             rtc = machine.RTC()
             tm = time.localtime(ts)
             rtc.datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
-            notify(b"OK TIME")
+            pending_actions.append(("notify_only", b"OK TIME"))
         except:
-            notify(b"ERR TIME")
+            pending_actions.append(("notify_only", b"ERR TIME"))
     elif cmd_upper == "!AUTOLOCK?":
-        notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
+        pending_actions.append(("notify_only", "AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode()))
     elif cmd_upper.startswith("!AUTOLOCK"):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         try:
             val = int(cmd_upper[10:].strip())
             if val in (0, 1):
                 AUTO_LOCK_ENABLED = val
                 config_dirty = True
-                notify(b"AUTOLOCK OK")
+                pending_actions.append(("notify_only", b"AUTOLOCK OK"))
         except:
             pass
     elif cmd_upper.startswith("!BORROW ") and not temp_auth:
         if auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         parts_borrow = cmd.split(" ")
         if len(parts_borrow) >= 3:
@@ -578,26 +591,26 @@ def process_command(cmd):
             try:
                 hours = int(parts_borrow[2])
                 if hours < 1:
-                    notify(b"ERR BORROW_FMT")
+                    pending_actions.append(("notify_only", b"ERR BORROW_FMT"))
                     return
                 borrow_expiry = int(time.time()) + hours * 3600
             except:
                 borrow_expiry = 0
             config_dirty = True
-            notify(b"OK BORROW")
+            pending_actions.append(("notify_only", b"OK BORROW"))
         else:
-            notify(b"ERR BORROW_FMT")
+            pending_actions.append(("notify_only", b"ERR BORROW_FMT"))
     elif cmd_upper == "!BORROWCLEAR" and not temp_auth:
         if auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         borrow_code = None
         borrow_expiry = 0
         config_dirty = True
-        notify(b"OK BORROWCLEAR")
+        pending_actions.append(("notify_only", b"OK BORROWCLEAR"))
     elif cmd_upper == "!RESET" and not temp_auth:
         if auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         DEVICE_NAME = DEFAULT_NAME
         PASSWORD = DEFAULT_PWD
@@ -610,20 +623,20 @@ def process_command(cmd):
         borrow_expiry = 0
         config_dirty = True
         init_pins()
-        notify(b"OK RESET")
+        pending_actions.append(("notify_only", b"OK RESET"))
     elif cmd_upper == "!DEVICEID?":
         if auth_level >= 2:
-            notify("DEVICEID:{}".format(admin_device_id if admin_device_id else "NONE").encode())
+            pending_actions.append(("notify_only", "DEVICEID:{}".format(admin_device_id if admin_device_id else "NONE").encode()))
     elif cmd_upper.startswith("!SLEEP"):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         if cmd_upper == "!SLEEP?":
-            notify("SLEEP:{}:{}".format(1 if sleep_enabled else 0, sleep_minutes).encode())
+            pending_actions.append(("notify_only", "SLEEP:{}:{}".format(1 if sleep_enabled else 0, sleep_minutes).encode()))
             return
         parts_sleep = cmd.split(" ")
         if len(parts_sleep) < 2 or not parts_sleep[1].isdigit():
-            notify(b"ERR SLEEP_FMT")
+            pending_actions.append(("notify_only", b"ERR SLEEP_FMT"))
             return
         try:
             val = int(parts_sleep[1])
@@ -634,19 +647,19 @@ def process_command(cmd):
                 sleep_enabled = True
                 sleep_minutes = val
             config_dirty = True
-            notify(b"OK SLEEP")
+            pending_actions.append(("notify_only", b"OK SLEEP"))
         except:
-            notify(b"ERR SLEEP_FMT")
+            pending_actions.append(("notify_only", b"ERR SLEEP_FMT"))
     elif cmd_upper.startswith("!WAKE"):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
+            pending_actions.append(("notify_only", b"ERR NO_PERM"))
             return
         if cmd_upper == "!WAKE?":
-            notify("WAKE:{}".format(wake_minutes).encode())
+            pending_actions.append(("notify_only", "WAKE:{}".format(wake_minutes).encode()))
             return
         parts_wake = cmd.split(" ")
         if len(parts_wake) < 2 or not parts_wake[1].isdigit():
-            notify(b"ERR WAKE_FMT")
+            pending_actions.append(("notify_only", b"ERR WAKE_FMT"))
             return
         try:
             val = int(parts_wake[1])
@@ -654,20 +667,20 @@ def process_command(cmd):
                 val = 1
             wake_minutes = val
             config_dirty = True
-            notify(b"OK WAKE")
+            pending_actions.append(("notify_only", b"OK WAKE"))
         except:
-            notify(b"ERR WAKE_FMT")
+            pending_actions.append(("notify_only", b"ERR WAKE_FMT"))
     elif cmd_upper == "!RSSI?":
         if connected and conn_handle is not None:
             try:
                 rssi = ble.gap_readRSSI(conn_handle)
-                notify("RSSI:{}".format(rssi).encode())
+                pending_actions.append(("notify_only", "RSSI:{}".format(rssi).encode()))
             except:
-                notify(b"RSSI:0")
+                pending_actions.append(("notify_only", b"RSSI:0"))
         else:
-            notify(b"RSSI:0")
+            pending_actions.append(("notify_only", b"RSSI:0"))
     else:
-        notify(b"ERR UNKNOWN_CMD")
+        pending_actions.append(("notify_only", b"ERR UNKNOWN_CMD"))
 
 def ble_cb(event, data):
     global connected, conn_handle, auth_start, lock_until, ble_error_count
@@ -743,15 +756,7 @@ while True:
         save_config()
         config_dirty = False
 
-    if pending_actions:
-        actions = pending_actions
-        pending_actions = []
-        for action_type, data in actions:
-            if action_type == "save_restart_adv":
-                save_config()
-                init_pins()
-                start_adv()
-        gc.collect()
+    process_pending_actions()
 
     if not connected:
         if time.ticks_diff(now, last_adv_ok) > 30000:
