@@ -772,21 +772,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 息屏断连时onDisconnect可能不触发，connected还是true
-      // 所以要用真实连接状态来判断
-      if (connected && !(ble.isConnected)) {
-        setState(() {
-          connected = false;
-          mode = null;
-          adminSession = false;
-          timeSynced = false;
-          espTime = null;
-          commandSeconds = 0;
-          foundDevice = null;
-          status = 'BLE连接已断开，正在自动重连...';
-        });
-        _stopHeartbeat();
-      }
       if (!connected && !connecting && authorized && savedRemoteId != null) {
         connect();
         Future.delayed(const Duration(seconds: 3), () {
