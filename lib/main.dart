@@ -772,9 +772,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (!mounted || !authorized || savedRemoteId == null) return;
+      final actuallyConnected = bleGateway.device?.isConnected ?? false;
+      if (connected && !actuallyConnected) {
+        setState(() {
+          connected = false;
+          mode = null;
+          adminSession = false;
+          timeSynced = false;
+          espTime = null;
+          commandSeconds = 0;
+          foundDevice = null;
+          status = 'BLE连接已断开，正在自动重连...';
+        });
+        _stopHeartbeat();
+      }
       if (!connected && !connecting && authorized && savedRemoteId != null) {
         connect();
         Future.delayed(const Duration(seconds: 3), () {
+          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+            connect();
+          }
+        });
+        Future.delayed(const Duration(seconds: 8), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
             connect();
           }
@@ -984,8 +1004,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               foundDevice = null;
               status = 'BLE连接已断开，正在自动重连...';
             });
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
             Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
+            Future.delayed(const Duration(seconds: 8), () {
               if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
                 connect();
               }
@@ -1037,8 +1061,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               foundDevice = null;
               status = 'BLE连接已断开，正在自动重连...';
             });
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
             Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
+            Future.delayed(const Duration(seconds: 8), () {
               if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
                 connect();
               }
@@ -1231,8 +1259,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               foundDevice = null;
               status = 'BLE连接已断开，正在自动重连...';
             });
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
             Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
+            Future.delayed(const Duration(seconds: 8), () {
               if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
                 connect();
               }
@@ -1605,9 +1637,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> disconnect() async {
     _stopHeartbeat();
     commandTimer?.cancel();
-    await bleGateway.dispose();
-    await ble.disconnect();
-    if (!mounted) return;
+    // 关键：先把connected设为false，防止onDisconnect回调触发自动重连
     setState(() {
       connected = false;
       connecting = false;
@@ -1620,6 +1650,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       commandSeconds = 0;
       status = '已断开：车辆功能重新锁定';
     });
+    await bleGateway.dispose();
+    await ble.disconnect();
+    if (!mounted) return;
     _msg('已断开，车辆功能已锁定');
   }
 
