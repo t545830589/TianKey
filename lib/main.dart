@@ -1637,7 +1637,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> disconnect() async {
     _stopHeartbeat();
     commandTimer?.cancel();
-    // 关键：先把connected设为false，防止onDisconnect回调触发自动重连
+    await bleGateway.dispose();
+    await ble.disconnect();
+    if (!mounted) return;
     setState(() {
       connected = false;
       connecting = false;
@@ -1650,9 +1652,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       commandSeconds = 0;
       status = '已断开：车辆功能重新锁定';
     });
-    await bleGateway.dispose();
-    await ble.disconnect();
-    if (!mounted) return;
     _msg('已断开，车辆功能已锁定');
   }
 
