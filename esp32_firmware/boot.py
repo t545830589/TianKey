@@ -48,7 +48,6 @@ TRUNK_DURATION = TRUNK_DEFAULT_DURATION
 AUTO_LOCK_ENABLED = 1
 sleep_minutes = 0
 sleep_enabled = False
-wake_minutes = 30
 admin_device_id = None
 borrow_code = None
 borrow_expiry = 0
@@ -68,8 +67,6 @@ adv_fail_count = 0
 last_adv_ok = 0
 last_rssi_check = 0
 ble_error_count = 0
-last_cmd_time = 0
-HEARTBEAT_TIMEOUT = 30000
 
 def init_pins():
     global lock_pin, unlock_pin, trunk_pin
@@ -169,7 +166,7 @@ def load_config():
     global LOCK_PIN, UNLOCK_PIN, TRUNK_PIN
     global admin_device_id, borrow_code, borrow_expiry
     global DEVICE_NAME, PASSWORD
-    global sleep_minutes, sleep_enabled, wake_minutes
+    global sleep_minutes, sleep_enabled
     try:
         with open(CONFIG_FILE, "r") as f:
             cfg = json.loads(f.read())
@@ -186,7 +183,6 @@ def load_config():
         TRUNK_DURATION = int(cfg.get("trunk_dur", TRUNK_DEFAULT_DURATION))
         sleep_minutes = int(cfg.get("sleep_min", 0))
         sleep_enabled = bool(cfg.get("sleep_en", 0))
-        wake_minutes = int(cfg.get("wake_min", 30))
         return
     except:
         pass
@@ -233,13 +229,10 @@ def save_config():
             "borrow_code": borrow_code if borrow_code else None,
             "borrow_expiry": borrow_expiry,
             "sleep_min": sleep_minutes,
-            "sleep_en": 1 if sleep_enabled else 0,
-            "wake_min": wake_minutes
+            "sleep_en": 1 if sleep_enabled else 0
         }
-        tmp = CONFIG_FILE + ".tmp"
-        with open(tmp, "w") as f:
+        with open(CONFIG_FILE, "w") as f:
             f.write(json.dumps(cfg))
-        os.rename(tmp, CONFIG_FILE)
     except:
         pass
 
@@ -261,7 +254,7 @@ def verify_temp_code(code):
         return True, (window_now + 1) * TEMP_VALID
     window_prev = window_now - 1
     if code == _temp_code_for_window(window_prev):
-        return True, (window_now + 1) * TEMP_VALID
+        return True, window_now * TEMP_VALID
     return False, 0
 
 def reset_auth():
@@ -332,13 +325,12 @@ def notify(data):
         pass
 
 def disconnect_and_cleanup():
-    global connected, conn_handle, safe_state, gpio_busy
+    global connected, conn_handle, safe_state
     if connected and conn_handle is not None:
         try:
             ble.gap_disconnect(conn_handle)
         except:
             pass
-    gpio_busy = False
     if authenticated:
         try:
             act_lock()
@@ -351,7 +343,6 @@ def disconnect_and_cleanup():
     reset_auth()
     safe_state = False
     conn_handle = None
-    gpio_busy = False
     gc.collect()
     start_adv()
 
@@ -375,20 +366,9 @@ def process_command(cmd):
     global authenticated, temp_auth, temp_expire, auth_level, safe_state
     global admin_device_id, borrow_code, borrow_expiry, config_dirty
     global DEVICE_NAME, PASSWORD, AUTO_LOCK_ENABLED
-    global wake_minutes, last_cmd_time
-
-    last_cmd_time = time.ticks_ms()
+    global LOCK_PIN, UNLOCK_PIN, TRUNK_PIN
 
     if not authenticated:
-        if cmd == PASSWORD:
-            authenticated = True
-            temp_auth = False
-            temp_expire = 0
-            auth_level = 2
-            safe_state = True
-            lock_until = 0
-            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
-            return
         if cmd.upper().startswith("!AUTH "):
             parts = cmd.split(" ", 2)
             if len(parts) >= 3:
@@ -443,6 +423,9 @@ def process_command(cmd):
             lock_until = 0
             notify(b"OK VERIFYBORROW")
             return
+        if cmd.upper() == "!TIMEREQ":
+            notify(b"OK TIMEREQ")
+            return
         if len(cmd) == 6 and cmd.isdigit():
             ok, expire_time = verify_temp_code(cmd)
             if ok:
@@ -454,11 +437,21 @@ def process_command(cmd):
                 lock_until = 0
                 notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
                 return
+        if cmd == PASSWORD:
+            authenticated = True
+            temp_auth = False
+            temp_expire = 0
+            auth_level = 2
+            safe_state = True
+            lock_until = 0
+            notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
+            return
         lock_until = time.ticks_add(time.ticks_ms(), AUTH_FAILURE)
         disconnect_and_cleanup()
         return
 
-    if temp_auth and time.time() > 0 and time.time() > temp_expire:
+    if temp_auth and time.time() > temp_expire:
+        act_lock()
         disconnect_and_cleanup()
         return
 
@@ -521,44 +514,35 @@ def process_command(cmd):
         act_chuangjiang()
     elif cmd_upper.startswith("!NAME "):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         new_name = cmd[6:].strip()
         if new_name:
             DEVICE_NAME = new_name
-            config_dirty = True
             pending_actions.append(("save_restart_adv", None))
-            notify(b"OK NAME")
-        else:
-            notify(b"ERR NAME_FMT")
+            notify(b"NAME OK")
     elif cmd_upper.startswith("!PWD "):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         new_pwd = cmd[5:].strip()
         if new_pwd:
             PASSWORD = new_pwd
             config_dirty = True
-            notify(b"OK PWD")
-        else:
-            notify(b"ERR PWD_FMT")
+            notify(b"PWD OK")
     elif cmd_upper.startswith("!TIME "):
-        if temp_auth or auth_level < 1:
-            notify(b"ERR NO_PERM")
+        if temp_auth or auth_level < 2:
             return
         try:
             ts = int(cmd[6:].strip())
             rtc = machine.RTC()
             tm = time.localtime(ts)
             rtc.datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
-            notify(b"OK TIME")
+            notify(b"TIME OK")
         except:
             notify(b"ERR TIME")
     elif cmd_upper == "!AUTOLOCK?":
         notify("AUTOLOCK:{}".format(AUTO_LOCK_ENABLED).encode())
     elif cmd_upper.startswith("!AUTOLOCK"):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         try:
             val = int(cmd_upper[10:].strip())
@@ -570,16 +554,12 @@ def process_command(cmd):
             pass
     elif cmd_upper.startswith("!BORROW ") and not temp_auth:
         if auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         parts_borrow = cmd.split(" ")
         if len(parts_borrow) >= 3:
             borrow_code = parts_borrow[1]
             try:
                 hours = int(parts_borrow[2])
-                if hours < 1:
-                    notify(b"ERR BORROW_FMT")
-                    return
                 borrow_expiry = int(time.time()) + hours * 3600
             except:
                 borrow_expiry = 0
@@ -589,7 +569,6 @@ def process_command(cmd):
             notify(b"ERR BORROW_FMT")
     elif cmd_upper == "!BORROWCLEAR" and not temp_auth:
         if auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         borrow_code = None
         borrow_expiry = 0
@@ -597,7 +576,6 @@ def process_command(cmd):
         notify(b"OK BORROWCLEAR")
     elif cmd_upper == "!RESET" and not temp_auth:
         if auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         DEVICE_NAME = DEFAULT_NAME
         PASSWORD = DEFAULT_PWD
@@ -616,17 +594,12 @@ def process_command(cmd):
             notify("DEVICEID:{}".format(admin_device_id if admin_device_id else "NONE").encode())
     elif cmd_upper.startswith("!SLEEP"):
         if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
             return
         if cmd_upper == "!SLEEP?":
             notify("SLEEP:{}:{}".format(1 if sleep_enabled else 0, sleep_minutes).encode())
             return
-        parts_sleep = cmd.split(" ")
-        if len(parts_sleep) < 2 or not parts_sleep[1].isdigit():
-            notify(b"ERR SLEEP_FMT")
-            return
         try:
-            val = int(parts_sleep[1])
+            val = int(cmd_upper[7:].strip())
             if val <= 0:
                 sleep_enabled = False
                 sleep_minutes = 0
@@ -637,26 +610,6 @@ def process_command(cmd):
             notify(b"OK SLEEP")
         except:
             notify(b"ERR SLEEP_FMT")
-    elif cmd_upper.startswith("!WAKE"):
-        if temp_auth or auth_level < 2:
-            notify(b"ERR NO_PERM")
-            return
-        if cmd_upper == "!WAKE?":
-            notify("WAKE:{}".format(wake_minutes).encode())
-            return
-        parts_wake = cmd.split(" ")
-        if len(parts_wake) < 2 or not parts_wake[1].isdigit():
-            notify(b"ERR WAKE_FMT")
-            return
-        try:
-            val = int(parts_wake[1])
-            if val < 1:
-                val = 1
-            wake_minutes = val
-            config_dirty = True
-            notify(b"OK WAKE")
-        except:
-            notify(b"ERR WAKE_FMT")
     elif cmd_upper == "!RSSI?":
         if connected and conn_handle is not None:
             try:
@@ -666,8 +619,6 @@ def process_command(cmd):
                 notify(b"RSSI:0")
         else:
             notify(b"RSSI:0")
-    else:
-        notify(b"ERR UNKNOWN_CMD")
 
 def ble_cb(event, data):
     global connected, conn_handle, auth_start, lock_until, ble_error_count
@@ -690,7 +641,6 @@ def ble_cb(event, data):
             temp_auth = False
             temp_expire = 0
             auth_start = now_ticks
-            last_cmd_time = now_ticks
 
         elif event == 2:
             disconnect_and_cleanup()
@@ -704,13 +654,7 @@ def ble_cb(event, data):
             buf = ble.gatts_read(rx)
             if buf is None:
                 return
-            try:
-                cmd_str = buf.decode().strip()
-            except:
-                return
-            if len(cmd_str) > 128:
-                return
-            process_command(cmd_str)
+            process_command(buf.decode().strip())
 
     except:
         ble_error_count += 1
@@ -788,8 +732,6 @@ while True:
             check_rssi()
         except:
             pass
-        if authenticated and last_cmd_time > 0 and time.ticks_diff(now, last_cmd_time) > HEARTBEAT_TIMEOUT:
-            disconnect_and_cleanup()
         time.sleep_ms(100)
     else:
         mv = read_voltage()
