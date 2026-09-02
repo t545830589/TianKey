@@ -749,7 +749,31 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
+  Timer? _reconnectTimer1;
+  Timer? _reconnectTimer2;
   StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
+
+  void _scheduleReconnect(String reason) {
+    _reconnectTimer1?.cancel();
+    _reconnectTimer2?.cancel();
+    if (!mounted || !authorized || savedRemoteId == null) return;
+    // 强制重置所有卡死状态
+    _autoConnecting = false;
+    connecting = false;
+    scanning = false;
+    _reconnectTimer1 = Timer(const Duration(seconds: 3), () {
+      if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+        debugPrint('[$reason] 第1次重连尝试');
+        connect();
+      }
+    });
+    _reconnectTimer2 = Timer(const Duration(seconds: 10), () {
+      if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+        debugPrint('[$reason] 第2次重连尝试');
+        connect();
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -758,24 +782,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _load();
     // 监听蓝牙开关状态：关了再开 → 自动重连
     _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
+      debugPrint('蓝牙适配器状态变化: $state');
       if (state == BluetoothAdapterState.on && mounted) {
-        // 强制重置所有可能卡死的状态
-        _autoConnecting = false;
-        connecting = false;
-        scanning = false;
-        if (authorized && savedRemoteId != null) {
-          // 等5秒让蓝牙适配器完全就绪
-          Future.delayed(const Duration(seconds: 5), () {
-            if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-              connect();
-            }
-          });
-          Future.delayed(const Duration(seconds: 12), () {
-            if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-              connect();
-            }
-          });
-        }
+        _scheduleReconnect('BT开关');
       }
     });
   }
@@ -784,6 +793,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _btAdapterSub?.cancel();
+    _reconnectTimer1?.cancel();
+    _reconnectTimer2?.cancel();
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
     _stopHeartbeat();
@@ -796,13 +807,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint('APP生命周期变化: $state, connected=$connected, bleConnected=${ble.isConnected}');
     if (state == AppLifecycleState.resumed) {
-      // 强制重置所有可能卡死的状态
-      _autoConnecting = false;
-      connecting = false;
-      scanning = false;
-      // 检查实际BLE连接状态：如果我们的connected是true但BLE实际已断开，强制修正
-      if (connected && !ble.isConnected) {
+      // 不管BLE实际状态如何，只要之前是连接状态就强制修正
+      // 因为息屏时onDisconnect可能没执行，ble.isConnected可能返回缓存值
+      if (connected) {
         connected = false;
         mode = null;
         adminSession = false;
@@ -811,20 +820,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         commandSeconds = 0;
         foundDevice = null;
         _stopHeartbeat();
+        debugPrint('亮屏强制重置连接状态');
       }
-      if (!connected && authorized && savedRemoteId != null) {
-        // 第一次：等3秒让蓝牙适配器初始化好
-        Future.delayed(const Duration(seconds: 3), () {
-          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            connect();
-          }
-        });
-        // 第二次：10秒后兜底重试
-        Future.delayed(const Duration(seconds: 10), () {
-          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            connect();
-          }
-        });
+      if (authorized && savedRemoteId != null) {
+        _scheduleReconnect('亮屏恢复');
       }
     }
   }
@@ -1609,12 +1608,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> disconnect() async {
     _stopHeartbeat();
+    _reconnectTimer1?.cancel();
+    _reconnectTimer2?.cancel();
     commandTimer?.cancel();
     await bleGateway.dispose();
     await ble.disconnect();
     if (!mounted) return;
     setState(() {
       connected = false;
+      foundDevice = null;
       mode = null;
       adminSession = false;
       timeSynced = false;
