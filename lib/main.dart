@@ -749,64 +749,16 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
-  Timer? _reconnectTimer1;
-  Timer? _reconnectTimer2;
-  Timer? _foregroundWatchdog;
-  StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
-
-  void _scheduleReconnect(String reason) {
-    _reconnectTimer1?.cancel();
-    _reconnectTimer2?.cancel();
-    if (!mounted || !authorized || savedRemoteId == null) return;
-    _autoConnecting = false;
-    connecting = false;
-    scanning = false;
-    _reconnectTimer1 = Timer(const Duration(seconds: 3), () {
-      if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-        debugPrint('[$reason] 第1次重连尝试');
-        connect();
-      }
-    });
-    _reconnectTimer2 = Timer(const Duration(seconds: 10), () {
-      if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-        debugPrint('[$reason] 第2次重连尝试');
-        connect();
-      }
-    });
-  }
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
-    // 监听蓝牙开关状态：关了再开 → 自动重连
-    _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
-      debugPrint('蓝牙适配器状态变化: $state');
-      if (state == BluetoothAdapterState.on && mounted) {
-        _scheduleReconnect('BT开关');
-      }
-    });
-    // 前台看门狗：每3秒检查一次，防止所有事件回调都失效
-    _foregroundWatchdog = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted) return;
-      if (!connected && authorized && savedRemoteId != null && !connecting) {
-        // 只有在没有定时器排队时才触发，避免重复
-        if (_reconnectTimer1 == null || !_reconnectTimer1!.isActive) {
-          debugPrint('[前台看门狗] 检测到未连接，触发重连');
-          _scheduleReconnect('看门狗');
-        }
-      }
-    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _btAdapterSub?.cancel();
-    _reconnectTimer1?.cancel();
-    _reconnectTimer2?.cancel();
-    _foregroundWatchdog?.cancel();
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
     _stopHeartbeat();
@@ -819,21 +771,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    debugPrint('APP生命周期变化: $state, connected=$connected, bleConnected=${ble.isConnected}');
     if (state == AppLifecycleState.resumed) {
-      if (connected) {
-        connected = false;
-        mode = null;
-        adminSession = false;
-        timeSynced = false;
-        espTime = null;
-        commandSeconds = 0;
-        foundDevice = null;
-        _stopHeartbeat();
-        debugPrint('亮屏强制重置连接状态');
-      }
-      if (authorized && savedRemoteId != null) {
-        _scheduleReconnect('亮屏恢复');
+      if (!connected && !connecting && authorized && savedRemoteId != null) {
+        connect();
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
+            connect();
+          }
+        });
       }
     }
   }
@@ -1233,11 +1178,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         ble.onDisconnect = () {
           _stopHeartbeat();
-          if (mounted) {
+          if (mounted && connected) {
             setState(() {
               connected = false;
-              connecting = false;
-              _autoConnecting = false;
               mode = null;
               adminSession = false;
               timeSynced = false;
@@ -1247,7 +1190,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               status = 'BLE连接已断开，正在自动重连...';
             });
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('蓝牙已断开，正在自动重连...', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
-            _scheduleReconnect('onDisconnect');
+            // 自动重连：3秒后尝试
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+                connect();
+              }
+            });
           }
         };
         // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
@@ -1615,8 +1563,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> disconnect() async {
     _stopHeartbeat();
-    _reconnectTimer1?.cancel();
-    _reconnectTimer2?.cancel();
     commandTimer?.cancel();
     await bleGateway.dispose();
     await ble.disconnect();
