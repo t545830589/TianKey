@@ -751,13 +751,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Timer? _reconnectTimer1;
   Timer? _reconnectTimer2;
+  Timer? _foregroundWatchdog;
   StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
 
   void _scheduleReconnect(String reason) {
     _reconnectTimer1?.cancel();
     _reconnectTimer2?.cancel();
     if (!mounted || !authorized || savedRemoteId == null) return;
-    // 强制重置所有卡死状态
     _autoConnecting = false;
     connecting = false;
     scanning = false;
@@ -787,6 +787,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         _scheduleReconnect('BT开关');
       }
     });
+    // 前台看门狗：每3秒检查一次，防止所有事件回调都失效
+    _foregroundWatchdog = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) return;
+      if (!connected && authorized && savedRemoteId != null && !connecting) {
+        // 只有在没有定时器排队时才触发，避免重复
+        if (_reconnectTimer1 == null || !_reconnectTimer1!.isActive) {
+          debugPrint('[前台看门狗] 检测到未连接，触发重连');
+          _scheduleReconnect('看门狗');
+        }
+      }
+    });
   }
 
   @override
@@ -795,6 +806,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _btAdapterSub?.cancel();
     _reconnectTimer1?.cancel();
     _reconnectTimer2?.cancel();
+    _foregroundWatchdog?.cancel();
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
     _stopHeartbeat();
@@ -809,8 +821,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     debugPrint('APP生命周期变化: $state, connected=$connected, bleConnected=${ble.isConnected}');
     if (state == AppLifecycleState.resumed) {
-      // 不管BLE实际状态如何，只要之前是连接状态就强制修正
-      // 因为息屏时onDisconnect可能没执行，ble.isConnected可能返回缓存值
       if (connected) {
         connected = false;
         mode = null;
