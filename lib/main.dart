@@ -1312,13 +1312,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             esp32.adminDevice = installId;
             await prefs?.setString('admin_device_id', installId!);
             await prefs?.setBool('authorized', true);
-            } else {
-              await ble.disconnect();
-              setState(() { connecting = false; status = '自动认证失败'; });
-              return;
-            }
+          } else {
+            await ble.disconnect();
+            setState(() { connecting = false; status = '自动认证失败'; });
+            return;
           }
-      }
+        }
       }
 
       if (!skipPassword && password != null && !autoConnectVerify) {
