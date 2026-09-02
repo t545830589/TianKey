@@ -773,7 +773,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (!mounted || !authorized || savedRemoteId == null) return;
-      final actuallyConnected = bleGateway.device?.isConnected ?? false;
+      final actuallyConnected = ble.isConnected;
       if (connected && !actuallyConnected) {
         setState(() {
           connected = false;
