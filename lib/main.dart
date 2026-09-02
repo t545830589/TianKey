@@ -699,6 +699,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Timer? borrowExpiryTimer;
   Timer? commandTimer;
   Timer? _heartbeatTimer;
+  StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
   bool _connectCooldown = false;
 
   bool ready = false;
@@ -753,11 +754,22 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 监听蓝牙开关状态，蓝牙打开时自动重连
+    _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
+      if (state == BluetoothAdapterState.on && mounted && authorized && savedRemoteId != null && !connected && !connecting) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+            connect();
+          }
+        });
+      }
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _btAdapterSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     borrowExpiryTimer?.cancel();
     commandTimer?.cancel();
@@ -1582,11 +1594,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _msg('时间同步成功');
   }
 
+  int _heartbeatFailCount = 0;
+
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
+    _heartbeatFailCount = 0;
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (connected) {
-        queryRssi();
+        _heartbeatCheck();
       }
     });
   }
@@ -1596,16 +1611,38 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _heartbeatTimer = null;
   }
 
-  Future<void> queryRssi() async {
+  Future<void> _heartbeatCheck() async {
     if (!connected || !bleGateway.readyForWrite) return;
     try {
       final reply = await bleGateway.sendAndWait(utf8.encode('!RSSI?'), expectPrefix: 'RSSI');
       if (reply != null && reply.startsWith('RSSI:')) {
         final val = int.tryParse(reply.substring(5)) ?? 0;
         if (mounted) setState(() => rssiValue = val);
+        _heartbeatFailCount = 0;
+      } else {
+        _heartbeatFailCount++;
       }
     } catch (e) {
-      debugPrint('queryRssi error: $e');
+      _heartbeatFailCount++;
+    }
+    // 连续3次心跳失败（30秒），判定连接已断
+    if (_heartbeatFailCount >= 3 && connected) {
+      setState(() {
+        connected = false;
+        mode = null;
+        adminSession = false;
+        timeSynced = false;
+        espTime = null;
+        commandSeconds = 0;
+        foundDevice = null;
+        status = '心跳超时，正在自动重连...';
+      });
+      _stopHeartbeat();
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
+          connect();
+        }
+      });
     }
   }
 
