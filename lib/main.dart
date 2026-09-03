@@ -804,6 +804,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('蓝牙已断开，正在自动重连...'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
       }
       if (!connected && !connecting && authorized && savedRemoteId != null) {
+        _autoReconnectCount = 0;
         connect();
         Future.delayed(const Duration(seconds: 5), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
@@ -1039,7 +1040,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             });
             Future.delayed(const Duration(seconds: 8), () {
               if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
+                _startAutoReconnectLoop();
               }
             });
           }
@@ -1250,7 +1251,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             });
             Future.delayed(const Duration(seconds: 8), () {
               if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
+                _startAutoReconnectLoop();
               }
             });
           }
@@ -1617,15 +1618,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Timer? _autoReconnectTimer;
   bool _autoReconnecting = false;
+  int _autoReconnectCount = 0;
+  static const int _maxAutoReconnect = 3;
 
   void _startAutoReconnectLoop() {
     if (_autoReconnecting) return;
     _autoReconnecting = true;
+    _autoReconnectCount = 0;
     _doAutoReconnect();
   }
 
   void _stopAutoReconnectLoop() {
     _autoReconnecting = false;
+    _autoReconnectCount = 0;
     _autoReconnectTimer?.cancel();
     _autoReconnectTimer = null;
   }
@@ -1636,8 +1641,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       _stopAutoReconnectLoop();
       return;
     }
+    _autoReconnectCount++;
+    if (_autoReconnectCount > _maxAutoReconnect) {
+      debugPrint('自动重连${_maxAutoReconnect}次失败，已停止');
+      _stopAutoReconnectLoop();
+      if (mounted) {
+        setState(() => status = '设备不在附近，请手动重连');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: const Text('重连失败，请确认设备在附近后重新连接'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 3)),
+        );
+      }
+      return;
+    }
     if (authorized && savedRemoteId != null) {
-      debugPrint('自动重连中...');
+      debugPrint('自动重连第${_autoReconnectCount}次...');
       connect().whenComplete(() {
         if (!connected && _autoReconnecting && mounted) {
           _autoReconnectTimer = Timer(const Duration(seconds: 5), _doAutoReconnect);

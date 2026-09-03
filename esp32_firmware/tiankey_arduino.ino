@@ -22,7 +22,6 @@
 #define PIN_UNLOCK    33
 #define PIN_TRUNK     4
 #define PIN_LED       2
-#define PIN_VOLTAGE   34
 
 // ==================== 默认配置 ====================
 #define DEFAULT_NAME       "陕A0P92Y"
@@ -35,7 +34,6 @@
 #define AUTH_FAILURE       10000
 #define TEMP_VALID         (6 * 3600)
 #define RSSI_LOCK_THRESHOLD -80
-#define VOLTAGE_MIN        3300
 #define HEARTBEAT_TIMEOUT  30000
 #define WDT_TIMEOUT        8000
 
@@ -151,13 +149,6 @@ void actChuangjiang() {
     gpioBusy = false;
 }
 
-// ==================== 电压检测 ====================
-int readVoltage() {
-    int raw = analogRead(PIN_VOLTAGE);
-    if (raw == 0) return 4200;
-    int mv = raw * 3300 / 4095;
-    return mv;
-}
 
 // ==================== 配置读写 ====================
 void loadConfig() {
@@ -670,19 +661,6 @@ void loop() {
     if (deviceConnected && authenticated) {
         if (lastCmdTime > 0 && millis() - lastCmdTime > HEARTBEAT_TIMEOUT) {
             disconnectAndCleanup();
-        }
-    }
-
-    // 电压检测
-    if (!deviceConnected) {
-        int mv = readVoltage();
-        if (mv < VOLTAGE_MIN) {
-            Serial.printf("电压过低%dmv，重启\n", mv);
-            BLEDevice::deinit();
-            for (int i = 0; i < 5; i++) {
-                delay(2000);
-            }
-            ESP.restart();
         }
     }
 
