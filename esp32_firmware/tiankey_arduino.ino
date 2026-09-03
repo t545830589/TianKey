@@ -81,31 +81,10 @@ unsigned long lastCmdTime = 0;
 unsigned long lastAdvOk = 0;
 int advFailCount = 0;
 bool configDirty = false;
-unsigned long lastLedBlink = 0;
-bool ledState = false;
 
 // ==================== GPIO操作 ====================
 
-// LED状态指示：
-// 常亮    = 已连接
-// 慢闪1秒 = 广播中（等待连接）
-// 快闪0.2秒 = 认证失败/错误
-// 灭      = 深度睡眠
-void updateLed() {
-    unsigned long now = millis();
-    if (deviceConnected) {
-        digitalWrite(PIN_LED, HIGH);  // 常亮=已连接
-    } else if (sleepEnabled && sleepMinutes > 0) {
-        digitalWrite(PIN_LED, LOW);   // 灭=准备深度睡眠
-    } else {
-        // 慢闪=广播中
-        if (now - lastLedBlink > 1000) {
-            ledState = !ledState;
-            digitalWrite(PIN_LED, ledState ? HIGH : LOW);
-            lastLedBlink = now;
-        }
-    }
-}
+// LED已关闭，省电。所有状态反馈改在APK里显示。
 
 void initPins() {
     pinMode(lockPin, OUTPUT);
@@ -115,7 +94,7 @@ void initPins() {
     digitalWrite(unlockPin, HIGH);
     digitalWrite(trunkPin, HIGH);
     pinMode(PIN_LED, OUTPUT);
-    digitalWrite(PIN_LED, LOW);
+    digitalWrite(PIN_LED, LOW);  // LED始终关闭，省电
 }
 
 void safePins() {
@@ -288,7 +267,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
         authLevel = 0;
         authStart = millis();
         lastCmdTime = millis();
-        digitalWrite(PIN_LED, HIGH);
         Serial.println("手机已连接");
     }
 
@@ -297,7 +275,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
         connHandle = 0;
         resetAuth();
         safeState = false;
-        digitalWrite(PIN_LED, LOW);
         // 断开后立刻重新广播，等待手机回来自动连接
         delay(500);
         pServer->startAdvertising();
@@ -627,9 +604,6 @@ void loop() {
     if (configDirty) {
         saveConfig();
     }
-
-    // LED状态指示
-    updateLed();
 
     // 断开重连
     if (!deviceConnected && oldConnected) {
