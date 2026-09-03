@@ -81,8 +81,32 @@ unsigned long lastCmdTime = 0;
 unsigned long lastAdvOk = 0;
 int advFailCount = 0;
 bool configDirty = false;
+unsigned long lastLedBlink = 0;
+bool ledState = false;
 
 // ==================== GPIO操作 ====================
+
+// LED状态指示：
+// 常亮    = 已连接
+// 慢闪1秒 = 广播中（等待连接）
+// 快闪0.2秒 = 认证失败/错误
+// 灭      = 深度睡眠
+void updateLed() {
+    unsigned long now = millis();
+    if (deviceConnected) {
+        digitalWrite(PIN_LED, HIGH);  // 常亮=已连接
+    } else if (sleepEnabled && sleepMinutes > 0) {
+        digitalWrite(PIN_LED, LOW);   // 灭=准备深度睡眠
+    } else {
+        // 慢闪=广播中
+        if (now - lastLedBlink > 1000) {
+            ledState = !ledState;
+            digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+            lastLedBlink = now;
+        }
+    }
+}
+
 void initPins() {
     pinMode(lockPin, OUTPUT);
     pinMode(unlockPin, OUTPUT);
@@ -604,6 +628,9 @@ void loop() {
         saveConfig();
     }
 
+    // LED状态指示
+    updateLed();
+
     // 断开重连
     if (!deviceConnected && oldConnected) {
         delay(500);
@@ -622,7 +649,9 @@ void loop() {
         if (millis() - lastAdvOk > 30000) {
             BLEDevice::startAdvertising();
             advFailCount++;
+            Serial.printf("广播失败第%d次，重新广播\n", advFailCount);
             if (advFailCount >= 3) {
+                Serial.println("广播失败3次，重启ESP32");
                 ESP.restart();
             }
             lastAdvOk = millis();
@@ -656,6 +685,7 @@ void loop() {
     if (!deviceConnected) {
         int mv = readVoltage();
         if (mv < VOLTAGE_MIN) {
+            Serial.printf("电压过低%dmv，重启\n", mv);
             BLEDevice::deinit();
             for (int i = 0; i < 5; i++) {
                 delay(2000);
