@@ -786,6 +786,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (!mounted || !authorized || savedRemoteId == null) return;
+      _stopAutoReconnectLoop();
       final actuallyConnected = ble.isConnected;
       if (connected && !actuallyConnected) {
         setState(() {
@@ -811,7 +812,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         });
         Future.delayed(const Duration(seconds: 12), () {
           if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            connect();
+            _startAutoReconnectLoop();
           }
         });
       }
@@ -1015,6 +1016,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           timeSynced = false;
           status = '自动连接成功，管理员模式';
         });
+        _stopAutoReconnectLoop();
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('自动连接成功'), backgroundColor: TKColors.neonGreen, duration: const Duration(seconds: 2)));
         ble.onDisconnect = () {
           _stopHeartbeat();
@@ -1430,6 +1432,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         timeSynced = false;
         status = 'BLE真实连接成功，正在同步时间...';
       });
+      _stopAutoReconnectLoop();
       await syncTime();
       _startHeartbeat();
       _querySleepState();
@@ -1612,6 +1615,39 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _heartbeatTimer = null;
   }
 
+  Timer? _autoReconnectTimer;
+  bool _autoReconnecting = false;
+
+  void _startAutoReconnectLoop() {
+    if (_autoReconnecting) return;
+    _autoReconnecting = true;
+    _doAutoReconnect();
+  }
+
+  void _stopAutoReconnectLoop() {
+    _autoReconnecting = false;
+    _autoReconnectTimer?.cancel();
+    _autoReconnectTimer = null;
+  }
+
+  void _doAutoReconnect() {
+    if (!_autoReconnecting || !mounted) return;
+    if (connected || connecting) {
+      _stopAutoReconnectLoop();
+      return;
+    }
+    if (authorized && savedRemoteId != null) {
+      debugPrint('自动重连中...');
+      connect().whenComplete(() {
+        if (!connected && _autoReconnecting && mounted) {
+          _autoReconnectTimer = Timer(const Duration(seconds: 5), _doAutoReconnect);
+        }
+      });
+    } else {
+      _stopAutoReconnectLoop();
+    }
+  }
+
   Future<void> _heartbeatCheck() async {
     if (!connected || !bleGateway.readyForWrite) return;
     try {
@@ -1626,7 +1662,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     } catch (e) {
       _heartbeatFailCount++;
     }
-    // 连续3次心跳失败（30秒），判定连接已断
+    // 连续3次心跳失败（30秒），判定连接已断，开始持续重连
     if (_heartbeatFailCount >= 3 && connected) {
       setState(() {
         connected = false;
@@ -1639,11 +1675,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         status = '心跳超时，正在自动重连...';
       });
       _stopHeartbeat();
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-          connect();
-        }
-      });
+      _startAutoReconnectLoop();
     }
   }
 
@@ -1800,10 +1832,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (mounted) {
       if (mode == AccessMode.borrower) {
         await ble.disconnect();
-        connected = false; mode = null; timeSynced = false; espTime = null;
-        status = '临时借车授权已失效，车辆功能重新锁定';
       }
-      setState(() {});
+      setState(() {
+        connected = false;
+        mode = null;
+        timeSynced = false;
+        espTime = null;
+        status = '临时借车授权已失效，车辆功能重新锁定';
+      });
     }
   }
 
