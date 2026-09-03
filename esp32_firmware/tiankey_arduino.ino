@@ -14,6 +14,8 @@
 #include <esp_pm.h>
 #include <esp_sleep.h>
 #include <esp_task_wdt.h>
+#include <time.h>
+#include <sys/time.h>
 
 // ==================== 引脚定义 ====================
 #define PIN_LOCK      14
@@ -211,7 +213,11 @@ String tempCodeForWindow(int window) {
 }
 
 bool verifyTempCode(String code, unsigned long &expireTime) {
-    unsigned long now = millis() / 1000;
+    time_t now = time(NULL);
+    if (now < 1000000000) {
+        // 时间还没同步，用millis做临时替代
+        now = millis() / 1000;
+    }
     int windowNow = now / TEMP_VALID;
     if (code == tempCodeForWindow(windowNow)) {
         expireTime = (windowNow + 1) * TEMP_VALID;
@@ -337,7 +343,7 @@ void processCommand(String cmd) {
                 notifyBLE("ERR BORROW_FAIL");
                 return;
             }
-            if (borrowExpiry > 0 && millis() / 1000 > borrowExpiry) {
+            if (borrowExpiry > 0 && time(NULL) > borrowExpiry) {
                 borrowCode = "";
                 borrowExpiry = 0;
                 configDirty = true;
@@ -386,7 +392,7 @@ void processCommand(String cmd) {
         return;
     }
 
-    if (tempAuth && millis() / 1000 > tempExpire) {
+    if (tempAuth && time(NULL) > tempExpire) {
         disconnectAndCleanup();
         return;
     }
@@ -433,8 +439,20 @@ void processCommand(String cmd) {
         }
     } else if (cmdUpper.startsWith("!TIME ")) {
         if (authLevel < 1) return;
-        // ESP32 Arduino时间同步 - 简化版
-        notifyBLE("TIME OK");
+        // 真正设置RTC时间 - 解析手机发来的时间戳
+        String tsStr = cmd.substring(6);
+        tsStr.trim();
+        long epoch = tsStr.toInt();
+        if (epoch > 1000000000) {
+            struct timeval tv;
+            tv.tv_sec = epoch;
+            tv.tv_usec = 0;
+            settimeofday(&tv, NULL);
+            notifyBLE("TIME OK");
+            Serial.printf("时间已同步: %ld\n", epoch);
+        } else {
+            notifyBLE("ERR TIME_FMT");
+        }
     } else if (cmdUpper == "!AUTOLOCK?") {
         notifyBLE("AUTOLOCK:" + String(autoLockEnabled));
     } else if (cmdUpper.startsWith("!AUTOLOCK")) {
@@ -454,7 +472,7 @@ void processCommand(String cmd) {
             int hours = cmd.substring(space2 + 1).toInt();
             if (hours >= 1) {
                 borrowCode = code;
-                borrowExpiry = millis() / 1000 + hours * 3600UL;
+                borrowExpiry = time(NULL) + hours * 3600;
                 configDirty = true;
                 notifyBLE("OK BORROW");
             } else {
