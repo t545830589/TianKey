@@ -13,6 +13,7 @@
 #include <driver/rtc_io.h>
 #include <esp_pm.h>
 #include <esp_sleep.h>
+#include <esp_task_wdt.h>
 
 // ==================== 引脚定义 ====================
 #define PIN_LOCK      14
@@ -264,6 +265,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
         authStart = millis();
         lastCmdTime = millis();
         digitalWrite(PIN_LED, HIGH);
+        Serial.println("手机已连接");
     }
 
     void onDisconnect(BLEServer* pServer) {
@@ -272,6 +274,10 @@ class MyServerCallbacks: public BLEServerCallbacks {
         resetAuth();
         safeState = false;
         digitalWrite(PIN_LED, LOW);
+        // 断开后立刻重新广播，等待手机回来自动连接
+        delay(500);
+        pServer->startAdvertising();
+        Serial.println("已断开，重新广播中...");
     }
 };
 
@@ -659,24 +665,22 @@ void loop() {
     }
 
     // ==================== 核心：CPU睡觉 + BLE广播 ====================
-    // connected时：CPU轻睡100ms，BLE保持连接
-    // not connected时：
-    //   - sleepEnabled时：等wakeMinutes分钟后深度睡眠
-    //   - 否则：CPU轻睡500ms，BLE继续广播
+    // 使用ESP32电源管理：light_sleep_enable=true时，delay()期间CPU自动进入轻睡眠
+    // BLE Modem Sleep：CPU睡觉时BLE模块保持广播，手机随时能连
+    // 手机连上→CPU自动唤醒→loop()处理→处理完再睡
     if (deviceConnected) {
-        // 连着蓝牙：CPU轻睡100ms，BLE模块保持工作
-        esp_light_sleep_start();
-        delay(100);
+        delay(100);  // CPU轻睡100ms，BLE保持连接
     } else {
         if (sleepEnabled && sleepMinutes > 0) {
-            // 深度睡眠
+            // 深度睡眠（APK !SLEEP命令控制）
             if (configDirty) saveConfig();
             BLEDevice::deinit();
             esp_sleep_enable_timer_wakeup((uint64_t)sleepMinutes * 60 * 1000000ULL);
             esp_deep_sleep_start();
         } else {
-            // CPU睡觉 + BLE广播（这就是你要的）
-            esp_light_sleep_start();
+            // CPU睡觉 + BLE广播（自动连接的关键）
+            // delay期间CPU自动轻睡眠，BLE保持广播
+            // 手机蓝牙打开→系统自动连上→CPU唤醒→loop()处理
             delay(500);
         }
     }
