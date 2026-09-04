@@ -2418,7 +2418,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           const SizedBox(width: 48),
         ])),
         Expanded(child: StatefulBuilder(builder: (context, setLocalState) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TKBigIcon(icon: Icons.mosquito, color: TKColors.neonBlue, size: 80),
+          TKBigIcon(icon: Icons.battery_saver, color: TKColors.neonBlue, size: 80),
           const SizedBox(height: 24),
           TKSwitchTile(
             title: 'CPU低功耗',
@@ -2433,198 +2433,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
               }
             },
-            leadingIcon: Icons.mosquito,
+            leadingIcon: Icons.battery_saver,
           ),
-        ])))),
-      ])),
-    );
-  }
-
-  // PLACEHOLDER删除线
-    final hoursCtrl = TextEditingController(text: sleepHours.toString());
-    final minutesCtrl = TextEditingController(text: sleepMinutes.toString());
-    final wakeCtrl = TextEditingController(text: wakeMinutes.toString());
-    return Scaffold(
-      backgroundColor: TKColors.bgPrimary,
-      body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
-          const TKPageTitle(title: '深度睡眠设置'),
-          const SizedBox(width: 48),
-        ])),
-        Expanded(child: StatefulBuilder(builder: (context, setLocalState) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TKBigIcon(icon: Icons.bedtime, color: TKColors.neonBlue, size: 80),
-          const SizedBox(height: 24),
-          // CPU低功耗开关
-          TKSwitchTile(
-            title: 'CPU低功耗',
-            subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
-            value: cpuSleepEnabled,
-            onChanged: (v) async {
-              setLocalState(() {});
-              setState(() { cpuSleepEnabled = v; });
-              await prefs?.setBool('cpu_sleep_en', v);
-              if (connected && bleGateway.readyForWrite) {
-                final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
-                await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
-              }
-            },
-            leadingIcon: Icons.mosquito,
-          ),
-          const SizedBox(height: 16),
-          // 深度睡眠开关
-            title: '深度睡眠',
-            subtitle: '开启后，车熄火时ESP32进入深度睡眠省电',
-            value: sleepEnabled,
-            onChanged: (v) { setLocalState(() {}); setState(() { sleepEnabled = v; }); prefs?.setBool('sleep_enabled', v); },
-            leadingIcon: Icons.power_settings_new,
-          ),
-          if (sleepEnabled) const Padding(padding: EdgeInsets.only(top: 4), child: Text('⚠️ 修改后需点下方"保存设置"才生效', style: TextStyle(color: TKColors.neonOrange, fontSize: 12))),
-          const SizedBox(height: 16),
-          if (sleepEnabled) ...[
-            const Text('睡眠时长', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
-            const SizedBox(height: 12),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              SizedBox(width: 80, child: TextField(
-                controller: hoursCtrl,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: TKColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  fillColor: TKColors.bgCard,
-                  filled: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.neonBlue)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onChanged: (v) { sleepHours = int.tryParse(v) ?? 0; },
-              )),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('小时', style: TextStyle(color: TKColors.textSecondary, fontSize: 14))),
-              SizedBox(width: 80, child: TextField(
-                controller: minutesCtrl,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: TKColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  fillColor: TKColors.bgCard,
-                  filled: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.neonBlue)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onChanged: (v) { sleepMinutes = int.tryParse(v) ?? 0; },
-              )),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('分钟', style: TextStyle(color: TKColors.textSecondary, fontSize: 14))),
-            ]),
-            const SizedBox(height: 16),
-            Text(
-              '总计 ${sleepHours}小时${sleepMinutes}分钟',
-              style: const TextStyle(color: TKColors.neonBlue, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            const Text('唤醒时长', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
-            const SizedBox(height: 4),
-            const Text('醒来后广播蓝牙多久（分钟）', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-            const SizedBox(height: 12),
-            SizedBox(width: 120, child: TextField(
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: TKColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                fillColor: TKColors.bgCard,
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.borderSubtle)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: TKColors.neonBlue)),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                suffixText: '分钟',
-                suffixStyle: const TextStyle(color: TKColors.textSecondary, fontSize: 14),
-              ),
-              controller: wakeCtrl,
-              onChanged: (v) { wakeMinutes = int.tryParse(v) ?? 30; },
-            )),
-          ],
-          const SizedBox(height: 24),
-          Text(
-            esp32Sleeping ? '当前状态: 睡眠中 💤' : '当前状态: 已唤醒 ✅',
-            style: TextStyle(color: esp32Sleeping ? TKColors.neonOrange : TKColors.neonBlue, fontSize: 16),
-          ),
-          const SizedBox(height: 24),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(
-            label: '保存设置',
-            icon: Icons.save,
-            neonColor: TKColors.neonBlue,
-            isEnabled: connected,
-            onTap: connected ? () async {
-              final totalMinutes = sleepHours * 60 + sleepMinutes;
-              if (!sleepEnabled) {
-                if (bleGateway.readyForWrite) {
-                  final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
-                  if (!context.mounted) return;
-                  if (reply == null || !reply.contains('OK')) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('关闭睡眠失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
-                    return;
-                  }
-                }
-                setState(() { esp32Sleeping = false; });
-                await prefs?.setInt('sleep_hours', sleepHours);
-                await prefs?.setInt('sleep_minutes', sleepMinutes);
-                await prefs?.setInt('wake_minutes', wakeMinutes);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('深度睡眠已关闭', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
-                return;
-              }
-              if (totalMinutes <= 0) {
-                return;
-              }
-              if (bleGateway.readyForWrite) {
-                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP $totalMinutes'), expectPrefix: 'OK');
-                if (!context.mounted) return;
-                if (reply == null || !reply.contains('OK')) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('睡眠设置失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
-                  return;
-                }
-                final wakeReply = await bleGateway.sendAndWait(utf8.encode('!WAKE $wakeMinutes'), expectPrefix: 'OK');
-                if (!context.mounted) return;
-                if (wakeReply == null || !wakeReply.contains('OK')) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('唤醒设置失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
-                  return;
-                }
-              }
-              await prefs?.setInt('sleep_hours', sleepHours);
-              await prefs?.setInt('sleep_minutes', sleepMinutes);
-              await prefs?.setInt('wake_minutes', wakeMinutes);
-              setState(() { esp32Sleeping = true; });
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('睡眠设置已保存', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
-            } : null,
-          )),
-          const SizedBox(height: 16),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(
-            label: '立即唤醒',
-            icon: Icons.alarm,
-            neonColor: TKColors.neonOrange,
-            isEnabled: connected,
-            onTap: connected ? () async {
-              if (bleGateway.readyForWrite) {
-                final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP 0'), expectPrefix: 'OK');
-                if (!context.mounted) return;
-                if (reply == null || !reply.contains('OK')) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('唤醒失败', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
-                  return;
-                }
-              }
-              setState(() { sleepEnabled = false; esp32Sleeping = false; });
-              setLocalState(() {});
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已唤醒', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
-            } : null,
-          )),
-          const SizedBox(height: 16),
-          const Text('设为0可关闭深度睡眠', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-          const Text('睡眠期间蓝牙关闭，定时醒来检查连接', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
         ])))),
       ])),
     );
@@ -2778,8 +2588,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _autoConnectPage(ctx)))),
                     ),
                     TKSettingTile(
-                      title: '深度睡眠',
-                      leadingIcon: Icons.bedtime,
+                      title: 'CPU低功耗',
+                      leadingIcon: Icons.battery_saver,
                       trailingText: cpuSleepEnabled ? '已开启' : '已关闭',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _cpuSleepPage(ctx)))),
                     ),
