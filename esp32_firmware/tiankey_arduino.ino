@@ -1,661 +1,656 @@
-// ==================== TianKey Arduino版 ====================
-// 功能：CPU睡觉 + 蓝牙一直广播（BLE Modem Sleep）
-// 硬件：ESP32 + 3路继电器（锁车/解锁/后备箱）
-// 编译：Arduino IDE + ESP32 Board Package
+/*
+ * TianKey ESP32 BLE Car Key Firmware v2.0
+ * Mazda Axela - BLE NUS Car Key System
+ * Single Admin Mode with Auto-Auth
+ */
 
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <Preferences.h>
-#include <SPIFFS.h>
-#include <ESP.h>
-#include <driver/rtc_io.h>
 #include <esp_pm.h>
-#include <esp_task_wdt.h>
-#include <time.h>
-#include <sys/time.h>
+#include <esp_sleep.h>
 
-// ==================== 引脚定义 ====================
-#define PIN_LOCK      14
-#define PIN_UNLOCK    33
-#define PIN_TRUNK     4
-#define PIN_LED       2
+// ==================== PIN CONFIGURATION ====================
+#define PIN_LOCK        25
+#define PIN_UNLOCK      26
+#define PIN_FINDCAR     27
+#define PIN_WINDOW_UP   14
+#define PIN_WINDOW_DOWN 33
+#define PIN_TRUNK       2
 
-// ==================== 默认配置 ====================
-#define DEFAULT_NAME       "陕A0P92Y"
-#define DEFAULT_PWD        "123456789"
-#define AUTH_TIMEOUT       10000
-#define LOCK_DURATION      200
-#define UNLOCK_DURATION    200
-#define TRUNK_DURATION     4000
-#define WINDOW_DURATION    4000
-#define AUTH_FAILURE       10000
-#define TEMP_VALID         (6 * 3600)
-#define RSSI_LOCK_THRESHOLD -80
-#define HEARTBEAT_TIMEOUT  30000
-#define WDT_TIMEOUT        8000
+// ==================== BLE NUS UUIDs ====================
+#define SERVICE_UUID        "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define TX_CHAR_UUID        "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+#define RX_CHAR_UUID        "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 
-// ==================== BLE UUID ====================
-#define SERVICE_UUID       "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
-#define TX_CHAR_UUID       "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-#define RX_CHAR_UUID       "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+// ==================== CONSTANTS ====================
+#define FIRMWARE_VERSION    "2.0"
+#define DEVICE_NAME_DEFAULT "TianKey"
+#define ADMIN_PWD_DEFAULT   "123456"
+#define INVALID_CONN_HANDLE 0xFFFF
 
-// ==================== 全局变量 ====================
+#define PULSE_DURATION_MS   150
+#define FINDCAR_HOLD_MS     500
+#define FINDCAR_OFF_MS      500
+#define HEARTBEAT_INTERVAL  10000
+#define HEARTBEAT_TIMEOUT   60000
+#define DISCONNECT_LOCK_DELAY 500
+#define WINDOW_HOLD_MS      5000
+
+// ==================== NVS KEYS ====================
+#define NVS_NAMESPACE       "tiankey"
+#define NVS_ADMIN_PWD       "admin_pwd"
+#define NVS_DEVICE_NAME     "dev_name"
+#define NVS_SAVED_TIME      "saved_time"
+#define NVS_CPU_SLEEP       "cpu_sleep"
+#define NVS_CONN_COUNT      "conn_cnt"
+#define NVS_LOCK_COUNT      "lock_cnt"
+#define NVS_UNLOCK_COUNT    "unlock_cnt"
+#define NVS_FINDCAR_COUNT   "findcar_cnt"
+#define NVS_FIRST_AUTH_PWD  "first_auth"
+
+// Old keys to clean
+#define NVS_OLD_ADMIN_DEV   "admin_device"
+#define NVS_OLD_BORROW_CODE "borrow_code"
+#define NVS_OLD_BORROW_EXP  "borrow_expiry"
+#define NVS_OLD_AUTO_LOCK   "auto_lock"
+
+// ==================== GLOBALS ====================
 Preferences prefs;
 BLEServer *pServer = NULL;
-BLEService *pService = NULL;
 BLECharacteristic *pTxChar = NULL;
 BLECharacteristic *pRxChar = NULL;
+
+uint16_t connHandle = INVALID_CONN_HANDLE;
 bool deviceConnected = false;
-bool oldConnected = false;
-uint16_t connHandle = 0;
-
-// 配置
-String deviceName = DEFAULT_NAME;
-String password = DEFAULT_PWD;
-String adminDeviceId = "";
-String borrowCode = "";
-unsigned long borrowExpiry = 0;
-int lockPin = PIN_LOCK;
-int unlockPin = PIN_UNLOCK;
-int trunkPin = PIN_TRUNK;
-int lockDuration = LOCK_DURATION;
-int trunkDuration = TRUNK_DURATION;
-int autoLockEnabled = 1;
+bool wasAuthenticated = false;
+String adminPassword = ADMIN_PWD_DEFAULT;
+String deviceName = DEVICE_NAME_DEFAULT;
+uint32_t savedTime = 0;
 bool cpuSleepEnabled = true;
-esp_pm_lock_handle_t cpuLock = NULL;
+String firstAuthPwd = "";
 
-// 状态
-bool authenticated = false;
-bool tempAuth = false;
-unsigned long tempExpire = 0;
-int authLevel = 0;
-bool safeState = false;
-bool gpioBusy = false;
-unsigned long authStart = 0;
-unsigned long lockUntil = 0;
-unsigned long lastCmdTime = 0;
-bool configDirty = false;
+uint32_t connCount = 0;
+uint32_t lockCount = 0;
+uint32_t unlockCount = 0;
+uint32_t findcarCount = 0;
 
-// ==================== GPIO操作 ====================
+unsigned long lastHeartbeat = 0;
 
-// LED已关闭，省电。所有状态反馈改在APK里显示。
+unsigned long commandStartTime = 0;
+bool commandActive = false;
+int activeCommandPin = -1;
 
-void initPins() {
-    pinMode(lockPin, OUTPUT);
-    pinMode(unlockPin, OUTPUT);
-    pinMode(trunkPin, OUTPUT);
-    digitalWrite(lockPin, HIGH);
-    digitalWrite(unlockPin, HIGH);
-    digitalWrite(trunkPin, HIGH);
-    pinMode(PIN_LED, OUTPUT);
-    digitalWrite(PIN_LED, LOW);  // LED始终关闭，省电
+// ==================== FUNCTION DECLARATIONS ====================
+void loadConfig();
+void saveConfig();
+void cleanOldNvsKeys();
+void setupPins();
+void setupBLE();
+void processCommand(String cmd);
+void sendResponse(String msg);
+void pulsePin(int pin, int duration);
+void executeFindCar();
+void executeLock();
+void executeUnlock();
+void executeTrunk();
+void factoryReset();
+uint32_t getUnixTime();
+void enterLightSleep();
+void handleDisconnect();
+
+// ==================== BLE CALLBACKS ====================
+class ServerCallbacks : public BLEServerCallbacks {
+    void onConnect(BLEServer *pServer, esp_ble_gatts_cb_param_t *param) {
+        connHandle = param->connect.conn_id;
+        deviceConnected = true;
+        wasAuthenticated = false;
+        lastHeartbeat = millis();
+        connCount++;
+        prefs.begin(NVS_NAMESPACE, false);
+        prefs.putUInt(NVS_CONN_COUNT, connCount);
+        prefs.end();
+        Serial.printf("[BLE] Connected, handle=%d\n", connHandle);
+    }
+
+    void onDisconnect(BLEServer *pServer) {
+        Serial.println("[BLE] Disconnected");
+        handleDisconnect();
+        connHandle = INVALID_CONN_HANDLE;
+        deviceConnected = false;
+        wasAuthenticated = false;
+        commandActive = false;
+        activeCommandPin = -1;
+        pServer->startAdvertising();
+        Serial.println("[BLE] Advertising restarted");
+    }
+};
+
+class RxCallbacks : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+        std::string value = pCharacteristic->getValue();
+        if (value.length() > 0) {
+            String cmd = String(value.c_str());
+            cmd.trim();
+            Serial.printf("[RX] %s\n", cmd.c_str());
+            processCommand(cmd);
+        }
+    }
+};
+
+ServerCallbacks serverCallbacks;
+RxCallbacks rxCallbacks;
+
+// ==================== SETUP ====================
+void setup() {
+    Serial.begin(115200);
+    Serial.println("\n=== TianKey v2.0 Starting ===");
+
+    loadConfig();
+    setupPins();
+    setupBLE();
+
+    Serial.printf("Name: %s\n", deviceName.c_str());
+    Serial.printf("CPU Sleep: %s\n", cpuSleepEnabled ? "ON" : "OFF");
+    Serial.println("=== Setup Complete ===\n");
 }
 
-void safePins() {
-    digitalWrite(lockPin, HIGH);
-    digitalWrite(unlockPin, HIGH);
-    digitalWrite(trunkPin, HIGH);
-    safeState = false;
+// ==================== MAIN LOOP ====================
+void loop() {
+    unsigned long now = millis();
+
+    // Handle active vehicle command timeout (safety)
+    if (commandActive && (now - commandStartTime > WINDOW_HOLD_MS)) {
+        digitalWrite(activeCommandPin, HIGH);
+        commandActive = false;
+        activeCommandPin = -1;
+        Serial.println("[CMD] Command timeout - pin released");
+    }
+
+    // Heartbeat check - phone sends !HEARTBEAT every 10s
+    // If no heartbeat received within 60s, disconnect
+    if (deviceConnected && connHandle != INVALID_CONN_HANDLE) {
+        if (now - lastHeartbeat >= HEARTBEAT_TIMEOUT) {
+            Serial.println("[HB] Timeout - disconnecting");
+            pServer->disconnect(connHandle);
+        }
+    }
+
+    // CPU sleep
+    if (cpuSleepEnabled && deviceConnected) {
+        enterLightSleep();
+    } else {
+        delay(10);
+    }
 }
 
-void actLock() {
-    if (!safeState) return;
-    gpioBusy = true;
-    digitalWrite(lockPin, LOW);
-    delay(lockDuration);
-    digitalWrite(lockPin, HIGH);
-    gpioBusy = false;
-}
-
-void actUnlock() {
-    if (!safeState) return;
-    gpioBusy = true;
-    digitalWrite(unlockPin, LOW);
-    delay(UNLOCK_DURATION);
-    digitalWrite(unlockPin, HIGH);
-    gpioBusy = false;
-}
-
-void actTrunk() {
-    if (!safeState) return;
-    gpioBusy = true;
-    digitalWrite(trunkPin, LOW);
-    delay(trunkDuration);
-    digitalWrite(trunkPin, HIGH);
-    gpioBusy = false;
-}
-
-void actChuangsheng() {
-    if (!safeState) return;
-    gpioBusy = true;
-    digitalWrite(lockPin, LOW);
-    delay(WINDOW_DURATION);
-    digitalWrite(lockPin, HIGH);
-    gpioBusy = false;
-}
-
-void actChuangjiang() {
-    if (!safeState) return;
-    gpioBusy = true;
-    digitalWrite(unlockPin, LOW);
-    delay(WINDOW_DURATION);
-    digitalWrite(unlockPin, HIGH);
-    gpioBusy = false;
-}
-
-
-// ==================== 配置读写 ====================
+// ==================== CONFIGURATION ====================
 void loadConfig() {
-    prefs.begin("tiankey", true);
-    deviceName = prefs.getString("name", DEFAULT_NAME);
-    password = prefs.getString("pwd", DEFAULT_PWD);
-    adminDeviceId = prefs.getString("admin_device", "");
-    borrowCode = prefs.getString("borrow_code", "");
-    borrowExpiry = prefs.getULong("borrow_expiry", 0);
-    autoLockEnabled = prefs.getInt("auto_lock", 1);
-    lockPin = prefs.getInt("lock_pin", PIN_LOCK);
-    unlockPin = prefs.getInt("unlock_pin", PIN_UNLOCK);
-    trunkPin = prefs.getInt("trunk_pin", PIN_TRUNK);
-    lockDuration = prefs.getInt("lock_dur", LOCK_DURATION);
-    trunkDuration = prefs.getInt("trunk_dur", TRUNK_DURATION);
-    cpuSleepEnabled = prefs.getBool("cpu_sleep_en", true);
+    prefs.begin(NVS_NAMESPACE, true);
+
+    String loadedPwd = prefs.getString(NVS_ADMIN_PWD, ADMIN_PWD_DEFAULT);
+    adminPassword = loadedPwd.length() > 0 ? loadedPwd : ADMIN_PWD_DEFAULT;
+
+    String loadedName = prefs.getString(NVS_DEVICE_NAME, DEVICE_NAME_DEFAULT);
+    deviceName = loadedName.length() > 0 ? loadedName : DEVICE_NAME_DEFAULT;
+
+    savedTime = prefs.getUInt(NVS_SAVED_TIME, 0);
+    cpuSleepEnabled = prefs.getBool(NVS_CPU_SLEEP, true);
+    firstAuthPwd = prefs.getString(NVS_FIRST_AUTH_PWD, "");
+
+    connCount = prefs.getUInt(NVS_CONN_COUNT, 0);
+    lockCount = prefs.getUInt(NVS_LOCK_COUNT, 0);
+    unlockCount = prefs.getUInt(NVS_UNLOCK_COUNT, 0);
+    findcarCount = prefs.getUInt(NVS_FINDCAR_COUNT, 0);
+
     prefs.end();
+
+    cleanOldNvsKeys();
+
+    Serial.println("[NVS] Config loaded");
 }
 
 void saveConfig() {
-    prefs.begin("tiankey", false);
-    prefs.putString("name", deviceName);
-    prefs.putString("pwd", password);
-    prefs.putString("admin_device", adminDeviceId);
-    prefs.putString("borrow_code", borrowCode);
-    prefs.putULong("borrow_expiry", borrowExpiry);
-    prefs.putInt("auto_lock", autoLockEnabled);
-    prefs.putInt("lock_pin", lockPin);
-    prefs.putInt("unlock_pin", unlockPin);
-    prefs.putInt("trunk_pin", trunkPin);
-    prefs.putInt("lock_dur", lockDuration);
-    prefs.putInt("trunk_dur", trunkDuration);
-    prefs.putBool("cpu_sleep_en", cpuSleepEnabled);
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putString(NVS_ADMIN_PWD, adminPassword);
+    prefs.putString(NVS_DEVICE_NAME, deviceName);
+    prefs.putUInt(NVS_SAVED_TIME, savedTime);
+    prefs.putBool(NVS_CPU_SLEEP, cpuSleepEnabled);
+    prefs.putString(NVS_FIRST_AUTH_PWD, firstAuthPwd);
+    prefs.putUInt(NVS_CONN_COUNT, connCount);
+    prefs.putUInt(NVS_LOCK_COUNT, lockCount);
+    prefs.putUInt(NVS_UNLOCK_COUNT, unlockCount);
+    prefs.putUInt(NVS_FINDCAR_COUNT, findcarCount);
     prefs.end();
-    configDirty = false;
 }
 
-// ==================== 临时密码验证 ====================
-String tempCodeForWindow(int window) {
-    String secret = password + String(window);
-    // 简化版SHA256 - 用ESP32内置
-    uint8_t hash[32];
-    esp_sha(SHA256, (const uint8_t*)secret.c_str(), secret.length(), hash);
-    unsigned long val = ((unsigned long)hash[0] << 24) | ((unsigned long)hash[1] << 16) | ((unsigned long)hash[2] << 8) | hash[3];
-    val = val % 1000000;
-    char buf[7];
-    snprintf(buf, sizeof(buf), "%06lu", val);
-    return String(buf);
+void cleanOldNvsKeys() {
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.remove(NVS_OLD_ADMIN_DEV);
+    prefs.remove(NVS_OLD_BORROW_CODE);
+    prefs.remove(NVS_OLD_BORROW_EXP);
+    prefs.remove(NVS_OLD_AUTO_LOCK);
+    prefs.end();
 }
 
-bool verifyTempCode(String code, unsigned long &expireTime) {
-    time_t now = time(NULL);
-    if (now < 1000000000) {
-        // 时间还没同步，用millis做临时替代
-        now = millis() / 1000;
-    }
-    int windowNow = now / TEMP_VALID;
-    if (code == tempCodeForWindow(windowNow)) {
-        expireTime = (windowNow + 1) * TEMP_VALID;
-        return true;
-    }
-    int windowPrev = windowNow - 1;
-    if (code == tempCodeForWindow(windowPrev)) {
-        expireTime = (windowNow + 1) * TEMP_VALID;
-        return true;
-    }
-    return false;
+// ==================== PIN SETUP ====================
+void setupPins() {
+    pinMode(PIN_LOCK, OUTPUT);
+    pinMode(PIN_UNLOCK, OUTPUT);
+    pinMode(PIN_FINDCAR, OUTPUT);
+    pinMode(PIN_WINDOW_UP, OUTPUT);
+    pinMode(PIN_WINDOW_DOWN, OUTPUT);
+    pinMode(PIN_TRUNK, OUTPUT);
+
+    digitalWrite(PIN_LOCK, HIGH);
+    digitalWrite(PIN_UNLOCK, HIGH);
+    digitalWrite(PIN_FINDCAR, HIGH);
+    digitalWrite(PIN_WINDOW_UP, HIGH);
+    digitalWrite(PIN_WINDOW_DOWN, HIGH);
+    digitalWrite(PIN_TRUNK, HIGH);
+
+    Serial.println("[GPIO] All pins initialized HIGH (inactive)");
 }
 
-// ==================== BLE回调 ====================
-void resetAuth() {
-    authenticated = false;
-    tempAuth = false;
-    tempExpire = 0;
-    authLevel = 0;
-}
-
-void notifyBLE(String data) {
-    if (deviceConnected && pTxChar != NULL) {
-        pTxChar->setValue((uint8_t*)data.c_str(), data.length());
-        pTxChar->notify();
-    }
-}
-
-void disconnectAndCleanup() {
-    if (deviceConnected && connHandle != 0) {
-        pServer->disconnect(connHandle);
-    }
-    // 双锁和状态清理由 onDisconnect() 统一处理
-    deviceConnected = false;
-    resetAuth();
-    safeState = false;
-    connHandle = 0;
-    gpioBusy = false;
-}
-
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t *param) {
-        deviceConnected = true;
-        connHandle = param->connect.conn_id;
-        authenticated = false;
-        tempAuth = false;
-        tempExpire = 0;
-        authLevel = 0;
-        authStart = millis();
-        lastCmdTime = millis();
-        Serial.println("手机已连接");
-    }
-
-    void onDisconnect(BLEServer* pServer) {
-        // 断开安全锁：双锁（类似寻车），真实车辆第二次锁车会鸣笛确认
-        if (authenticated) {
-            actLock();
-            delay(100);
-            actLock();
-        }
-        // 清除认证和安全状态
-        deviceConnected = false;
-        connHandle = 0;
-        resetAuth();
-        safeState = false;
-        gpioBusy = false;
-        // 恢复BLE广播
-        delay(500);
-        pServer->startAdvertising();
-        Serial.println("已断开，安全锁已执行，重新广播中...");
-    }
-};
-
-// ==================== 命令处理 ====================
-void processCommand(String cmd) {
-    lastCmdTime = millis();
-    cmd.trim();
-
-    if (!authenticated) {
-        if (cmd.startsWith("!AUTH ")) {
-            int space1 = cmd.indexOf(' ');
-            int space2 = cmd.indexOf(' ', space1 + 1);
-            if (space2 > 0) {
-                String pwd = cmd.substring(space1 + 1, space2);
-                String devId = cmd.substring(space2 + 1);
-                if (pwd == password) {
-                    adminDeviceId = devId;
-                    configDirty = true;
-                    authenticated = true;
-                    tempAuth = false;
-                    authLevel = 2;
-                    safeState = true;
-                    lockUntil = 0;
-                    notifyBLE("OK AUTH");
-                    return;
-                }
-                notifyBLE("ERR AUTH_FAIL");
-                return;
-            }
-            notifyBLE("ERR AUTH_FMT");
-            return;
-        }
-        if (cmd.startsWith("!DEVID ")) {
-            String devId = cmd.substring(7);
-            if (adminDeviceId.length() == 0) {
-                notifyBLE("ERR NO_ADMIN");
-            } else if (adminDeviceId == devId) {
-                authenticated = true;
-                tempAuth = false;
-                authLevel = 2;
-                safeState = true;
-                lockUntil = 0;
-                notifyBLE("OK DEVID");
-            } else {
-                notifyBLE("ERR NOT_ADMIN");
-            }
-            return;
-        }
-        if (cmd.startsWith("!VERIFYBORROW ")) {
-            String code = cmd.substring(14);
-            if (borrowCode.length() == 0) {
-                notifyBLE("ERR NO_BORROW");
-                return;
-            }
-            if (code != borrowCode) {
-                notifyBLE("ERR BORROW_FAIL");
-                return;
-            }
-            if (borrowExpiry > 0 && time(NULL) > borrowExpiry) {
-                borrowCode = "";
-                borrowExpiry = 0;
-                configDirty = true;
-                notifyBLE("ERR BORROW_EXPIRED");
-                return;
-            }
-            authenticated = true;
-            tempAuth = false;
-            authLevel = 1;
-            safeState = true;
-            lockUntil = 0;
-            notifyBLE("OK VERIFYBORROW");
-            return;
-        }
-        if (cmd.length() == 6) {
-            bool allDigit = true;
-            for (int i = 0; i < 6; i++) {
-                if (!isDigit(cmd[i])) { allDigit = false; break; }
-            }
-            if (allDigit) {
-                unsigned long expireTime;
-                if (verifyTempCode(cmd, expireTime)) {
-                    authenticated = true;
-                    tempAuth = true;
-                    tempExpire = expireTime;
-                    authLevel = 1;
-                    safeState = true;
-                    lockUntil = 0;
-                    notifyBLE("AUTOLOCK:" + String(autoLockEnabled));
-                    return;
-                }
-            }
-        }
-        if (cmd == password) {
-            authenticated = true;
-            tempAuth = false;
-            tempExpire = 0;
-            authLevel = 2;
-            safeState = true;
-            lockUntil = 0;
-            notifyBLE("AUTOLOCK:" + String(autoLockEnabled));
-            return;
-        }
-        lockUntil = millis() / 1000 + AUTH_FAILURE / 1000;
-        disconnectAndCleanup();
-        return;
-    }
-
-    if (tempAuth && time(NULL) > tempExpire) {
-        disconnectAndCleanup();
-        return;
-    }
-
-    String cmdUpper = cmd;
-    cmdUpper.toUpperCase();
-
-    if (gpioBusy) {
-        notifyBLE("ERR BUSY");
-        return;
-    }
-
-    if (cmdUpper == "L" || cmdUpper == "SUOCHE") {
-        actLock();
-    } else if (cmdUpper == "U" || cmdUpper == "JIESUO") {
-        actUnlock();
-    } else if (cmdUpper == "T" || cmdUpper == "HOUBEIXIANG") {
-        actTrunk();
-    } else if (cmdUpper == "XUNCHE") {
-        actLock();
-        delay(100);
-        actLock();
-    } else if (cmdUpper == "CHUANGSHENG") {
-        actChuangsheng();
-    } else if (cmdUpper == "CHUANGJIANG") {
-        actChuangjiang();
-    } else if (cmdUpper.startsWith("!NAME ")) {
-        if (tempAuth || authLevel < 2) return;
-        String newName = cmd.substring(6);
-        newName.trim();
-        if (newName.length() > 0) {
-            deviceName = newName;
-            configDirty = true;
-            notifyBLE("NAME OK");
-        }
-    } else if (cmdUpper.startsWith("!PWD ")) {
-        if (tempAuth || authLevel < 2) return;
-        String newPwd = cmd.substring(5);
-        newPwd.trim();
-        if (newPwd.length() > 0) {
-            password = newPwd;
-            configDirty = true;
-            notifyBLE("PWD OK");
-        }
-    } else if (cmdUpper.startsWith("!TIME ")) {
-        if (authLevel < 1) return;
-        // 真正设置RTC时间 - 解析手机发来的时间戳
-        String tsStr = cmd.substring(6);
-        tsStr.trim();
-        long epoch = tsStr.toInt();
-        if (epoch > 1000000000) {
-            struct timeval tv;
-            tv.tv_sec = epoch;
-            tv.tv_usec = 0;
-            settimeofday(&tv, NULL);
-            notifyBLE("OK TIME");
-            Serial.printf("时间已同步: %ld\n", epoch);
-        } else {
-            notifyBLE("ERR TIME_FMT");
-        }
-    } else if (cmdUpper == "!AUTOLOCK?") {
-        notifyBLE("AUTOLOCK:" + String(autoLockEnabled));
-    } else if (cmdUpper.startsWith("!AUTOLOCK")) {
-        if (tempAuth || authLevel < 2) return;
-        int val = cmdUpper.substring(10).toInt();
-        if (val == 0 || val == 1) {
-            autoLockEnabled = val;
-            configDirty = true;
-            notifyBLE("AUTOLOCK OK");
-        }
-    } else if (cmdUpper.startsWith("!BORROW ") && !tempAuth) {
-        if (authLevel < 2) return;
-        int space1 = cmd.indexOf(' ');
-        int space2 = cmd.indexOf(' ', space1 + 1);
-        if (space2 > 0) {
-            String code = cmd.substring(space1 + 1, space2);
-            int hours = cmd.substring(space2 + 1).toInt();
-            long borrowSecs;
-            if (hours == 0) {
-                borrowSecs = 300;  // 5分钟
-            } else {
-                borrowSecs = hours * 3600L;
-            }
-            if (borrowSecs >= 300) {
-                borrowCode = code;
-                borrowExpiry = time(NULL) + borrowSecs;
-                configDirty = true;
-                notifyBLE("OK BORROW");
-            } else {
-                notifyBLE("ERR BORROW_FMT");
-            }
-        } else {
-            notifyBLE("ERR BORROW_FMT");
-        }
-    } else if (cmdUpper == "!BORROWCLEAR" && !tempAuth) {
-        if (authLevel < 2) return;
-        borrowCode = "";
-        borrowExpiry = 0;
-        configDirty = true;
-        notifyBLE("OK BORROWCLEAR");
-    } else if (cmdUpper == "!RESET" && !tempAuth) {
-        if (authLevel < 2) return;
-        deviceName = DEFAULT_NAME;
-        password = DEFAULT_PWD;
-        lockPin = PIN_LOCK;
-        unlockPin = PIN_UNLOCK;
-        trunkPin = PIN_TRUNK;
-        autoLockEnabled = 1;
-        adminDeviceId = "";
-        borrowCode = "";
-        borrowExpiry = 0;
-        configDirty = true;
-        initPins();
-        notifyBLE("OK RESET");
-    } else if (cmdUpper == "!DEVICEID?") {
-        if (authLevel >= 2) {
-            notifyBLE("DEVICEID:" + (adminDeviceId.length() > 0 ? adminDeviceId : "NONE"));
-        }
-    } else if (cmdUpper == "!RSSI?") {
-        if (deviceConnected && connHandle != 0) {
-            int rssi = esp_ble_get_conn_rssi(connHandle);
-            notifyBLE("RSSI:" + String(rssi));
-        } else {
-            notifyBLE("RSSI:0");
-        }
-    } else if (cmdUpper.startsWith("!CPUSLEEP")) {
-        if (tempAuth || authLevel < 2) return;
-        if (cmdUpper == "!CPUSLEEP?") {
-            notifyBLE("CPUSLEEP:" + String(cpuSleepEnabled ? 1 : 0));
-            return;
-        }
-        int val = cmdUpper.substring(10).toInt();
-        if (val == 0 || val == 1) {
-            cpuSleepEnabled = (val == 1);
-            if (cpuSleepEnabled) {
-                esp_pm_lock_release(cpuLock);
-            } else {
-                esp_pm_lock_acquire(cpuLock);
-            }
-            configDirty = true;
-            notifyBLE("OK CPUSLEEP");
-        }
-    }
-}
-
-class MyCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-        String value = pCharacteristic->getValue();
-        if (value.length() > 0 && value.length() <= 128) {
-            processCommand(value);
-        }
-    }
-};
-
-// ==================== BLE初始化 ====================
-void initBLE() {
+// ==================== BLE SETUP ====================
+void setupBLE() {
     BLEDevice::init(deviceName.c_str());
 
-    // 配置电源管理 - BLE Modem Sleep
-    esp_pm_config_esp32_t pmConfig;
-    pmConfig.max_freq_mhz = 80;
-    pmConfig.min_freq_mhz = 80;
-    pmConfig.light_sleep_enable = true;
-    esp_pm_configure(&pmConfig);
-
-    // 创建PM锁 - 用于控制Light Sleep（禁止/允许CPU休息）
-    esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "noLightSleep", &cpuLock);
-
-    // CPU低功耗开关：关闭时获取锁，禁止Light Sleep；开启时释放锁，允许Light Sleep
-    if (!cpuSleepEnabled) {
-        esp_pm_lock_acquire(cpuLock);
-    } else {
-        esp_pm_lock_release(cpuLock);
-    }
-
-    // 设置BLE Modem Sleep模式 - CPU可以休眠，BLE保持广播
-    esp_ble_sleep_mode_set(ESP_BLE_SLEEP_MODE_MODEM);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_P9);
 
     pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new MyServerCallbacks());
+    pServer->setCallbacks(&serverCallbacks);
 
-    pService = pServer->createService(SERVICE_UUID);
+    BLEService *pService = pServer->createService(SERVICE_UUID);
 
-    // TX特征（ESP32→手机，通知）
     pTxChar = pService->createCharacteristic(
         TX_CHAR_UUID,
         BLECharacteristic::PROPERTY_NOTIFY
     );
-    pTxChar->addDescriptor(new BLE2902());
+    BLE2902 *pTxDesc = new BLE2902();
+    pTxDesc->setNotifications(true);
+    pTxChar->addDescriptor(pTxDesc);
 
-    // RX特征（手机→ESP32，写入）
     pRxChar = pService->createCharacteristic(
         RX_CHAR_UUID,
-        BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
+        BLECharacteristic::PROPERTY_WRITE
     );
-    pRxChar->setCallbacks(new MyCallbacks());
+    pRxChar->setCallbacks(&rxCallbacks);
 
     pService->start();
 
-    // 开始广播
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
     pAdvertising->setMinPreferred(0x06);
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
+
+    Serial.println("[BLE] NUS service started, advertising...");
 }
 
-// ==================== 主循环 ====================
-void setup() {
-    Serial.begin(115200);
-
-    // 初始化看门狗
-    esp_task_wdt_init(WDT_TIMEOUT / 1000, true);
-    esp_task_wdt_add(NULL);
-
-    // 加载配置
-    loadConfig();
-    initPins();
-
-    // 初始化BLE
-    initBLE();
-
-    Serial.println("TianKey Arduino启动完成");
-}
-
-void loop() {
-    unsigned long now = millis();
-
-    // 保存配置
-    if (configDirty) {
-        saveConfig();
+// ==================== COMMAND PROCESSOR ====================
+void processCommand(String cmd) {
+    if (cmd.length() == 0 || cmd[0] != '!') {
+        return;
     }
 
-    // 断开后重新广播 - 由 onDisconnect() 统一处理，此处不再重复
-    if (deviceConnected && !oldConnected) {
-        oldConnected = true;
-    }
-    if (!deviceConnected && oldConnected) {
-        oldConnected = false;
-    }
+    cmd.remove(0, 1);
+    cmd.trim();
 
-    // 认证超时
-    if (deviceConnected && !authenticated) {
-        if (millis() - authStart > AUTH_TIMEOUT) {
-            lockUntil = millis() / 1000 + AUTH_FAILURE / 1000;
-            disconnectAndCleanup();
-        }
-    }
-
-    // 锁定超时
-    if (lockUntil > 0 && millis() / 1000 >= lockUntil) {
-        lockUntil = 0;
-        if (!deviceConnected) {
-            pServer->startAdvertising();
-        }
-    }
-
-    // 心跳超时
-    if (deviceConnected && authenticated) {
-        if (lastCmdTime > 0 && millis() - lastCmdTime > HEARTBEAT_TIMEOUT) {
-            disconnectAndCleanup();
-        }
-    }
-
-    // ==================== 核心：CPU睡觉 + BLE广播 ====================
-    if (deviceConnected) {
-        delay(100);
+    int spaceIdx = cmd.indexOf(' ');
+    String command;
+    String args = "";
+    if (spaceIdx > 0) {
+        command = cmd.substring(0, spaceIdx);
+        args = cmd.substring(spaceIdx + 1);
+        args.trim();
     } else {
-        if (cpuSleepEnabled) {
-            // CPU低功耗开启：delay让CPU进入Light Sleep，BLE保持广播
-            delay(500);
-        } else {
-            // CPU低功耗关闭：CPU全速运行，BLE照常广播
-            delay(10);
+        command = cmd;
+    }
+    command.toUpperCase();
+
+    // ===== AUTH =====
+    if (command == "AUTH") {
+        int pwdEnd = args.indexOf(' ');
+        if (pwdEnd < 0) {
+            sendResponse("ERR");
+            return;
         }
+        String pwd = args.substring(0, pwdEnd);
+        String timeStr = args.substring(pwdEnd + 1);
+        timeStr.trim();
+
+        uint32_t timestamp = 0;
+        if (timeStr.length() > 0) {
+            timestamp = strtoul(timeStr.c_str(), NULL, 10);
+        }
+
+        if (pwd == adminPassword) {
+            wasAuthenticated = true;
+            // 校准：savedTime = 期望时间 - 已运行时间，使 getUnixTime() 返回正确时间
+            savedTime = timestamp - (millis() / 1000);
+
+            if (firstAuthPwd.length() == 0) {
+                firstAuthPwd = pwd;
+            }
+
+            prefs.begin(NVS_NAMESPACE, false);
+            prefs.putUInt(NVS_SAVED_TIME, savedTime);
+            prefs.putString(NVS_FIRST_AUTH_PWD, firstAuthPwd);
+            prefs.end();
+
+            sendResponse("OK TIME");
+            Serial.printf("[AUTH] Success, time=%lu\n", timestamp);
+        } else {
+            wasAuthenticated = false;
+            firstAuthPwd = "";
+            prefs.begin(NVS_NAMESPACE, false);
+            prefs.putString(NVS_FIRST_AUTH_PWD, firstAuthPwd);
+            prefs.end();
+            sendResponse("ERR");
+            Serial.println("[AUTH] Failed");
+        }
+        return;
     }
 
-    esp_task_wdt_reset();
+    // ===== TIME =====
+    if (command == "TIME") {
+        sendResponse("OK TIME " + String(getUnixTime()));
+        return;
+    }
+
+    // ===== LOCK =====
+    if (command == "LOCK") {
+        executeLock();
+        return;
+    }
+
+    // ===== UNLOCK =====
+    if (command == "UNLOCK") {
+        executeUnlock();
+        return;
+    }
+
+    // ===== FINDCAR =====
+    if (command == "FINDCAR") {
+        executeFindCar();
+        return;
+    }
+
+    // ===== WINDOWUP =====
+    if (command == "WINDOWUP") {
+        digitalWrite(PIN_WINDOW_UP, LOW);
+        commandActive = true;
+        activeCommandPin = PIN_WINDOW_UP;
+        commandStartTime = millis();
+        Serial.println("[CMD] Window Up");
+        return;
+    }
+
+    // ===== WINDOWDOWN =====
+    if (command == "WINDOWDOWN") {
+        digitalWrite(PIN_WINDOW_DOWN, LOW);
+        commandActive = true;
+        activeCommandPin = PIN_WINDOW_DOWN;
+        commandStartTime = millis();
+        Serial.println("[CMD] Window Down");
+        return;
+    }
+
+    // ===== TRUNK =====
+    if (command == "TRUNK") {
+        executeTrunk();
+        return;
+    }
+
+    // ===== HEARTBEAT (no response) =====
+    if (command == "HEARTBEAT") {
+        lastHeartbeat = millis();
+        return;
+    }
+
+    // ===== RSSI? (no response) =====
+    if (command == "RSSI?") {
+        return;
+    }
+
+    // ===== SNR? (no response) =====
+    if (command == "SNR?") {
+        return;
+    }
+
+    // ===== NAME (set/query) =====
+    if (command == "NAME") {
+        if (args.length() == 0) {
+            sendResponse("OK NAME " + deviceName);
+        } else {
+            if (args.length() > 31) {
+                sendResponse("ERR");
+                return;
+            }
+            deviceName = args;
+            prefs.begin(NVS_NAMESPACE, false);
+            prefs.putString(NVS_DEVICE_NAME, deviceName);
+            prefs.end();
+            sendResponse("OK NAME " + deviceName);
+            Serial.printf("[NAME] Changed to: %s\n", deviceName.c_str());
+        }
+        return;
+    }
+
+    // ===== NAME? (query) =====
+    if (command == "NAME?") {
+        sendResponse("OK NAME " + deviceName);
+        return;
+    }
+
+    // ===== STAT (no response) =====
+    if (command == "STAT") {
+        return;
+    }
+
+    // ===== STAT? (query) =====
+    if (command == "STAT?") {
+        String resp = "OK STAT conn=" + String(connCount)
+                    + " lock=" + String(lockCount)
+                    + " unlock=" + String(unlockCount)
+                    + " findcar=" + String(findcarCount);
+        sendResponse(resp);
+        return;
+    }
+
+    // ===== PING (no response) =====
+    if (command == "PING") {
+        return;
+    }
+
+    // ===== MAC? =====
+    if (command == "MAC?") {
+        String mac = BLEDevice::getAddress().toString().c_str();
+        mac.toLowerCase();
+        sendResponse("OK MAC " + mac);
+        return;
+    }
+
+    // ===== VER? =====
+    if (command == "VER?") {
+        sendResponse("OK VER " + String(FIRMWARE_VERSION));
+        return;
+    }
+
+    // ===== PWD =====
+    if (command == "PWD") {
+        int pwdSpace = args.indexOf(' ');
+        if (pwdSpace < 0) {
+            sendResponse("ERR");
+            return;
+        }
+        String oldPwd = args.substring(0, pwdSpace);
+        String newPwd = args.substring(pwdSpace + 1);
+        newPwd.trim();
+
+        if (oldPwd != adminPassword) {
+            sendResponse("ERR");
+            Serial.println("[PWD] Wrong old password");
+            return;
+        }
+        if (newPwd.length() == 0 || newPwd.length() > 31) {
+            sendResponse("ERR");
+            return;
+        }
+        adminPassword = newPwd;
+        prefs.begin(NVS_NAMESPACE, false);
+        prefs.putString(NVS_ADMIN_PWD, adminPassword);
+        prefs.end();
+        sendResponse("OK");
+        Serial.printf("[PWD] Changed successfully\n");
+        return;
+    }
+
+    // ===== CPUSLEEP =====
+    if (command == "CPUSLEEP") {
+        if (args == "0") {
+            cpuSleepEnabled = false;
+        } else if (args == "1") {
+            cpuSleepEnabled = true;
+        } else {
+            sendResponse("ERR");
+            return;
+        }
+        prefs.begin(NVS_NAMESPACE, false);
+        prefs.putBool(NVS_CPU_SLEEP, cpuSleepEnabled);
+        prefs.end();
+        sendResponse("OK CPUSLEEP");
+        Serial.printf("[CPUSLEEP] Set to %s\n", cpuSleepEnabled ? "ON" : "OFF");
+        return;
+    }
+
+    // ===== CPUSLEEP? (query) =====
+    if (command == "CPUSLEEP?") {
+        sendResponse("CPUSLEEP:" + String(cpuSleepEnabled ? "1" : "0"));
+        return;
+    }
+
+    // ===== UNLOCKED? =====
+    if (command == "UNLOCKED?") {
+        sendResponse("OK UNLOCKED 0");
+        return;
+    }
+
+    // ===== RESET =====
+    if (command == "RESET") {
+        factoryReset();
+        return;
+    }
+
+    Serial.printf("[CMD] Unknown: %s\n", command.c_str());
+}
+
+// ==================== RESPONSE ====================
+void sendResponse(String msg) {
+    if (!deviceConnected || connHandle == INVALID_CONN_HANDLE) return;
+    if (!pTxChar) return;
+
+    pTxChar->setValue(msg.c_str());
+    pTxChar->notify();
+    Serial.printf("[TX] %s\n", msg.c_str());
+}
+
+// ==================== VEHICLE COMMANDS ====================
+void pulsePin(int pin, int duration) {
+    digitalWrite(pin, LOW);
+    delay(duration);
+    digitalWrite(pin, HIGH);
+}
+
+void executeLock() {
+    pulsePin(PIN_LOCK, PULSE_DURATION_MS);
+    lockCount++;
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUInt(NVS_LOCK_COUNT, lockCount);
+    prefs.end();
+    Serial.println("[CMD] Lock pulse");
+}
+
+void executeUnlock() {
+    pulsePin(PIN_UNLOCK, PULSE_DURATION_MS);
+    unlockCount++;
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUInt(NVS_UNLOCK_COUNT, unlockCount);
+    prefs.end();
+    Serial.println("[CMD] Unlock pulse");
+}
+
+void executeFindCar() {
+    digitalWrite(PIN_FINDCAR, LOW);
+    delay(FINDCAR_HOLD_MS);
+    digitalWrite(PIN_FINDCAR, HIGH);
+    delay(FINDCAR_OFF_MS);
+    digitalWrite(PIN_FINDCAR, LOW);
+    delay(FINDCAR_HOLD_MS);
+    digitalWrite(PIN_FINDCAR, HIGH);
+
+    findcarCount++;
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUInt(NVS_FINDCAR_COUNT, findcarCount);
+    prefs.end();
+    Serial.println("[CMD] FindCar executed");
+}
+
+void executeTrunk() {
+    pulsePin(PIN_TRUNK, PULSE_DURATION_MS);
+    Serial.println("[CMD] Trunk pulse");
+}
+
+// ==================== FACTORY RESET ====================
+void factoryReset() {
+    Serial.println("[RESET] Factory reset...");
+
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.clear();
+    prefs.end();
+
+    sendResponse("OK RESET");
+    delay(100);
+    ESP.restart();
+}
+
+// ==================== TIME ====================
+uint32_t getUnixTime() {
+    return (uint32_t)(millis() / 1000) + savedTime;
+}
+
+// ==================== CPU SLEEP ====================
+esp_pm_lock_handle_t pmLock = NULL;
+
+void enterLightSleep() {
+    if (pmLock == NULL) {
+        esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "nls_lock", &pmLock);
+    }
+    esp_pm_lock_acquire(pmLock);
+    esp_sleep_enable_timer_wakeup(10000);
+    esp_light_sleep_start();
+    esp_pm_lock_release(pmLock);
+}
+
+// ==================== DISCONNECT HANDLER ====================
+void handleDisconnect() {
+    if (commandActive && activeCommandPin >= 0) {
+        digitalWrite(activeCommandPin, HIGH);
+        commandActive = false;
+        activeCommandPin = -1;
+    }
+
+    if (wasAuthenticated) {
+        Serial.println("[DISC] Auto double-lock engaged");
+        pulsePin(PIN_LOCK, PULSE_DURATION_MS);
+        delay(DISCONNECT_LOCK_DELAY);
+        pulsePin(PIN_LOCK, PULSE_DURATION_MS);
+        Serial.println("[DISC] Double-lock complete");
+    }
 }
