@@ -702,6 +702,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Timer? _heartbeatTimer;
   StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
   bool _connectCooldown = false;
+  bool _userDisconnected = false;
 
   bool ready = false;
   bool scanning = false;
@@ -751,15 +752,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // 监听蓝牙开关状态，蓝牙打开时自动重连
     _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
-      if (state == BluetoothAdapterState.on && mounted && authorized && savedRemoteId != null && !connected && !connecting) {
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-            connect();
-          }
-        });
-      }
+      // 蓝牙状态变化时不做任何自动连接，等用户手动操作
     });
     _load();
   }
@@ -781,10 +775,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (!mounted || !authorized || savedRemoteId == null) return;
-      _stopAutoReconnectLoop();
+      if (!mounted) return;
       final actuallyConnected = ble.isConnected;
       if (connected && !actuallyConnected) {
+        _stopHeartbeat();
         setState(() {
           connected = false;
           connecting = false;
@@ -794,23 +788,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           espTime = null;
           commandSeconds = 0;
           foundDevice = null;
-          status = 'BLE连接已断开，正在自动重连...';
-        });
-        _stopHeartbeat();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('蓝牙已断开，正在自动重连...'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
-      }
-      if (!connected && !connecting && authorized && savedRemoteId != null) {
-        _autoReconnectCount = 0;
-        connect();
-        Future.delayed(const Duration(seconds: 5), () {
-          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            connect();
-          }
-        });
-        Future.delayed(const Duration(seconds: 12), () {
-          if (!connected && !connecting && authorized && savedRemoteId != null && mounted) {
-            _startAutoReconnectLoop();
-          }
+          status = 'BLE连接已断开';
         });
       }
     }
@@ -902,154 +880,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    if (autoConnect && savedRemoteId != null) {
-      await _autoConnectReal();
-    }
-
-    // 自动连接失败或首次使用（无保存设备），自动扫描弹出设备列表让用户手动选
-    if (!connected && mounted) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted && !connected && !scanning) {
-        try {
-          final adapterState2 = await FlutterBluePlus.adapterState.first;
-          if (adapterState2 == BluetoothAdapterState.on) scan();
-        } catch (_) {
-          scan();
-        }
-      }
-    }
-
     if (mounted) setState(() {});
-  }
-
-  Future<void> _autoConnectReal() async {
-    if (connected || connecting || _autoConnecting) return;
-    _autoConnecting = true;
-    setState(() {
-      connecting = true;
-      status = '正在自动连接...';
-    });
-    try {
-      if (savedRemoteId == null || savedRemoteId!.isEmpty) {
-        setState(() { connecting = false; status = '自动连接失败：无保存设备'; });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('自动连接失败：无保存设备'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)));
-        return;
-      }
-      setState(() => status = '正在扫描已保存设备...');
-      final devices = await ble.scan(timeout: const Duration(milliseconds: 3000));
-      if (!mounted) return;
-      BleScanItem? target;
-      if (devices.isNotEmpty) {
-        final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
-        if (match.isNotEmpty) {
-          target = match.first;
-        }
-      }
-      if (target == null) {
-        setState(() { connecting = false; status = '自动连接失败：设备不在附近'; });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('自动连接失败：设备不在附近'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)));
-        return;
-      }
-      foundDevice = target;
-      setState(() => status = '正在连接蓝牙...');
-      await ble.connect(target.device!);
-      if (ble.discoveredServices.isEmpty) {
-        throw StateError('服务列表为空');
-      }
-      setState(() => status = '已连接，正在绑定通信通道...');
-      bool serviceFound = false;
-      for (final s in ble.discoveredServices) {
-        if (s.serviceUuid.str.toUpperCase().contains('6E400001')) {
-          BluetoothCharacteristic? writeChar;
-          BluetoothCharacteristic? notifyChar;
-          for (final c in s.characteristics) {
-            final uuid = c.characteristicUuid.str.toUpperCase();
-            if (uuid.contains('6E400002')) writeChar = c;
-            if (uuid.contains('6E400003')) notifyChar = c;
-          }
-          if (writeChar != null) {
-            bleGateway.bind(writeCharacteristic: writeChar, notifyCharacteristic: notifyChar);
-            if (notifyChar != null) {
-              await bleGateway.startNotify();
-              await Future.delayed(const Duration(milliseconds: 100));
-            }
-          }
-          serviceFound = true;
-          break;
-        }
-      }
-      if (!serviceFound || !bleGateway.readyForWrite) {
-        throw StateError('NUS通道绑定失败');
-      }
-      // 直接用保存密码认证（和"他的.py"一致，不依赖设备ID）
-      final savedPwd = prefs?.getString('admin_password');
-      if (savedPwd == null || savedPwd.isEmpty) {
-        await ble.disconnect();
-        setState(() { connecting = false; status = '自动连接失败：无保存密码，请手动连接'; });
-        return;
-      }
-      setState(() => status = '正在用密码认证...');
-      String? authReply;
-      for (int retry = 0; retry < 3; retry++) {
-        authReply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $installId'), expectPrefix: 'OK');
-        if (authReply != null && authReply.contains('OK')) break;
-        if (retry < 2) await Future.delayed(const Duration(milliseconds: 50));
-      }
-      if (authReply != null && authReply.contains('OK')) {
-        adminDevice = installId;
-        adminSession = true;
-        authorized = true;
-        mode = AccessMode.admin;
-        esp32.adminDevice = installId;
-        await prefs?.setString('admin_device_id', installId!);
-        await prefs?.setBool('authorized', true);
-        setState(() {
-          connected = true;
-          connecting = false;
-          timeSynced = false;
-          status = '自动连接成功，管理员模式';
-        });
-        _stopAutoReconnectLoop();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('自动连接成功'), backgroundColor: TKColors.neonGreen, duration: const Duration(seconds: 2)));
-        ble.onDisconnect = () {
-          _stopHeartbeat();
-          if (mounted && connected) {
-            setState(() {
-              connected = false;
-              mode = null;
-              adminSession = false;
-              timeSynced = false;
-              espTime = null;
-              commandSeconds = 0;
-              foundDevice = null;
-              status = 'BLE连接已断开，正在自动重连...';
-            });
-            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('蓝牙已断开，正在自动重连...'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
-              }
-            });
-            Future.delayed(const Duration(seconds: 8), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                _startAutoReconnectLoop();
-              }
-            });
-          }
-        };
-        await syncTime();
-        _startHeartbeat();
-      } else {
-        await ble.disconnect();
-        setState(() { connecting = false; status = '自动连接失败：密码认证失败，请手动连接'; });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('自动连接失败：密码认证失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)));
-      }
-    } catch (e) {
-      setState(() { connecting = false; status = '自动连接失败：$e'; });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('自动连接失败：$e'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)));
-    } finally {
-      _autoConnecting = false;
-    }
   }
 
   void _scheduleBorrowExpiry() {
@@ -1121,9 +952,23 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> connectToDevice(BleScanItem device) async {
     if (connecting || connected) return;
+    _userDisconnected = false;
     foundDevice = device;
     savedRemoteId = device.remoteId;
     await prefs?.setString('ble_remote_id', device.remoteId);
+
+    // 有保存密码 → 自动认证
+    if (authorized && adminPassword.isNotEmpty) {
+      setState(() { status = '正在连接并自动认证...'; });
+      try {
+        await _connectBle(device, AccessMode.admin, autoConnectVerify: true);
+      } catch (_) {
+        if (mounted && !connected) setState(() { connecting = false; });
+      }
+      return;
+    }
+
+    // 没有保存密码 → 弹窗
     final selected = await showDialog<AccessMode>(
       context: context,
       builder: (context) => _authChoiceDialog(),
@@ -1137,16 +982,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> connect() async {
     if (connecting || connected || _autoConnecting) return;
+    _userDisconnected = false;
     var target = foundDevice;
 
     // 没有已发现设备 → 扫描3秒找
     if (target == null) {
-      setState(() { status = '正在扫描蓝牙设备...'; });
+      setState(() { status = '正在扫描蓝牙设备...'; scanning = true; });
       await scan(timeout: const Duration(seconds: 3));
       if (!mounted) return;
+      scanning = false;
       if (scannedDevices.isEmpty) {
         setState(() { status = '未发现设备，请确认ESP32已开启'; });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('未发现蓝牙设备，请确认ESP32已开启并靠近手机'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 3)));
+        _msg('未发现蓝牙设备，请确认ESP32已开启并靠近手机');
         return;
       }
       // 已保存设备优先匹配
@@ -1167,7 +1014,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         return;
       }
     }
-    if (autoConnect && authorized) {
+
+    // 有保存密码 → 自动认证
+    if (authorized && adminPassword.isNotEmpty) {
       setState(() { status = '自动连接中...'; });
       try {
         await _connectBle(target, AccessMode.admin, autoConnectVerify: true);
@@ -1176,6 +1025,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
       return;
     }
+
+    // 没有保存密码 → 弹窗让用户选择身份和输入密码
     final selected = await showDialog<AccessMode>(
       context: context,
       builder: (context) => _authChoiceDialog(),
@@ -1224,29 +1075,23 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
         ble.onDisconnect = () {
           _stopHeartbeat();
-          if (mounted && connected) {
+          if (mounted) {
             setState(() {
               connected = false;
+              connecting = false;
               mode = null;
               adminSession = false;
               timeSynced = false;
               espTime = null;
               commandSeconds = 0;
               foundDevice = null;
-              status = 'BLE连接已断开，正在自动重连...';
+              status = _userDisconnected ? '已断开' : 'BLE连接意外断开，可点击"自动连接"重试';
             });
-            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('蓝牙已断开，正在自动重连...'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                connect();
-              }
-            });
-            Future.delayed(const Duration(seconds: 8), () {
-              if (mounted && !connected && !connecting && authorized && savedRemoteId != null) {
-                _startAutoReconnectLoop();
-              }
-            });
+            if (!_userDisconnected && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('蓝牙连接断开'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)));
+            }
           }
+          _userDisconnected = false;
         };
         // ble.connect()已做服务发现，直接使用已发现的服务绑定NUS通道
         bool serviceFound = false;
@@ -1425,7 +1270,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         timeSynced = false;
         status = 'BLE真实连接成功，正在同步时间...';
       });
-      _stopAutoReconnectLoop();
       await syncTime();
       _startHeartbeat();
       _queryCpuSleepState();
@@ -1608,55 +1452,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _heartbeatTimer = null;
   }
 
-  Timer? _autoReconnectTimer;
-  bool _autoReconnecting = false;
-  int _autoReconnectCount = 0;
-  static const int _maxAutoReconnect = 3;
-
-  void _startAutoReconnectLoop() {
-    if (_autoReconnecting) return;
-    _autoReconnecting = true;
-    _autoReconnectCount = 0;
-    _doAutoReconnect();
-  }
-
-  void _stopAutoReconnectLoop() {
-    _autoReconnecting = false;
-    _autoReconnectCount = 0;
-    _autoReconnectTimer?.cancel();
-    _autoReconnectTimer = null;
-  }
-
-  void _doAutoReconnect() {
-    if (!_autoReconnecting || !mounted) return;
-    if (connected || connecting) {
-      _stopAutoReconnectLoop();
-      return;
-    }
-    _autoReconnectCount++;
-    if (_autoReconnectCount > _maxAutoReconnect) {
-      debugPrint('自动重连${_maxAutoReconnect}次失败，已停止');
-      _stopAutoReconnectLoop();
-      if (mounted) {
-        setState(() => status = '设备不在附近，请手动重连');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('重连失败，请确认设备在附近后重新连接'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 3)),
-        );
-      }
-      return;
-    }
-    if (authorized && savedRemoteId != null) {
-      debugPrint('自动重连第${_autoReconnectCount}次...');
-      connect().whenComplete(() {
-        if (!connected && _autoReconnecting && mounted) {
-          _autoReconnectTimer = Timer(const Duration(seconds: 5), _doAutoReconnect);
-        }
-      });
-    } else {
-      _stopAutoReconnectLoop();
-    }
-  }
-
   Future<void> _heartbeatCheck() async {
     if (!connected || !bleGateway.readyForWrite) return;
     try {
@@ -1673,6 +1468,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     }
     // 连续3次心跳失败（30秒），判定连接已断，开始持续重连
     if (_heartbeatFailCount >= 3 && connected) {
+      _stopHeartbeat();
       setState(() {
         connected = false;
         mode = null;
@@ -1681,10 +1477,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         espTime = null;
         commandSeconds = 0;
         foundDevice = null;
-        status = '心跳超时，正在自动重连...';
+        status = '心跳超时，连接已断开';
       });
-      _stopHeartbeat();
-      _startAutoReconnectLoop();
+      _msg('连接已断开，可点击"自动连接"重试');
     }
   }
 
@@ -1703,6 +1498,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> disconnect() async {
+    _userDisconnected = true;
     _stopHeartbeat();
     commandTimer?.cancel();
     await bleGateway.dispose();
@@ -2425,12 +2221,23 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
             value: cpuSleepEnabled,
             onChanged: (v) async {
-              setLocalState(() {});
-              setState(() { cpuSleepEnabled = v; });
-              await prefs?.setBool('cpu_sleep_en', v);
-              if (connected && bleGateway.readyForWrite) {
-                final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
-                await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
+              if (!connected || !bleGateway.readyForWrite) {
+                _msg('未连接ESP32，无法修改CPU低功耗');
+                return;
+              }
+              final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
+              try {
+                final reply = await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
+                if (reply != null && reply.contains('OK')) {
+                  setState(() { cpuSleepEnabled = v; });
+                  await prefs?.setBool('cpu_sleep_en', v);
+                  setLocalState(() {});
+                  _msg('CPU低功耗已${v ? '开启' : '关闭'}');
+                } else {
+                  _msg('ESP32未确认修改成功');
+                }
+              } catch (e) {
+                _msg('修改CPU低功耗失败');
               }
             },
             leadingIcon: Icons.battery_saver,

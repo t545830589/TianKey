@@ -76,8 +76,6 @@ bool gpioBusy = false;
 unsigned long authStart = 0;
 unsigned long lockUntil = 0;
 unsigned long lastCmdTime = 0;
-unsigned long lastAdvOk = 0;
-int advFailCount = 0;
 bool configDirty = false;
 
 // ==================== GPIO操作 ====================
@@ -579,8 +577,6 @@ void initBLE() {
     pAdvertising->setMinPreferred(0x06);
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
-
-    lastAdvOk = millis();
 }
 
 // ==================== 主循环 ====================
@@ -609,31 +605,15 @@ void loop() {
         saveConfig();
     }
 
-    // 断开重连
+    // 断开后重新广播
     if (!deviceConnected && oldConnected) {
         delay(500);
         pServer->startAdvertising();
-        lastAdvOk = millis();
-        advFailCount = 0;
         oldConnected = false;
-        Serial.println("重新广播中...");
+        Serial.println("已断开，重新广播中...");
     }
     if (deviceConnected && !oldConnected) {
         oldConnected = true;
-    }
-
-    // 广播失败重置
-    if (!deviceConnected) {
-        if (millis() - lastAdvOk > 30000) {
-            BLEDevice::startAdvertising();
-            advFailCount++;
-            Serial.printf("广播失败第%d次，重新广播\n", advFailCount);
-            if (advFailCount >= 3) {
-                Serial.println("广播失败3次，重启ESP32");
-                ESP.restart();
-            }
-            lastAdvOk = millis();
-        }
     }
 
     // 认证超时
