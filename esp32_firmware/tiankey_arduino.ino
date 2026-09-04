@@ -12,7 +12,6 @@
 #include <ESP.h>
 #include <driver/rtc_io.h>
 #include <esp_pm.h>
-#include <esp_sleep.h>
 #include <esp_task_wdt.h>
 #include <time.h>
 #include <sys/time.h>
@@ -64,9 +63,6 @@ int trunkPin = PIN_TRUNK;
 int lockDuration = LOCK_DURATION;
 int trunkDuration = TRUNK_DURATION;
 int autoLockEnabled = 1;
-int sleepMinutes = 0;
-bool sleepEnabled = false;
-int wakeMinutes = 30;
 bool cpuSleepEnabled = true;
 esp_pm_lock_handle_t cpuLock = NULL;
 
@@ -166,9 +162,6 @@ void loadConfig() {
     trunkPin = prefs.getInt("trunk_pin", PIN_TRUNK);
     lockDuration = prefs.getInt("lock_dur", LOCK_DURATION);
     trunkDuration = prefs.getInt("trunk_dur", TRUNK_DURATION);
-    sleepMinutes = prefs.getInt("sleep_min", 0);
-    sleepEnabled = prefs.getBool("sleep_en", false);
-    wakeMinutes = prefs.getInt("wake_min", 30);
     cpuSleepEnabled = prefs.getBool("cpu_sleep_en", true);
     prefs.end();
 }
@@ -186,9 +179,6 @@ void saveConfig() {
     prefs.putInt("trunk_pin", trunkPin);
     prefs.putInt("lock_dur", lockDuration);
     prefs.putInt("trunk_dur", trunkDuration);
-    prefs.putInt("sleep_min", sleepMinutes);
-    prefs.putBool("sleep_en", sleepEnabled);
-    prefs.putInt("wake_min", wakeMinutes);
     prefs.putBool("cpu_sleep_en", cpuSleepEnabled);
     prefs.end();
     configDirty = false;
@@ -506,33 +496,6 @@ void processCommand(String cmd) {
         if (authLevel >= 2) {
             notifyBLE("DEVICEID:" + (adminDeviceId.length() > 0 ? adminDeviceId : "NONE"));
         }
-    } else if (cmdUpper.startsWith("!SLEEP")) {
-        if (tempAuth || authLevel < 2) return;
-        if (cmdUpper == "!SLEEP?") {
-            notifyBLE("SLEEP:" + String(sleepEnabled ? 1 : 0) + ":" + String(sleepMinutes));
-            return;
-        }
-        int val = cmdUpper.substring(7).toInt();
-        if (val <= 0) {
-            sleepEnabled = false;
-            sleepMinutes = 0;
-        } else {
-            sleepEnabled = true;
-            sleepMinutes = val;
-        }
-        configDirty = true;
-        notifyBLE("OK SLEEP");
-    } else if (cmdUpper.startsWith("!WAKE")) {
-        if (tempAuth || authLevel < 2) return;
-        if (cmdUpper == "!WAKE?") {
-            notifyBLE("WAKE:" + String(wakeMinutes));
-            return;
-        }
-        int val = cmdUpper.substring(6).toInt();
-        if (val < 1) val = 1;
-        wakeMinutes = val;
-        configDirty = true;
-        notifyBLE("OK WAKE");
     } else if (cmdUpper == "!RSSI?") {
         if (deviceConnected && connHandle != 0) {
             int rssi = esp_ble_get_conn_rssi(connHandle);
@@ -700,14 +663,7 @@ void loop() {
     if (deviceConnected) {
         delay(100);
     } else {
-        if (sleepEnabled && sleepMinutes > 0) {
-            // 深度睡眠（APK !SLEEP命令控制）
-            sleepEnabled = false;
-            saveConfig();
-            BLEDevice::deinit();
-            esp_sleep_enable_timer_wakeup((uint64_t)sleepMinutes * 60 * 1000000ULL);
-            esp_deep_sleep_start();
-        } else if (cpuSleepEnabled) {
+        if (cpuSleepEnabled) {
             // CPU低功耗开启：delay让CPU进入Light Sleep，BLE保持广播
             delay(500);
         } else {

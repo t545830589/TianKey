@@ -725,11 +725,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   DateTime? borrowStart;
   DateTime? borrowEnd;
   DateTime? espTime;
-  bool sleepEnabled = false;
-  int sleepHours = 0;
-  int sleepMinutes = 30;
-  int wakeMinutes = 30;
-  bool esp32Sleeping = false;
   bool cpuSleepEnabled = true;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   bool splashDone = false;
@@ -842,11 +837,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
     timeFail = p.getBool('time_fail') ?? false;
-    sleepEnabled = p.getBool('sleep_enabled') ?? false;
-    sleepHours = p.getInt('sleep_hours') ?? 0;
-    sleepMinutes = p.getInt('sleep_minutes') ?? 30;
-    wakeMinutes = p.getInt('wake_minutes') ?? 30;
-    esp32Sleeping = sleepEnabled;
     cpuSleepEnabled = p.getBool('cpu_sleep_en') ?? true;
 
     esp32.adminPassword = adminPassword;
@@ -1438,7 +1428,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       _stopAutoReconnectLoop();
       await syncTime();
       _startHeartbeat();
-      _querySleepState();
       _queryCpuSleepState();
     } catch (error) {
       try { if (target.device != null && target.device!.isConnected) await target.device!.disconnect(); } catch (_) {}
@@ -1699,31 +1688,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _querySleepState() async {
-    if (!connected || !bleGateway.readyForWrite) return;
-    try {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!SLEEP?'), expectPrefix: 'SLEEP');
-      if (reply != null && reply.startsWith('SLEEP:')) {
-        final parts = reply.substring(6).split(':');
-        if (parts.length >= 2) {
-          final enabled = parts[0] == '1';
-          final minutes = int.tryParse(parts[1]) ?? 30;
-          if (mounted) setState(() {
-            esp32Sleeping = enabled;
-            sleepEnabled = enabled;
-            sleepHours = minutes ~/ 60;
-            sleepMinutes = minutes % 60;
-          });
-          await prefs?.setBool('sleep_enabled', enabled);
-          await prefs?.setInt('sleep_hours', minutes ~/ 60);
-          await prefs?.setInt('sleep_minutes', minutes % 60);
-        }
-      }
-    } catch (e) {
-      debugPrint('querySleepState error: $e');
-    }
-  }
-
   Future<void> _queryCpuSleepState() async {
     if (!connected || !bleGateway.readyForWrite) return;
     try {
@@ -1922,7 +1886,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             title: const Text('功能说明', style: TextStyle(color: TKColors.neonBlue)),
                             content: const SingleChildScrollView(
                               child: Text(
-                                '锁车/解锁/后备箱/寻车：\n  点击按钮立即执行\n\n升降窗：\n  点击一次自动保持4秒\n\n深度睡眠：\n  省电模式，定时唤醒\n\n临时借车：\n  生成临时密码借给他人',
+                                '锁车/解锁/后备箱/寻车：\n  点击按钮立即执行\n\n升降窗：\n  点击一次自动保持4秒\n\nCPU低功耗：\n  省电模式，BLE保持连接\n\n临时借车：\n  生成临时密码借给他人',
                                 style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
                               ),
                             ),
@@ -2443,8 +2407,40 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
-  // 6.5 深度睡眠设置
-  Widget _deepSleepPage(BuildContext pageCtx) {
+  // 6.5 CPU低功耗设置（已删除深度睡眠，仅保留CPU低功耗）
+  Widget _cpuSleepPage(BuildContext pageCtx) {
+    return Scaffold(
+      backgroundColor: TKColors.bgPrimary,
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TKIconButton(icon: Icons.arrow_back, color: TKColors.neonBlue, onTap: () => Navigator.pop(pageCtx)),
+          const TKPageTitle(title: 'CPU低功耗设置'),
+          const SizedBox(width: 48),
+        ])),
+        Expanded(child: StatefulBuilder(builder: (context, setLocalState) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TKBigIcon(icon: Icons.mosquito, color: TKColors.neonBlue, size: 80),
+          const SizedBox(height: 24),
+          TKSwitchTile(
+            title: 'CPU低功耗',
+            subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
+            value: cpuSleepEnabled,
+            onChanged: (v) async {
+              setLocalState(() {});
+              setState(() { cpuSleepEnabled = v; });
+              await prefs?.setBool('cpu_sleep_en', v);
+              if (connected && bleGateway.readyForWrite) {
+                final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
+                await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
+              }
+            },
+            leadingIcon: Icons.mosquito,
+          ),
+        ])))),
+      ])),
+    );
+  }
+
+  // PLACEHOLDER删除线
     final hoursCtrl = TextEditingController(text: sleepHours.toString());
     final minutesCtrl = TextEditingController(text: sleepMinutes.toString());
     final wakeCtrl = TextEditingController(text: wakeMinutes.toString());
@@ -2784,8 +2780,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                     TKSettingTile(
                       title: '深度睡眠',
                       leadingIcon: Icons.bedtime,
-                      trailingText: sleepEnabled ? '已开启' : '已关闭',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _deepSleepPage(ctx)))),
+                      trailingText: cpuSleepEnabled ? '已开启' : '已关闭',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _cpuSleepPage(ctx)))),
                     ),
                     TKSettingTile(
                       title: '恢复出厂',
