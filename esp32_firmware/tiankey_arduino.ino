@@ -67,6 +67,8 @@ int autoLockEnabled = 1;
 int sleepMinutes = 0;
 bool sleepEnabled = false;
 int wakeMinutes = 30;
+bool cpuSleepEnabled = true;
+esp_pm_lock_handle_t cpuLock = NULL;
 
 // 状态
 bool authenticated = false;
@@ -167,6 +169,7 @@ void loadConfig() {
     sleepMinutes = prefs.getInt("sleep_min", 0);
     sleepEnabled = prefs.getBool("sleep_en", false);
     wakeMinutes = prefs.getInt("wake_min", 30);
+    cpuSleepEnabled = prefs.getBool("cpu_sleep_en", true);
     prefs.end();
 }
 
@@ -186,6 +189,7 @@ void saveConfig() {
     prefs.putInt("sleep_min", sleepMinutes);
     prefs.putBool("sleep_en", sleepEnabled);
     prefs.putInt("wake_min", wakeMinutes);
+    prefs.putBool("cpu_sleep_en", cpuSleepEnabled);
     prefs.end();
     configDirty = false;
 }
@@ -461,9 +465,15 @@ void processCommand(String cmd) {
         if (space2 > 0) {
             String code = cmd.substring(space1 + 1, space2);
             int hours = cmd.substring(space2 + 1).toInt();
-            if (hours >= 1) {
+            long borrowSecs;
+            if (hours == 0) {
+                borrowSecs = 300;  // 5分钟
+            } else {
+                borrowSecs = hours * 3600L;
+            }
+            if (borrowSecs >= 300) {
                 borrowCode = code;
-                borrowExpiry = time(NULL) + hours * 3600;
+                borrowExpiry = time(NULL) + borrowSecs;
                 configDirty = true;
                 notifyBLE("OK BORROW");
             } else {
@@ -530,6 +540,23 @@ void processCommand(String cmd) {
         } else {
             notifyBLE("RSSI:0");
         }
+    } else if (cmdUpper.startsWith("!CPUSLEEP")) {
+        if (tempAuth || authLevel < 2) return;
+        if (cmdUpper == "!CPUSLEEP?") {
+            notifyBLE("CPUSLEEP:" + String(cpuSleepEnabled ? 1 : 0));
+            return;
+        }
+        int val = cmdUpper.substring(10).toInt();
+        if (val == 0 || val == 1) {
+            cpuSleepEnabled = (val == 1);
+            if (cpuSleepEnabled) {
+                if (cpuLock) { esp_pm_lock_release(cpuLock); cpuLock = NULL; }
+            } else {
+                if (!cpuLock) esp_pm_lock_acquire(ESP_PM_CPU_FREQ_MAX, &cpuLock);
+            }
+            configDirty = true;
+            notifyBLE("OK CPUSLEEP");
+        }
     }
 }
 
@@ -552,6 +579,11 @@ void initBLE() {
     pmConfig.min_freq_mhz = 80;
     pmConfig.light_sleep_enable = true;
     esp_pm_configure(&pmConfig);
+
+    // CPU低功耗开关：关闭时获取锁，禁止Light Sleep
+    if (!cpuSleepEnabled) {
+        if (!cpuLock) esp_pm_lock_acquire(ESP_PM_CPU_FREQ_MAX, &cpuLock);
+    }
 
     // 设置BLE Modem Sleep模式 - CPU可以休眠，BLE保持广播
     esp_ble_sleep_mode_set(ESP_BLE_SLEEP_MODE_MODEM);
@@ -665,23 +697,22 @@ void loop() {
     }
 
     // ==================== 核心：CPU睡觉 + BLE广播 ====================
-    // 使用ESP32电源管理：light_sleep_enable=true时，delay()期间CPU自动进入轻睡眠
-    // BLE Modem Sleep：CPU睡觉时BLE模块保持广播，手机随时能连
-    // 手机连上→CPU自动唤醒→loop()处理→处理完再睡
     if (deviceConnected) {
-        delay(100);  // CPU轻睡100ms，BLE保持连接
+        delay(100);
     } else {
         if (sleepEnabled && sleepMinutes > 0) {
             // 深度睡眠（APK !SLEEP命令控制）
-            if (configDirty) saveConfig();
+            sleepEnabled = false;
+            saveConfig();
             BLEDevice::deinit();
             esp_sleep_enable_timer_wakeup((uint64_t)sleepMinutes * 60 * 1000000ULL);
             esp_deep_sleep_start();
-        } else {
-            // CPU睡觉 + BLE广播（自动连接的关键）
-            // delay期间CPU自动轻睡眠，BLE保持广播
-            // 手机蓝牙打开→系统自动连上→CPU唤醒→loop()处理
+        } else if (cpuSleepEnabled) {
+            // CPU低功耗开启：delay让CPU进入Light Sleep，BLE保持广播
             delay(500);
+        } else {
+            // CPU低功耗关闭：CPU全速运行，BLE照常广播
+            delay(10);
         }
     }
 

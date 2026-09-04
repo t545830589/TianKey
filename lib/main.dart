@@ -730,6 +730,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   int sleepMinutes = 30;
   int wakeMinutes = 30;
   bool esp32Sleeping = false;
+  bool cpuSleepEnabled = true;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   bool splashDone = false;
 
@@ -846,6 +847,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     sleepMinutes = p.getInt('sleep_minutes') ?? 30;
     wakeMinutes = p.getInt('wake_minutes') ?? 30;
     esp32Sleeping = sleepEnabled;
+    cpuSleepEnabled = p.getBool('cpu_sleep_en') ?? true;
 
     esp32.adminPassword = adminPassword;
     esp32.adminDevice = adminDevice;
@@ -1437,6 +1439,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       await syncTime();
       _startHeartbeat();
       _querySleepState();
+      _queryCpuSleepState();
     } catch (error) {
       try { if (target.device != null && target.device!.isConnected) await target.device!.disconnect(); } catch (_) {}
       try { await bleGateway.dispose(); } catch (_) {}
@@ -1718,6 +1721,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
     } catch (e) {
       debugPrint('querySleepState error: $e');
+    }
+  }
+
+  Future<void> _queryCpuSleepState() async {
+    if (!connected || !bleGateway.readyForWrite) return;
+    try {
+      final reply = await bleGateway.sendAndWait(utf8.encode('!CPUSLEEP?'), expectPrefix: 'CPUSLEEP');
+      if (reply != null && reply.startsWith('CPUSLEEP:')) {
+        final enabled = reply.substring(9) == '1';
+        if (mounted) setState(() { cpuSleepEnabled = enabled; });
+        await prefs?.setBool('cpu_sleep_en', enabled);
+      }
+    } catch (e) {
+      debugPrint('queryCpuSleepState error: $e');
     }
   }
 
@@ -2442,7 +2459,24 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         Expanded(child: StatefulBuilder(builder: (context, setLocalState) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
           TKBigIcon(icon: Icons.bedtime, color: TKColors.neonBlue, size: 80),
           const SizedBox(height: 24),
+          // CPU低功耗开关
           TKSwitchTile(
+            title: 'CPU低功耗',
+            subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
+            value: cpuSleepEnabled,
+            onChanged: (v) async {
+              setLocalState(() {});
+              setState(() { cpuSleepEnabled = v; });
+              await prefs?.setBool('cpu_sleep_en', v);
+              if (connected && bleGateway.readyForWrite) {
+                final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
+                await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
+              }
+            },
+            leadingIcon: Icons.mosquito,
+          ),
+          const SizedBox(height: 16),
+          // 深度睡眠开关
             title: '深度睡眠',
             subtitle: '开启后，车熄火时ESP32进入深度睡眠省电',
             value: sleepEnabled,
