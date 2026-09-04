@@ -511,9 +511,9 @@ void processCommand(String cmd) {
         if (val == 0 || val == 1) {
             cpuSleepEnabled = (val == 1);
             if (cpuSleepEnabled) {
-                if (cpuLock) { esp_pm_lock_release(cpuLock); cpuLock = NULL; }
+                esp_pm_lock_release(cpuLock);
             } else {
-                if (!cpuLock) esp_pm_lock_acquire(ESP_PM_CPU_FREQ_MAX, &cpuLock);
+                esp_pm_lock_acquire(cpuLock);
             }
             configDirty = true;
             notifyBLE("OK CPUSLEEP");
@@ -541,9 +541,14 @@ void initBLE() {
     pmConfig.light_sleep_enable = true;
     esp_pm_configure(&pmConfig);
 
+    // 创建PM锁（必须先create再acquire）
+    esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpuLock", &cpuLock);
+
     // CPU低功耗开关：关闭时获取锁，禁止Light Sleep
     if (!cpuSleepEnabled) {
-        if (!cpuLock) esp_pm_lock_acquire(ESP_PM_CPU_FREQ_MAX, &cpuLock);
+        esp_pm_lock_acquire(cpuLock);
+    } else {
+        esp_pm_lock_release(cpuLock);
     }
 
     // 设置BLE Modem Sleep模式 - CPU可以休眠，BLE保持广播

@@ -2193,7 +2193,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           const SizedBox(height: 24),
           TKSwitchTile(
             title: '自动连接',
-            subtitle: '开启后，APP启动时将自动连接已配对设备',
+            subtitle: '控制快速连接时是否自动使用已保存密码认证',
             value: autoConnect,
             onChanged: (v) { setLocalState(() {}); setState(() { autoConnect = v; }); prefs?.setBool('auto_connect', v); },
             leadingIcon: Icons.bluetooth,
