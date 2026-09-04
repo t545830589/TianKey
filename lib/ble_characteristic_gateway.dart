@@ -65,12 +65,10 @@ class BleCharacteristicGateway {
     }
 
     // 为当前命令创建一次性listener
-    String? response;
     final sub = _notifyController?.stream.listen((value) {
       if (cmd.completer.isCompleted) return;
       final msg = String.fromCharCodes(value);
       if (cmd.expectPrefix != null && !msg.startsWith(cmd.expectPrefix!)) return;
-      response = msg;
       if (!cmd.completer.isCompleted) cmd.completer.complete(msg);
     });
 
