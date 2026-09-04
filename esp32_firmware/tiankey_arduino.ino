@@ -541,10 +541,10 @@ void initBLE() {
     pmConfig.light_sleep_enable = true;
     esp_pm_configure(&pmConfig);
 
-    // 创建PM锁（必须先create再acquire）
-    esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpuLock", &cpuLock);
+    // 创建PM锁 - 用于控制Light Sleep（禁止/允许CPU休息）
+    esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "noLightSleep", &cpuLock);
 
-    // CPU低功耗开关：关闭时获取锁，禁止Light Sleep
+    // CPU低功耗开关：关闭时获取锁，禁止Light Sleep；开启时释放锁，允许Light Sleep
     if (!cpuSleepEnabled) {
         esp_pm_lock_acquire(cpuLock);
     } else {
