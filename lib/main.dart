@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -596,84 +595,6 @@ class TianKeyApp extends StatelessWidget {
 enum PageTab { vehicle, borrow, settings }
 enum AccessMode { admin, borrower }
 
-// ==================== 模拟ESP32逻辑层 ====================
-class SimulatedEsp32 {
-  String adminPassword = '123456789';
-  String? adminDevice;
-  String? borrowCode;
-  DateTime? borrowStart;
-  DateTime? borrowEnd;
-  String deviceName = '陕A0P92Y';
-  bool timeSynced = false;
-  DateTime? espTime;
-
-  SimulatedEsp32();
-
-  bool verifyAdminPassword(String password, String deviceId) {
-    if (password != adminPassword) {
-      return false;
-    }
-    adminDevice = deviceId;
-    return true;
-  }
-
-  bool verifyBorrowPassword(String password) {
-    if (borrowCode == null || password != borrowCode) {
-      return false;
-    }
-    if (borrowEnd != null && DateTime.now().isAfter(borrowEnd!)) {
-      return false;
-    }
-    return true;
-  }
-
-  bool isCurrentAdmin(String deviceId) {
-    final result = adminDevice == deviceId;
-    return result;
-  }
-
-  bool syncTime(DateTime phoneTime) {
-    espTime = phoneTime;
-    timeSynced = true;
-    return true;
-  }
-
-  String generateBorrowCode(int hours) {
-    // 哈希基于密码+过期时间戳，不再依赖6小时窗口
-    final now = DateTime.now();
-    borrowStart = now;
-    borrowEnd = hours == 0
-        ? now.add(const Duration(minutes: 5))
-        : now.add(Duration(hours: hours));
-    final expiryEpoch = borrowEnd!.millisecondsSinceEpoch ~/ 1000;
-    final secret = '$adminPassword$expiryEpoch';
-    final bytes = Uint8List.fromList(utf8.encode(secret));
-    final digest = sha256.convert(bytes);
-    final hashBytes = digest.bytes;
-    final val = ((hashBytes[0] << 24) | (hashBytes[1] << 16) | (hashBytes[2] << 8) | hashBytes[3]) & 0x7FFFFFFF;
-    final code = (val % 1000000).toString().padLeft(6, '0');
-    
-    borrowCode = code;
-    return code;
-  }
-
-  bool changePassword(String newPassword) {
-    adminPassword = newPassword;
-    return true;
-  }
-
-  void factoryReset() {
-    adminPassword = '123456789';
-    adminDevice = null;
-    borrowCode = null;
-    borrowStart = null;
-    borrowEnd = null;
-    deviceName = '陕A0P92Y';
-    timeSynced = false;
-    espTime = null;
-  }
-}
-
 class TianKeyHome extends StatefulWidget {
   const TianKeyHome({super.key});
 
@@ -687,7 +608,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   final TianKeyBleService ble = TianKeyBleService();
   final BleCharacteristicGateway bleGateway = BleCharacteristicGateway();
-  late final SimulatedEsp32 esp32 = SimulatedEsp32();
   final List<String> logs = <String>[];
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController hoursController = TextEditingController(text: '2');
@@ -709,11 +629,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool connecting = false;
   bool connected = false;
   bool _autoConnecting = false;
-  bool authorized = true;
+  bool authorized = false;
   bool adminSession = false;
   bool autoConnect = true;
   bool timeSynced = false;
-  bool timeFail = false;
   int rssiValue = 0;
   int commandSeconds = 0;
   String deviceName = defaultName;
@@ -725,7 +644,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   String? borrowCode;
   DateTime? borrowStart;
   DateTime? borrowEnd;
-  DateTime? espTime;
   bool cpuSleepEnabled = true;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   bool splashDone = false;
@@ -785,7 +703,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           mode = null;
           adminSession = false;
           timeSynced = false;
-          espTime = null;
           commandSeconds = 0;
           foundDevice = null;
           status = 'BLE连接已断开';
@@ -814,15 +731,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     borrowEnd = end == null ? null : DateTime.fromMillisecondsSinceEpoch(end);
     authorized = p.getBool('authorized') ?? false;
     autoConnect = p.getBool('auto_connect') ?? true;
-    timeFail = p.getBool('time_fail') ?? false;
     cpuSleepEnabled = p.getBool('cpu_sleep_en') ?? true;
-
-    esp32.adminPassword = adminPassword;
-    esp32.adminDevice = adminDevice;
-    esp32.deviceName = deviceName;
-    esp32.borrowCode = borrowCode;
-    esp32.borrowStart = borrowStart;
-    esp32.borrowEnd = borrowEnd;
 
     ready = true;
     _scheduleBorrowExpiry();
@@ -1082,7 +991,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               mode = null;
               adminSession = false;
               timeSynced = false;
-              espTime = null;
               commandSeconds = 0;
               foundDevice = null;
               status = _userDisconnected ? '已断开' : 'BLE连接意外断开，可点击"自动连接"重试';
@@ -1144,7 +1052,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
           if (reply != null && reply.contains('OK')) {
-            esp32.verifyBorrowPassword(savedCode);
+            // 借车码验证成功，ESP32已确认
           } else {
             await ble.disconnect();
             setState(() { connecting = false; status = '临时借车授权已过期或无效'; });
@@ -1168,11 +1076,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
           }
           if (authReply != null && authReply.contains('OK')) {
-            esp32.verifyAdminPassword(savedPwd, installId ?? '');
             adminDevice = installId;
             adminSession = true;
             authorized = true;
-            esp32.adminDevice = installId;
             await prefs?.setString('admin_device_id', installId!);
             await prefs?.setBool('authorized', true);
           } else {
@@ -1196,11 +1102,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
             }
             if (reply != null && reply.contains('OK')) {
-              esp32.verifyAdminPassword(password, installId ?? '');
               adminDevice = installId;
               adminSession = true;
               authorized = true;
-              esp32.adminDevice = installId;
               await prefs?.setString('admin_device_id', installId!);
               await prefs?.setBool('authorized', true);
               setState(() => status = '认证回复: OK');
@@ -1221,15 +1125,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             }
             if (reply != null && reply.contains('OK')) {
               setState(() => status = '认证回复: OK');
-              esp32.verifyBorrowPassword(password);
               // 保存临时借车授权状态
               await prefs?.setBool('authorized', true);
               await prefs?.setString('ble_remote_id', target.remoteId);
               await prefs?.setString('access_mode', 'borrower');
               await prefs?.setString('borrow_code', password);
-              if (esp32.borrowEnd != null) {
-                await prefs?.setInt('borrow_end', esp32.borrowEnd!.millisecondsSinceEpoch);
-              }
               authorized = true;
               savedRemoteId = target.remoteId;
               if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('借车码验证成功'), backgroundColor: TKColors.neonGreen, duration: const Duration(seconds: 2)));
@@ -1249,7 +1149,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (selected == AccessMode.admin) {
         adminDevice = installId;
         adminSession = true;
-        esp32.adminDevice = installId;
         await prefs?.setString('admin_device_id', installId!);
       }
       await prefs?.setString('ble_remote_id', target.remoteId);
@@ -1259,8 +1158,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       // 临时借车额外保存借车信息
       if (selected == AccessMode.borrower) {
         await prefs?.setString('borrow_code', password ?? '');
-        if (esp32.borrowEnd != null) {
-          await prefs?.setInt('borrow_end', esp32.borrowEnd!.millisecondsSinceEpoch);
+        if (borrowEnd != null) {
+          await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
         }
       }
       setState(() {
@@ -1399,7 +1298,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         final reply = await bleGateway.sendAndWait(utf8.encode('!TIME $ts'), expectPrefix: 'OK');
         if (!mounted) return;
         if (reply != null && reply.contains('OK')) {
-          setState(() { timeSynced = true; });
+          setState(() {
+            timeSynced = true;
+            authorized = true;
+            status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
+          });
+          await prefs?.setBool('authorized', true);
           _msg('时间同步成功');
         } else {
           _msg('时间同步失败');
@@ -1409,30 +1313,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (!mounted) return;
       _msg('时间同步异常');
     }
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    if (!mounted) return;
-    if (timeFail) {
-      setState(() {
-        timeSynced = false;
-        espTime = null;
-        status = mode == AccessMode.admin ? '时间同步失败：管理员仍可使用' : '时间同步失败：无法确认临时授权有效期';
-      });
-      _msg('时间同步失败');
-      if (mode == AccessMode.admin) {
-        authorized = true;
-        await prefs?.setBool('authorized', true);
-      }
-      return;
-    }
-    esp32.syncTime(DateTime.now());
-    setState(() {
-      timeSynced = true;
-      espTime = esp32.espTime;
-      authorized = true;
-      status = mode == AccessMode.admin ? '已连接 · 时间同步成功 · 管理员权限已开放' : '已连接 · 时间同步成功 · 临时借车权限已开放';
-    });
-    await prefs?.setBool('authorized', true);
-    _msg('时间同步成功');
   }
 
   int _heartbeatFailCount = 0;
@@ -1474,7 +1354,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         mode = null;
         adminSession = false;
         timeSynced = false;
-        espTime = null;
         commandSeconds = 0;
         foundDevice = null;
         status = '心跳超时，连接已断开';
@@ -1512,7 +1391,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       mode = null;
       adminSession = false;
       timeSynced = false;
-      espTime = null;
       commandSeconds = 0;
       status = '已断开：车辆功能重新锁定';
     });
@@ -1579,14 +1457,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
     final hours = (int.tryParse(hoursController.text.trim()) ?? 24).clamp(0, 168).toInt();
-    final code = esp32.generateBorrowCode(hours);
-    borrowCode = esp32.borrowCode;
-    borrowStart = esp32.borrowStart;
-    borrowEnd = esp32.borrowEnd;
+    // 本地生成6位随机借车码
+    final code = Random().nextInt(900000 + 1).toString().padLeft(6, '0');
+    final now = DateTime.now();
+    borrowCode = code;
+    borrowStart = now;
+    borrowEnd = hours == 0
+        ? now.add(const Duration(minutes: 5))
+        : now.add(Duration(hours: hours));
     await prefs?.setString('borrow_code', code);
     await prefs?.setInt('borrow_start', borrowStart!.millisecondsSinceEpoch);
     await prefs?.setInt('borrow_end', borrowEnd!.millisecondsSinceEpoch);
-    // 真实模式：发送 !BORROW 命令到ESP32
+    // 发送 !BORROW 命令到ESP32
     try {
       if (bleGateway.readyForWrite) {
         final reply = await bleGateway.sendAndWait(utf8.encode('!BORROW $code $hours'), expectPrefix: 'OK');
@@ -1631,7 +1513,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         connected = false;
         mode = null;
         timeSynced = false;
-        espTime = null;
         status = '临时借车授权已失效，车辆功能重新锁定';
       });
     }
@@ -2057,7 +1938,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                     }
                   }
                   adminPassword = newCtrl.text.trim();
-                  esp32.changePassword(adminPassword);
                   await prefs?.setString('admin_password', adminPassword);
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('密码修改成功', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
@@ -2161,18 +2041,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           const Text('当前状态', style: TextStyle(color: TKColors.textSecondary, fontSize: 14)),
           const SizedBox(height: 8),
           Text(timeSynced ? '✅ 已同步' : '❌ 未同步', style: TextStyle(color: timeSynced ? TKColors.neonBlue : TKColors.neonOrange, fontSize: 22, fontWeight: FontWeight.bold)),
-          if (espTime != null) Text('同步时间：$espTime', style: const TextStyle(color: TKColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 16),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('模拟同步失败', style: TextStyle(color: TKColors.textSecondary, fontSize: 13)),
-            const SizedBox(width: 8),
-            Switch(value: timeFail, onChanged: (v) { setLocalState(() {}); setState(() => timeFail = v); prefs?.setBool('time_fail', v); }, activeColor: TKColors.neonOrange),
-          ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: TKNeonButton(label: '立即同步', icon: Icons.sync, neonColor: TKColors.neonBlue, onTap: connected ? () async { await syncTime(); setLocalState(() {}); } : null, isEnabled: connected)),
           const SizedBox(height: 16),
           const Text('同步后将自动校准设备时间', style: TextStyle(color: TKColors.textMuted, fontSize: 12)),
-          const Text('开启"模拟同步失败"可测试时间同步失败场景', style: TextStyle(color: TKColors.textMuted, fontSize: 11)),
         ])))),
       ])),
     );
@@ -2282,7 +2154,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 }
               }
               await ble.disconnect();
-              esp32.factoryReset();
               await prefs?.clear();
               ScaffoldMessenger.of(pageCtx).showSnackBar(SnackBar(content: Text('已恢复出厂设置', style: const TextStyle(color: Colors.white)), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
               adminPassword = defaultPassword;

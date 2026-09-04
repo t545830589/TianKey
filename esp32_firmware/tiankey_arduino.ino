@@ -431,7 +431,7 @@ void processCommand(String cmd) {
             tv.tv_sec = epoch;
             tv.tv_usec = 0;
             settimeofday(&tv, NULL);
-            notifyBLE("TIME OK");
+            notifyBLE("OK TIME");
             Serial.printf("时间已同步: %ld\n", epoch);
         } else {
             notifyBLE("ERR TIME_FMT");
