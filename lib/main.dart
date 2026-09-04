@@ -957,8 +957,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     savedRemoteId = device.remoteId;
     await prefs?.setString('ble_remote_id', device.remoteId);
 
-    // 有保存密码 → 自动认证
-    if (authorized && adminPassword.isNotEmpty) {
+    // autoConnect开 + 有保存密码 → 自动认证
+    if (autoConnect && authorized && adminPassword.isNotEmpty) {
       setState(() { status = '正在连接并自动认证...'; });
       try {
         await _connectBle(device, AccessMode.admin, autoConnectVerify: true);
@@ -968,7 +968,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
 
-    // 没有保存密码 → 弹窗
+    // autoConnect关 或 没有保存密码 → 弹窗
     final selected = await showDialog<AccessMode>(
       context: context,
       builder: (context) => _authChoiceDialog(),
@@ -1015,8 +1015,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
     }
 
-    // 有保存密码 → 自动认证
-    if (authorized && adminPassword.isNotEmpty) {
+    // autoConnect开 + 有保存密码 → 自动认证
+    if (autoConnect && authorized && adminPassword.isNotEmpty) {
       setState(() { status = '自动连接中...'; });
       try {
         await _connectBle(target, AccessMode.admin, autoConnectVerify: true);
@@ -1026,7 +1026,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
 
-    // 没有保存密码 → 弹窗让用户选择身份和输入密码
+    // autoConnect关 或 没有保存密码 → 弹窗让用户选择身份和输入密码
     final selected = await showDialog<AccessMode>(
       context: context,
       builder: (context) => _authChoiceDialog(),
