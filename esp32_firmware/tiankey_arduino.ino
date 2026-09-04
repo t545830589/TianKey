@@ -233,12 +233,7 @@ void disconnectAndCleanup() {
     if (deviceConnected && connHandle != 0) {
         pServer->disconnect(connHandle);
     }
-    gpioBusy = false;
-    if (authenticated) {
-        actLock();
-        delay(100);
-        actLock();
-    }
+    // 双锁和状态清理由 onDisconnect() 统一处理
     deviceConnected = false;
     resetAuth();
     safeState = false;
@@ -260,14 +255,22 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 
     void onDisconnect(BLEServer* pServer) {
+        // 断开安全锁：双锁（类似寻车），真实车辆第二次锁车会鸣笛确认
+        if (authenticated) {
+            actLock();
+            delay(100);
+            actLock();
+        }
+        // 清除认证和安全状态
         deviceConnected = false;
         connHandle = 0;
         resetAuth();
         safeState = false;
-        // 断开后立刻重新广播，等待手机回来自动连接
+        gpioBusy = false;
+        // 恢复BLE广播
         delay(500);
         pServer->startAdvertising();
-        Serial.println("已断开，重新广播中...");
+        Serial.println("已断开，安全锁已执行，重新广播中...");
     }
 };
 
@@ -610,15 +613,12 @@ void loop() {
         saveConfig();
     }
 
-    // 断开后重新广播
-    if (!deviceConnected && oldConnected) {
-        delay(500);
-        pServer->startAdvertising();
-        oldConnected = false;
-        Serial.println("已断开，重新广播中...");
-    }
+    // 断开后重新广播 - 由 onDisconnect() 统一处理，此处不再重复
     if (deviceConnected && !oldConnected) {
         oldConnected = true;
+    }
+    if (!deviceConnected && oldConnected) {
+        oldConnected = false;
     }
 
     // 认证超时
