@@ -545,9 +545,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Timer? _heartbeatTimer;
   Timer? _rssiTimer;
   Timer? _scanRssiTimer;
+  Timer? _reconnectRetryTimer;
   StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
   bool _connectCooldown = false;
   bool _userDisconnected = false;
+  bool _factoryResetting = false;
 
   bool ready = false;
   bool scanning = false;
@@ -567,6 +569,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   String? installId;
   String? savedRemoteId;
   bool cpuSleepEnabled = true;
+  bool _cpuSleepAvailable = true;
   String status = '系统待机：车辆功能锁定，请先进行蓝牙扫描';
   bool splashDone = false;
 
@@ -660,6 +663,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _stopHeartbeat();
     _stopRssiPolling();
     _stopScanRssi();
+    _stopReconnectRetry();
     passwordController.dispose();
     unawaited(bleGateway.dispose());
     unawaited(ble.dispose());
@@ -972,14 +976,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         _stopRssiPolling();
         if (mounted) {
           setState(() {
-            connected = false;
-            connecting = false;
-            adminSession = false;
-            timeSynced = false;
-            commandSeconds = 0;
-            vehicleBusy = false;
-            foundDevice = null;
-            status = _userDisconnected ? '已断开' : 'BLE连接意外断开';
+        connected = false;
+        connecting = false;
+        adminSession = false;
+        timeSynced = false;
+        commandSeconds = 0;
+        vehicleBusy = false;
+        foundDevice = null;
+        _cpuSleepAvailable = true;
+        status = _userDisconnected ? '已断开' : 'BLE连接意外断开';
           });
           if (!_userDisconnected && mounted) {
             _logEvent('DISCONNECT', 'BLE连接意外断开（非用户操作）');
@@ -987,9 +992,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               SnackBar(content: const Text('蓝牙连接断开'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)),
             );
           }
-          // 非用户主动断开 + 自动连接开启 → 启动自动重连
-          if (!_userDisconnected && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+          // 非用户主动断开 + 非恢复出厂 + 自动连接开启 → 启动自动重连
+          if (!_userDisconnected && !_factoryResetting && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
             _tryAutoConnect();
+            _startReconnectRetry();
           }
         }
         _userDisconnected = false;
@@ -1165,6 +1171,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       });
       _startHeartbeat();
       _startRssiPolling();
+      _stopReconnectRetry();
       _stopScanRssi();
       _queryCpuSleepState();
       return true;
@@ -1349,6 +1356,21 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _scanRssiTimer = null;
   }
 
+  void _startReconnectRetry() {
+    _reconnectRetryTimer?.cancel();
+    _reconnectRetryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (connected || !autoConnect || !authorized || _autoConnecting || _factoryResetting) return;
+      if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+        _tryAutoConnect();
+      }
+    });
+  }
+
+  void _stopReconnectRetry() {
+    _reconnectRetryTimer?.cancel();
+    _reconnectRetryTimer = null;
+  }
+
   // ==================== HEARTBEAT ====================
   int _heartbeatFailCount = 0;
 
@@ -1388,6 +1410,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         status = '心跳超时（60秒），连接已断开';
       });
       _msg('连接已断开');
+      try { await bleGateway.dispose(); } catch (_) {}
+      try { await ble.disconnect(); } catch (_) {}
     }
   }
 
@@ -1396,11 +1420,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     try {
       final reply = await bleGateway.sendAndWait(utf8.encode('!CPUSLEEP?'), expectPrefix: 'CPUSLEEP');
       if (reply != null && reply.startsWith('CPUSLEEP:')) {
-        final enabled = reply.substring(9) == '1';
-        if (mounted) setState(() {
-          cpuSleepEnabled = enabled;
-        });
-        await prefs?.setBool('cpu_sleep_en', enabled);
+        final payload = reply.substring(9);
+        if (payload == 'FAIL') {
+          if (mounted) setState(() {
+            _cpuSleepAvailable = false;
+          });
+        } else {
+          final enabled = payload == '1';
+          if (mounted) setState(() {
+            cpuSleepEnabled = enabled;
+            _cpuSleepAvailable = true;
+          });
+          await prefs?.setBool('cpu_sleep_en', enabled);
+        }
       }
     } catch (e) {
       debugPrint('queryCpuSleepState error: $e');
@@ -1978,37 +2010,43 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             child: StatefulBuilder(
               builder: (context, setLocalState) => Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TKBigIcon(icon: Icons.battery_saver, color: TKColors.neonBlue, size: 80),
+                  TKBigIcon(icon: Icons.battery_saver, color: _cpuSleepAvailable ? TKColors.neonBlue : TKColors.neonOrange, size: 80),
                   const SizedBox(height: 24),
-                  TKSwitchTile(
-                    title: 'CPU低功耗',
-                    subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
-                    value: cpuSleepEnabled,
-                    onChanged: (v) async {
-                      if (!connected || !bleGateway.readyForWrite) {
-                        _msg('未连接ESP32，无法修改CPU低功耗');
-                        return;
-                      }
-                      final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
-                      try {
-                        final reply = await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
-                        if (reply != null && reply.contains('OK')) {
-                          setState(() {
-                            cpuSleepEnabled = v;
-                          });
-                          await prefs?.setBool('cpu_sleep_en', v);
-                          _logEvent('SETTINGS', 'CPU低功耗${v ? '开启' : '关闭'}');
-                          setLocalState(() {});
-                          _msg('CPU低功耗已${v ? '开启' : '关闭'}');
-                        } else {
-                          _msg('ESP32未确认修改成功');
+                  if (!_cpuSleepAvailable)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text('CPU低功耗不可用', style: TextStyle(color: TKColors.neonOrange, fontSize: 16)),
+                    )
+                  else
+                    TKSwitchTile(
+                      title: 'CPU低功耗',
+                      subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
+                      value: cpuSleepEnabled,
+                      onChanged: (v) async {
+                        if (!connected || !bleGateway.readyForWrite) {
+                          _msg('未连接ESP32，无法修改CPU低功耗');
+                          return;
                         }
-                      } catch (e) {
-                        _msg('修改CPU低功耗失败');
-                      }
-                    },
-                    leadingIcon: Icons.battery_saver,
-                  ),
+                        final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
+                        try {
+                          final reply = await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
+                          if (reply != null && reply.contains('OK')) {
+                            setState(() {
+                              cpuSleepEnabled = v;
+                            });
+                            await prefs?.setBool('cpu_sleep_en', v);
+                            _logEvent('SETTINGS', 'CPU低功耗${v ? '开启' : '关闭'}');
+                            setLocalState(() {});
+                            _msg('CPU低功耗已${v ? '开启' : '关闭'}');
+                          } else {
+                            _msg('ESP32未确认修改成功');
+                          }
+                        } catch (e) {
+                          _msg('修改CPU低功耗失败');
+                        }
+                      },
+                      leadingIcon: Icons.battery_saver,
+                    ),
                 ]),
               ),
             ),
@@ -2073,6 +2111,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         ),
                       );
                       if (ok == true) {
+                        _factoryResetting = true;
                         bool espResetConfirmed = false;
                         try {
                           final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
@@ -2084,6 +2123,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           // ESP32重启导致BLE断开是正常的，但不能因此认为成功
                         }
                         if (!espResetConfirmed) {
+                          _factoryResetting = false;
                           ScaffoldMessenger.of(pageCtx).showSnackBar(
                             SnackBar(content: const Text('ESP32恢复出厂失败，未收到确认'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)),
                           );
@@ -2092,6 +2132,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         // 收到OK RESET后，等待ESP32重启
                         await Future.delayed(const Duration(milliseconds: 500));
                         try { await ble.disconnect(); } catch (_) {}
+                        _factoryResetting = false;
                         await prefs?.clear();
                         ScaffoldMessenger.of(pageCtx).showSnackBar(
                           SnackBar(content: const Text('已恢复出厂设置'), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)),
@@ -2223,7 +2264,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                     TKSettingTile(
                       title: 'CPU低功耗',
                       leadingIcon: Icons.battery_saver,
-                      trailingText: cpuSleepEnabled ? '已开启' : '已关闭',
+                      trailingText: !_cpuSleepAvailable ? '不可用' : (cpuSleepEnabled ? '已开启' : '已关闭'),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => Builder(builder: (_) => _cpuSleepPage(ctx)))),
                     ),
                     TKSettingTile(

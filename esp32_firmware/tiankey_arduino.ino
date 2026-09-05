@@ -98,6 +98,9 @@ enum VehicleAction {
     ACTION_FINDCAR_STEP1,    // first pulse 200ms
     ACTION_FINDCAR_GAP,      // gap 100ms
     ACTION_FINDCAR_STEP2,    // second pulse 200ms
+    ACTION_DISCONNECT_LOCK1, // disconnect double-lock: first 200ms
+    ACTION_DISCONNECT_GAP,   // disconnect double-lock: 500ms gap
+    ACTION_DISCONNECT_LOCK2, // disconnect double-lock: second 200ms
 };
 
 VehicleAction currentAction = ACTION_NONE;
@@ -642,6 +645,34 @@ void updateVehicleAction() {
             }
             break;
 
+        // ===== Disconnect double-lock state machine =====
+        case ACTION_DISCONNECT_LOCK1:
+            if (elapsed >= LOCK_PULSE_MS) {
+                digitalWrite(PIN_LOCK, HIGH);
+                currentAction = ACTION_DISCONNECT_GAP;
+                actionStartTime = millis();
+                Serial.println("[DISC] Double-lock gap");
+            }
+            break;
+
+        case ACTION_DISCONNECT_GAP:
+            if (elapsed >= DISCONNECT_LOCK_DELAY) {
+                digitalWrite(PIN_LOCK, LOW);
+                currentAction = ACTION_DISCONNECT_LOCK2;
+                actionStartTime = millis();
+                Serial.println("[DISC] Double-lock pulse2");
+            }
+            break;
+
+        case ACTION_DISCONNECT_LOCK2:
+            if (elapsed >= LOCK_PULSE_MS) {
+                digitalWrite(PIN_LOCK, HIGH);
+                currentAction = ACTION_NONE;
+                vehicleBusy = false;
+                Serial.println("[DISC] Double-lock complete");
+            }
+            break;
+
         default:
             currentAction = ACTION_NONE;
             vehicleBusy = false;
@@ -667,16 +698,12 @@ void handleDisconnect() {
     // Release all vehicle GPIOs first
     releaseAllPins();
 
-    // Double-lock if authenticated
+    // Double-lock if authenticated — non-blocking, handled by state machine
     if (wasAuthenticated) {
         Serial.println("[DISC] Auto double-lock engaged");
+        currentAction = ACTION_DISCONNECT_LOCK1;
+        actionStartTime = millis();
+        vehicleBusy = true;
         digitalWrite(PIN_LOCK, LOW);
-        delay(LOCK_PULSE_MS);
-        digitalWrite(PIN_LOCK, HIGH);
-        delay(DISCONNECT_LOCK_DELAY);
-        digitalWrite(PIN_LOCK, LOW);
-        delay(LOCK_PULSE_MS);
-        digitalWrite(PIN_LOCK, HIGH);
-        Serial.println("[DISC] Double-lock complete");
     }
 }
