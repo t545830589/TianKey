@@ -1,7 +1,15 @@
 /*
- * TianKey ESP32 BLE Car Key Firmware v2.0
+ * TianKey ESP32 BLE Car Key Firmware v3.0
  * Mazda Axela - BLE NUS Car Key System
  * Single Admin Mode with Auto-Auth
+ *
+ * GPIO Mapping (from old boot.py):
+ *   Lock:      GPIO14, LOW 200ms
+ *   Unlock:    GPIO33, LOW 200ms
+ *   Trunk:     GPIO4,  LOW 4000ms
+ *   WindowUp:  GPIO14, LOW 4000ms (same pin as Lock)
+ *   WindowDown:GPIO33, LOW 4000ms (same pin as Unlock)
+ *   FindCar:   GPIO14, two lock pulses (200ms LOW, 100ms gap, 200ms LOW)
  */
 
 #include <BLEDevice.h>
@@ -13,12 +21,12 @@
 #include <esp_sleep.h>
 
 // ==================== PIN CONFIGURATION ====================
-#define PIN_LOCK        25
-#define PIN_UNLOCK      26
-#define PIN_FINDCAR     27
-#define PIN_WINDOW_UP   14
-#define PIN_WINDOW_DOWN 33
-#define PIN_TRUNK       2
+// From old boot.py: Lock=14, Unlock=33, Trunk=4
+// WindowUp uses same pin as Lock (GPIO14)
+// WindowDown uses same pin as Unlock (GPIO33)
+#define PIN_LOCK        14
+#define PIN_UNLOCK      33
+#define PIN_TRUNK       4
 
 // ==================== BLE NUS UUIDs ====================
 #define SERVICE_UUID        "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -26,18 +34,20 @@
 #define RX_CHAR_UUID        "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 
 // ==================== CONSTANTS ====================
-#define FIRMWARE_VERSION    "2.0"
+#define FIRMWARE_VERSION    "3.0"
 #define DEVICE_NAME_DEFAULT "TianKey"
 #define ADMIN_PWD_DEFAULT   "123456"
 #define INVALID_CONN_HANDLE 0xFFFF
 
-#define PULSE_DURATION_MS   150
-#define FINDCAR_HOLD_MS     500
-#define FINDCAR_OFF_MS      500
-#define HEARTBEAT_INTERVAL  10000
+// Action timing (from old boot.py)
+#define LOCK_PULSE_MS       200
+#define TRUNK_HOLD_MS       4000
+#define WINDOW_HOLD_MS      4000
+#define FINDCAR_PULSE_MS    200
+#define FINDCAR_GAP_MS      100
+
 #define HEARTBEAT_TIMEOUT   60000
 #define DISCONNECT_LOCK_DELAY 500
-#define WINDOW_HOLD_MS      5000
 
 // ==================== NVS KEYS ====================
 #define NVS_NAMESPACE       "tiankey"
@@ -45,10 +55,6 @@
 #define NVS_DEVICE_NAME     "dev_name"
 #define NVS_SAVED_TIME      "saved_time"
 #define NVS_CPU_SLEEP       "cpu_sleep"
-#define NVS_CONN_COUNT      "conn_cnt"
-#define NVS_LOCK_COUNT      "lock_cnt"
-#define NVS_UNLOCK_COUNT    "unlock_cnt"
-#define NVS_FINDCAR_COUNT   "findcar_cnt"
 #define NVS_FIRST_AUTH_PWD  "first_auth"
 
 // Old keys to clean
@@ -72,34 +78,37 @@ uint32_t savedTime = 0;
 bool cpuSleepEnabled = true;
 String firstAuthPwd = "";
 
-uint32_t connCount = 0;
-uint32_t lockCount = 0;
-uint32_t unlockCount = 0;
-uint32_t findcarCount = 0;
-
 unsigned long lastHeartbeat = 0;
 
-unsigned long commandStartTime = 0;
-bool commandActive = false;
-int activeCommandPin = -1;
+// ==================== VEHICLE ACTION STATE MACHINE ====================
+// Non-blocking: tracks which pin is active and when to release it
+enum VehicleAction {
+    ACTION_NONE,
+    ACTION_LOCK_PULSE,       // 200ms pulse
+    ACTION_UNLOCK_PULSE,     // 200ms pulse
+    ACTION_TRUNK_HOLD,       // 4000ms hold
+    ACTION_FINDCAR_STEP1,    // first pulse 200ms
+    ACTION_FINDCAR_GAP,      // gap 100ms
+    ACTION_FINDCAR_STEP2,    // second pulse 200ms
+};
+
+VehicleAction currentAction = ACTION_NONE;
+unsigned long actionStartTime = 0;
+bool vehicleBusy = false;  // prevent concurrent GPIO actions
 
 // ==================== FUNCTION DECLARATIONS ====================
 void loadConfig();
-void saveConfig();
 void cleanOldNvsKeys();
 void setupPins();
 void setupBLE();
 void processCommand(String cmd);
 void sendResponse(String msg);
-void pulsePin(int pin, int duration);
-void executeFindCar();
-void executeLock();
-void executeUnlock();
-void executeTrunk();
 void factoryReset();
 uint32_t getUnixTime();
-void enterLightSleep();
 void handleDisconnect();
+void releaseAllPins();
+void startVehicleAction(VehicleAction action);
+void updateVehicleAction();
 
 // ==================== BLE CALLBACKS ====================
 class ServerCallbacks : public BLEServerCallbacks {
@@ -108,10 +117,6 @@ class ServerCallbacks : public BLEServerCallbacks {
         deviceConnected = true;
         wasAuthenticated = false;
         lastHeartbeat = millis();
-        connCount++;
-        prefs.begin(NVS_NAMESPACE, false);
-        prefs.putUInt(NVS_CONN_COUNT, connCount);
-        prefs.end();
         Serial.printf("[BLE] Connected, handle=%d\n", connHandle);
     }
 
@@ -121,8 +126,6 @@ class ServerCallbacks : public BLEServerCallbacks {
         connHandle = INVALID_CONN_HANDLE;
         deviceConnected = false;
         wasAuthenticated = false;
-        commandActive = false;
-        activeCommandPin = -1;
         pServer->startAdvertising();
         Serial.println("[BLE] Advertising restarted");
     }
@@ -146,7 +149,7 @@ RxCallbacks rxCallbacks;
 // ==================== SETUP ====================
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n=== TianKey v2.0 Starting ===");
+    Serial.println("\n=== TianKey v3.0 Starting ===");
 
     loadConfig();
     setupPins();
@@ -161,13 +164,8 @@ void setup() {
 void loop() {
     unsigned long now = millis();
 
-    // Handle active vehicle command timeout (safety)
-    if (commandActive && (now - commandStartTime > WINDOW_HOLD_MS)) {
-        digitalWrite(activeCommandPin, HIGH);
-        commandActive = false;
-        activeCommandPin = -1;
-        Serial.println("[CMD] Command timeout - pin released");
-    }
+    // Update vehicle action state machine (non-blocking)
+    updateVehicleAction();
 
     // Heartbeat check - phone sends !HEARTBEAT every 10s
     // If no heartbeat received within 60s, disconnect
@@ -178,11 +176,14 @@ void loop() {
         }
     }
 
-    // CPU sleep
-    if (cpuSleepEnabled && deviceConnected) {
-        enterLightSleep();
+    // CPU sleep - works in both connected and advertising states
+    // BLE stack keeps running during light sleep
+    if (cpuSleepEnabled && !vehicleBusy) {
+        // Light sleep for 10ms, BLE stack continues
+        esp_sleep_enable_timer_wakeup(10000);  // 10ms
+        esp_light_sleep_start();
     } else {
-        delay(10);
+        delay(1);
     }
 }
 
@@ -200,30 +201,11 @@ void loadConfig() {
     cpuSleepEnabled = prefs.getBool(NVS_CPU_SLEEP, true);
     firstAuthPwd = prefs.getString(NVS_FIRST_AUTH_PWD, "");
 
-    connCount = prefs.getUInt(NVS_CONN_COUNT, 0);
-    lockCount = prefs.getUInt(NVS_LOCK_COUNT, 0);
-    unlockCount = prefs.getUInt(NVS_UNLOCK_COUNT, 0);
-    findcarCount = prefs.getUInt(NVS_FINDCAR_COUNT, 0);
-
     prefs.end();
 
     cleanOldNvsKeys();
 
     Serial.println("[NVS] Config loaded");
-}
-
-void saveConfig() {
-    prefs.begin(NVS_NAMESPACE, false);
-    prefs.putString(NVS_ADMIN_PWD, adminPassword);
-    prefs.putString(NVS_DEVICE_NAME, deviceName);
-    prefs.putUInt(NVS_SAVED_TIME, savedTime);
-    prefs.putBool(NVS_CPU_SLEEP, cpuSleepEnabled);
-    prefs.putString(NVS_FIRST_AUTH_PWD, firstAuthPwd);
-    prefs.putUInt(NVS_CONN_COUNT, connCount);
-    prefs.putUInt(NVS_LOCK_COUNT, lockCount);
-    prefs.putUInt(NVS_UNLOCK_COUNT, unlockCount);
-    prefs.putUInt(NVS_FINDCAR_COUNT, findcarCount);
-    prefs.end();
 }
 
 void cleanOldNvsKeys() {
@@ -239,16 +221,10 @@ void cleanOldNvsKeys() {
 void setupPins() {
     pinMode(PIN_LOCK, OUTPUT);
     pinMode(PIN_UNLOCK, OUTPUT);
-    pinMode(PIN_FINDCAR, OUTPUT);
-    pinMode(PIN_WINDOW_UP, OUTPUT);
-    pinMode(PIN_WINDOW_DOWN, OUTPUT);
     pinMode(PIN_TRUNK, OUTPUT);
 
     digitalWrite(PIN_LOCK, HIGH);
     digitalWrite(PIN_UNLOCK, HIGH);
-    digitalWrite(PIN_FINDCAR, HIGH);
-    digitalWrite(PIN_WINDOW_UP, HIGH);
-    digitalWrite(PIN_WINDOW_DOWN, HIGH);
     digitalWrite(PIN_TRUNK, HIGH);
 
     Serial.println("[GPIO] All pins initialized HIGH (inactive)");
@@ -258,6 +234,7 @@ void setupPins() {
 void setupBLE() {
     BLEDevice::init(deviceName.c_str());
 
+    // Maximum TX power P9
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_P9);
@@ -332,7 +309,6 @@ void processCommand(String cmd) {
 
         if (pwd == adminPassword) {
             wasAuthenticated = true;
-            // 校准：savedTime = 期望时间 - 已运行时间，使 getUnixTime() 返回正确时间
             savedTime = timestamp - (millis() / 1000);
 
             if (firstAuthPwd.length() == 0) {
@@ -358,53 +334,66 @@ void processCommand(String cmd) {
         return;
     }
 
-    // ===== TIME =====
-    if (command == "TIME") {
-        sendResponse("OK TIME " + String(getUnixTime()));
-        return;
-    }
-
     // ===== LOCK =====
     if (command == "LOCK") {
-        executeLock();
+        if (vehicleBusy) { sendResponse("BUSY"); return; }
+        startVehicleAction(ACTION_LOCK_PULSE);
+        Serial.println("[CMD] Lock");
         return;
     }
 
     // ===== UNLOCK =====
     if (command == "UNLOCK") {
-        executeUnlock();
+        if (vehicleBusy) { sendResponse("BUSY"); return; }
+        startVehicleAction(ACTION_UNLOCK_PULSE);
+        Serial.println("[CMD] Unlock");
         return;
     }
 
     // ===== FINDCAR =====
     if (command == "FINDCAR") {
-        executeFindCar();
+        if (vehicleBusy) { sendResponse("BUSY"); return; }
+        startVehicleAction(ACTION_FINDCAR_STEP1);
+        Serial.println("[CMD] FindCar");
         return;
     }
 
-    // ===== WINDOWUP =====
+    // ===== WINDOWUP (uses same pin as LOCK: GPIO14, 4000ms hold) =====
     if (command == "WINDOWUP") {
-        digitalWrite(PIN_WINDOW_UP, LOW);
-        commandActive = true;
-        activeCommandPin = PIN_WINDOW_UP;
-        commandStartTime = millis();
-        Serial.println("[CMD] Window Up");
+        if (vehicleBusy) { sendResponse("BUSY"); return; }
+        releaseAllPins();
+        currentAction = ACTION_TRUNK_HOLD;
+        actionStartTime = millis();
+        digitalWrite(PIN_LOCK, LOW);
+        vehicleBusy = true;
+        windowHoldPin = PIN_LOCK;
+        Serial.println("[CMD] Window Up (GPIO14 LOW 4s)");
         return;
     }
 
-    // ===== WINDOWDOWN =====
+    // ===== WINDOWDOWN (uses same pin as UNLOCK: GPIO33, 4000ms hold) =====
     if (command == "WINDOWDOWN") {
-        digitalWrite(PIN_WINDOW_DOWN, LOW);
-        commandActive = true;
-        activeCommandPin = PIN_WINDOW_DOWN;
-        commandStartTime = millis();
-        Serial.println("[CMD] Window Down");
+        if (vehicleBusy) { sendResponse("BUSY"); return; }
+        releaseAllPins();
+        currentAction = ACTION_TRUNK_HOLD;
+        actionStartTime = millis();
+        digitalWrite(PIN_UNLOCK, LOW);
+        vehicleBusy = true;
+        windowHoldPin = PIN_UNLOCK;
+        Serial.println("[CMD] Window Down (GPIO33 LOW 4s)");
         return;
     }
 
     // ===== TRUNK =====
     if (command == "TRUNK") {
-        executeTrunk();
+        if (vehicleBusy) { sendResponse("BUSY"); return; }
+        releaseAllPins();
+        currentAction = ACTION_TRUNK_HOLD;
+        actionStartTime = millis();
+        digitalWrite(PIN_TRUNK, LOW);
+        vehicleBusy = true;
+        windowHoldPin = -1;  // trunk, not window
+        Serial.println("[CMD] Trunk (GPIO4 LOW 4s)");
         return;
     }
 
@@ -414,17 +403,7 @@ void processCommand(String cmd) {
         return;
     }
 
-    // ===== RSSI? (no response) =====
-    if (command == "RSSI?") {
-        return;
-    }
-
-    // ===== SNR? (no response) =====
-    if (command == "SNR?") {
-        return;
-    }
-
-    // ===== NAME (set/query) =====
+    // ===== NAME (set and restart to apply) =====
     if (command == "NAME") {
         if (args.length() == 0) {
             sendResponse("OK NAME " + deviceName);
@@ -438,48 +417,10 @@ void processCommand(String cmd) {
             prefs.putString(NVS_DEVICE_NAME, deviceName);
             prefs.end();
             sendResponse("OK NAME " + deviceName);
-            Serial.printf("[NAME] Changed to: %s\n", deviceName.c_str());
+            Serial.printf("[NAME] Changed to: %s, restarting...\n", deviceName.c_str());
+            delay(200);
+            ESP.restart();
         }
-        return;
-    }
-
-    // ===== NAME? (query) =====
-    if (command == "NAME?") {
-        sendResponse("OK NAME " + deviceName);
-        return;
-    }
-
-    // ===== STAT (no response) =====
-    if (command == "STAT") {
-        return;
-    }
-
-    // ===== STAT? (query) =====
-    if (command == "STAT?") {
-        String resp = "OK STAT conn=" + String(connCount)
-                    + " lock=" + String(lockCount)
-                    + " unlock=" + String(unlockCount)
-                    + " findcar=" + String(findcarCount);
-        sendResponse(resp);
-        return;
-    }
-
-    // ===== PING (no response) =====
-    if (command == "PING") {
-        return;
-    }
-
-    // ===== MAC? =====
-    if (command == "MAC?") {
-        String mac = BLEDevice::getAddress().toString().c_str();
-        mac.toLowerCase();
-        sendResponse("OK MAC " + mac);
-        return;
-    }
-
-    // ===== VER? =====
-    if (command == "VER?") {
-        sendResponse("OK VER " + String(FIRMWARE_VERSION));
         return;
     }
 
@@ -536,12 +477,6 @@ void processCommand(String cmd) {
         return;
     }
 
-    // ===== UNLOCKED? =====
-    if (command == "UNLOCKED?") {
-        sendResponse("OK UNLOCKED 0");
-        return;
-    }
-
     // ===== RESET =====
     if (command == "RESET") {
         factoryReset();
@@ -561,50 +496,119 @@ void sendResponse(String msg) {
     Serial.printf("[TX] %s\n", msg.c_str());
 }
 
-// ==================== VEHICLE COMMANDS ====================
-void pulsePin(int pin, int duration) {
-    digitalWrite(pin, LOW);
-    delay(duration);
-    digitalWrite(pin, HIGH);
+// ==================== VEHICLE ACTION STATE MACHINE ====================
+// Tracks which pin we're using for window hold
+static int windowHoldPin = -1;
+
+void releaseAllPins() {
+    digitalWrite(PIN_LOCK, HIGH);
+    digitalWrite(PIN_UNLOCK, HIGH);
+    digitalWrite(PIN_TRUNK, HIGH);
+    currentAction = ACTION_NONE;
+    vehicleBusy = false;
+    windowHoldPin = -1;
+    Serial.println("[GPIO] All pins released HIGH");
 }
 
-void executeLock() {
-    pulsePin(PIN_LOCK, PULSE_DURATION_MS);
-    lockCount++;
-    prefs.begin(NVS_NAMESPACE, false);
-    prefs.putUInt(NVS_LOCK_COUNT, lockCount);
-    prefs.end();
-    Serial.println("[CMD] Lock pulse");
+void startVehicleAction(VehicleAction action) {
+    releaseAllPins();  // Ensure previous action is fully released
+    currentAction = action;
+    actionStartTime = millis();
+    vehicleBusy = true;
+
+    switch (action) {
+        case ACTION_LOCK_PULSE:
+            digitalWrite(PIN_LOCK, LOW);
+            break;
+        case ACTION_UNLOCK_PULSE:
+            digitalWrite(PIN_UNLOCK, LOW);
+            break;
+        case ACTION_TRUNK_HOLD:
+            digitalWrite(PIN_TRUNK, LOW);
+            break;
+        case ACTION_FINDCAR_STEP1:
+            digitalWrite(PIN_LOCK, LOW);
+            break;
+        default:
+            break;
+    }
 }
 
-void executeUnlock() {
-    pulsePin(PIN_UNLOCK, PULSE_DURATION_MS);
-    unlockCount++;
-    prefs.begin(NVS_NAMESPACE, false);
-    prefs.putUInt(NVS_UNLOCK_COUNT, unlockCount);
-    prefs.end();
-    Serial.println("[CMD] Unlock pulse");
-}
+void updateVehicleAction() {
+    if (!vehicleBusy || currentAction == ACTION_NONE) return;
 
-void executeFindCar() {
-    digitalWrite(PIN_FINDCAR, LOW);
-    delay(FINDCAR_HOLD_MS);
-    digitalWrite(PIN_FINDCAR, HIGH);
-    delay(FINDCAR_OFF_MS);
-    digitalWrite(PIN_FINDCAR, LOW);
-    delay(FINDCAR_HOLD_MS);
-    digitalWrite(PIN_FINDCAR, HIGH);
+    unsigned long elapsed = millis() - actionStartTime;
 
-    findcarCount++;
-    prefs.begin(NVS_NAMESPACE, false);
-    prefs.putUInt(NVS_FINDCAR_COUNT, findcarCount);
-    prefs.end();
-    Serial.println("[CMD] FindCar executed");
-}
+    switch (currentAction) {
+        case ACTION_LOCK_PULSE:
+            if (elapsed >= LOCK_PULSE_MS) {
+                digitalWrite(PIN_LOCK, HIGH);
+                currentAction = ACTION_NONE;
+                vehicleBusy = false;
+                Serial.println("[GPIO] Lock pulse complete");
+            }
+            break;
 
-void executeTrunk() {
-    pulsePin(PIN_TRUNK, PULSE_DURATION_MS);
-    Serial.println("[CMD] Trunk pulse");
+        case ACTION_UNLOCK_PULSE:
+            if (elapsed >= LOCK_PULSE_MS) {
+                digitalWrite(PIN_UNLOCK, HIGH);
+                currentAction = ACTION_NONE;
+                vehicleBusy = false;
+                Serial.println("[GPIO] Unlock pulse complete");
+            }
+            break;
+
+        case ACTION_TRUNK_HOLD:
+            if (elapsed >= TRUNK_HOLD_MS) {
+                // Check which pin is active
+                if (windowHoldPin == PIN_LOCK) {
+                    digitalWrite(PIN_LOCK, HIGH);
+                    Serial.println("[GPIO] Window Up complete");
+                } else if (windowHoldPin == PIN_UNLOCK) {
+                    digitalWrite(PIN_UNLOCK, HIGH);
+                    Serial.println("[GPIO] Window Down complete");
+                } else {
+                    digitalWrite(PIN_TRUNK, HIGH);
+                    Serial.println("[GPIO] Trunk hold complete");
+                }
+                currentAction = ACTION_NONE;
+                vehicleBusy = false;
+                windowHoldPin = -1;
+            }
+            break;
+
+        case ACTION_FINDCAR_STEP1:
+            if (elapsed >= FINDCAR_PULSE_MS) {
+                digitalWrite(PIN_LOCK, HIGH);
+                currentAction = ACTION_FINDCAR_GAP;
+                actionStartTime = millis();
+                Serial.println("[GPIO] FindCar gap");
+            }
+            break;
+
+        case ACTION_FINDCAR_GAP:
+            if (elapsed >= FINDCAR_GAP_MS) {
+                digitalWrite(PIN_LOCK, LOW);
+                currentAction = ACTION_FINDCAR_STEP2;
+                actionStartTime = millis();
+                Serial.println("[GPIO] FindCar step2");
+            }
+            break;
+
+        case ACTION_FINDCAR_STEP2:
+            if (elapsed >= FINDCAR_PULSE_MS) {
+                digitalWrite(PIN_LOCK, HIGH);
+                currentAction = ACTION_NONE;
+                vehicleBusy = false;
+                Serial.println("[GPIO] FindCar complete");
+            }
+            break;
+
+        default:
+            currentAction = ACTION_NONE;
+            vehicleBusy = false;
+            break;
+    }
 }
 
 // ==================== FACTORY RESET ====================
@@ -625,32 +629,21 @@ uint32_t getUnixTime() {
     return (uint32_t)(millis() / 1000) + savedTime;
 }
 
-// ==================== CPU SLEEP ====================
-esp_pm_lock_handle_t pmLock = NULL;
-
-void enterLightSleep() {
-    if (pmLock == NULL) {
-        esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "nls_lock", &pmLock);
-    }
-    esp_pm_lock_acquire(pmLock);
-    esp_sleep_enable_timer_wakeup(10000);
-    esp_light_sleep_start();
-    esp_pm_lock_release(pmLock);
-}
-
 // ==================== DISCONNECT HANDLER ====================
 void handleDisconnect() {
-    if (commandActive && activeCommandPin >= 0) {
-        digitalWrite(activeCommandPin, HIGH);
-        commandActive = false;
-        activeCommandPin = -1;
-    }
+    // Release all vehicle GPIOs first
+    releaseAllPins();
 
+    // Double-lock if authenticated
     if (wasAuthenticated) {
         Serial.println("[DISC] Auto double-lock engaged");
-        pulsePin(PIN_LOCK, PULSE_DURATION_MS);
+        digitalWrite(PIN_LOCK, LOW);
+        delay(LOCK_PULSE_MS);
+        digitalWrite(PIN_LOCK, HIGH);
         delay(DISCONNECT_LOCK_DELAY);
-        pulsePin(PIN_LOCK, PULSE_DURATION_MS);
+        digitalWrite(PIN_LOCK, LOW);
+        delay(LOCK_PULSE_MS);
+        digitalWrite(PIN_LOCK, HIGH);
         Serial.println("[DISC] Double-lock complete");
     }
 }

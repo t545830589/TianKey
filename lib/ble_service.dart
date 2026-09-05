@@ -4,11 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class BleScanItem {
-  const BleScanItem({this.device, required this.name, required this.remoteId});
+  const BleScanItem({this.device, required this.name, required this.remoteId, this.rssi = 0});
 
   final BluetoothDevice? device;
   final String name;
   final String remoteId;
+  final int rssi;
 }
 
 class TianKeyBleService {
@@ -22,6 +23,7 @@ class TianKeyBleService {
 
   bool get isConnected => device?.isConnected ?? false;
   String? get connectedRemoteId => device?.remoteId.str;
+  BluetoothDevice? get connectedDevice => device;
   List<BleScanItem> get foundDevices => _found.values.toList(growable: false);
   List<BluetoothService> get discoveredServices => List<BluetoothService>.unmodifiable(_services);
 
@@ -64,6 +66,7 @@ class TianKeyBleService {
           device: result.device,
           name: name.isEmpty ? '未命名 BLE 设备' : name,
           remoteId: result.device.remoteId.str,
+          rssi: result.rssi,
         );
       }
     });
