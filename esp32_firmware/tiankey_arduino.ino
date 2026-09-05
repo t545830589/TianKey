@@ -80,6 +80,14 @@ String firstAuthPwd = "";
 
 unsigned long lastHeartbeat = 0;
 
+// ==================== POWER MANAGEMENT ====================
+// ESP32 Automatic Light Sleep + BLE Modem Sleep
+// PM lock held = CPU stays awake (connected / vehicle busy)
+// PM lock released = idle task can put CPU into automatic light sleep
+// BLE modem sleep is handled by the BLE stack independently
+esp_pm_lock_t *cpuPmLock = NULL;
+bool pmLockHeld = false;  // Track current PM lock state to avoid repeated acquire/release
+
 // ==================== VEHICLE ACTION STATE MACHINE ====================
 // Non-blocking: tracks which pin is active and when to release it
 enum VehicleAction {
@@ -119,6 +127,11 @@ class ServerCallbacks : public BLEServerCallbacks {
         deviceConnected = true;
         wasAuthenticated = false;
         lastHeartbeat = millis();
+        // Immediately acquire PM lock — CPU stays awake for command processing
+        if (cpuPmLock != NULL && !pmLockHeld) {
+            esp_pm_lock_acquire(cpuPmLock, ESP_PM_CPU_FREQ_MAX);
+            pmLockHeld = true;
+        }
         Serial.printf("[BLE] Connected, handle=%d\n", connHandle);
     }
 
@@ -128,6 +141,7 @@ class ServerCallbacks : public BLEServerCallbacks {
         connHandle = INVALID_CONN_HANDLE;
         deviceConnected = false;
         wasAuthenticated = false;
+        // PM lock will be released by main loop if cpuSleepEnabled && !vehicleBusy
         pServer->startAdvertising();
         Serial.println("[BLE] Advertising restarted");
     }
@@ -159,6 +173,30 @@ void setup() {
 
     Serial.printf("Name: %s\n", deviceName.c_str());
     Serial.printf("CPU Sleep: %s\n", cpuSleepEnabled ? "ON" : "OFF");
+
+    // ===== Power Management Configuration =====
+    // Configure ESP32 automatic light sleep via PM (Power Management)
+    // When CONFIG_PM_ENABLE is set in sdkconfig (Arduino ESP32 default):
+    //   - FreeRTOS idle task calls esp_light_sleep_start() automatically
+    //   - BLE modem sleep is handled by the BLE stack (radio sleeps between events)
+    //   - CPU enters light sleep when no PM lock is held and idle task runs
+    //   - CPU wakes on: BLE event, timer, GPIO, or any interrupt
+    esp_pm_config_esp32_t pmConfig;
+    pmConfig.max_freq_mhz = 240;
+    pmConfig.min_freq_mhz = 80;    // 80MHz minimum (BLE requires ≥80MHz)
+    pmConfig.light_sleep_enable = true;  // Enable automatic light sleep
+    esp_err_t pmResult = esp_pm_configure(&pmConfig);
+    Serial.printf("[PM] esp_pm_configure: %s\n", pmResult == ESP_OK ? "OK" : "FAIL");
+
+    // Create PM lock — held when connected or vehicle busy to prevent sleep
+    pmResult = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "tiankey", &cpuPmLock);
+    Serial.printf("[PM] Lock create: %s\n", pmResult == ESP_OK ? "OK" : "FAIL");
+
+    // Configure timer wakeup source for light sleep (fallback / idle wake)
+    // When BLE is not active, this ensures CPU wakes periodically to check state
+    // The timer only fires when CPU is actually in light sleep (idle task)
+    esp_sleep_enable_timer_wakeup(1000000);  // 1 second max idle interval
+
     Serial.println("=== Setup Complete ===\n");
 }
 
@@ -177,15 +215,29 @@ void loop() {
         }
     }
 
-    // CPU low power logic:
-    // - Connected: normal running, no forced sleep
-    // - Vehicle busy: no sleep, GPIO timing must not be delayed
-    // - Not connected + not busy: light sleep 500ms (BLE advertising keeps running)
-    if (!deviceConnected && cpuSleepEnabled && !vehicleBusy) {
-        esp_sleep_enable_timer_wakeup(500000);  // 500ms max
-        esp_light_sleep_start();
-    } else {
-        delay(1);
+    // ===== CPU low power via PM lock mechanism =====
+    // PM lock held   → CPU runs at max freq, no sleep
+    // PM lock released → idle task puts CPU into automatic light sleep
+    //   BLE modem sleep handles radio power independently
+    //   CPU wakes on: BLE advertising event, BLE connection event, timer, or GPIO
+    //
+    // States:
+    //   Connected           → lock held  → CPU awake, handles commands
+    //   Vehicle busy        → lock held  → CPU awake, GPIO timing not interrupted
+    //   Not connected + idle → lock released → automatic light sleep, BLE advertising continues
+    bool shouldHoldLock = deviceConnected || vehicleBusy || !cpuSleepEnabled;
+    if (shouldHoldLock && !pmLockHeld) {
+        // State changed to active → acquire PM lock
+        if (cpuPmLock != NULL) {
+            esp_pm_lock_acquire(cpuPmLock, ESP_PM_CPU_FREQ_MAX);
+            pmLockHeld = true;
+        }
+    } else if (!shouldHoldLock && pmLockHeld) {
+        // State changed to idle → release PM lock
+        if (cpuPmLock != NULL) {
+            esp_pm_lock_release(cpuPmLock);
+            pmLockHeld = false;
+        }
     }
 }
 
@@ -458,8 +510,14 @@ void processCommand(String cmd) {
     if (command == "CPUSLEEP") {
         if (args == "0") {
             cpuSleepEnabled = false;
+            // Immediately acquire PM lock to prevent sleep
+            if (cpuPmLock != NULL && !pmLockHeld) {
+                esp_pm_lock_acquire(cpuPmLock, ESP_PM_CPU_FREQ_MAX);
+                pmLockHeld = true;
+            }
         } else if (args == "1") {
             cpuSleepEnabled = true;
+            // PM lock will be released by main loop if not connected/busy
         } else {
             sendResponse("ERR");
             return;
