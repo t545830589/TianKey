@@ -1048,7 +1048,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
       }
 
-      if (!mounted) return;
+      if (!mounted) return false;
 
       await prefs?.setString('ble_remote_id', target.remoteId);
       savedRemoteId = target.remoteId;
