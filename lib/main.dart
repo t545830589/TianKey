@@ -801,13 +801,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       );
       final ok = await _connectBle(target, autoAuth: true);
       if (ok) return;
-      // 直接连接失败，扫描匹配保存的设备
+      // 直接连接失败，检查autoConnect是否仍开启再扫描
+      if (!autoConnect) return;
       if (mounted && !connected) {
         setState(() => status = '自动扫描匹配中...');
         final devices = await ble.scan(timeout: const Duration(seconds: 6));
-        if (!mounted) return;
+        if (!mounted || !autoConnect) return;
         final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
-        if (match.isNotEmpty) {
+        if (match.isNotEmpty && autoConnect) {
           await _connectBle(match.first, autoAuth: true);
         } else {
           setState(() => status = '自动重连失败，未找到保存的设备');
@@ -985,6 +986,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: const Text('蓝牙连接断开'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)),
             );
+          }
+          // 非用户主动断开 + 自动连接开启 → 启动自动重连
+          if (!_userDisconnected && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+            _tryAutoConnect();
           }
         }
         _userDisconnected = false;
@@ -1932,12 +1937,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                     subtitle: '开启后打开APP自动寻找并连接上次的ESP32',
                     value: autoConnect,
                     onChanged: (v) {
+                      final wasOff = !autoConnect;
                       setLocalState(() {});
                       setState(() {
                         autoConnect = v;
                       });
                       prefs?.setBool('auto_connect', v);
                       _logEvent('SETTINGS', '自动连接${v ? '开启' : '关闭'}');
+                      // OFF→ON时立即开始自动连接
+                      if (wasOff && v && !connected && !connecting && !_autoConnecting &&
+                          savedRemoteId != null && savedRemoteId!.isNotEmpty && authorized) {
+                        _tryAutoConnect();
+                      }
                     },
                     leadingIcon: Icons.bluetooth,
                   ),

@@ -224,9 +224,9 @@ void loop() {
         pmLockHeld = false;
     }
 
-    // When idle: suspend this task until BLE event wakes it
-    // No fixed timeout — truly waits forever until xTaskNotifyGive
-    if (!shouldHoldLock && pmInitOk) {
+    // When idle: always suspend until BLE event, regardless of PM init result
+    // pmInitOk only controls PM lock operations, not task blocking
+    if (!shouldHoldLock) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     } else {
         vTaskDelay(pdMS_TO_TICKS(1));
@@ -335,7 +335,7 @@ void processCommand(String cmd) {
     }
     command.toUpperCase();
 
-    // ===== AUTH =====
+    // ===== AUTH (format: !AUTH password timestamp) =====
     if (command == "AUTH") {
         int pwdEnd = args.indexOf(' ');
         if (pwdEnd < 0) {
@@ -343,18 +343,11 @@ void processCommand(String cmd) {
             return;
         }
         String pwd = args.substring(0, pwdEnd);
-        String timeStr = args.substring(pwdEnd + 1);
-        timeStr.trim();
-
-        uint32_t timestamp = 0;
-        if (timeStr.length() > 0) {
-            timestamp = strtoul(timeStr.c_str(), NULL, 10);
-        }
 
         if (pwd == adminPassword) {
             wasAuthenticated = true;
             sendResponse("OK TIME");
-            Serial.printf("[AUTH] Success\n");
+            Serial.println("[AUTH] Success");
         } else {
             wasAuthenticated = false;
             sendResponse("ERR");
