@@ -825,6 +825,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
         _startScanRssi();
       }
+      // 统一：任何自动重连失败后，满足条件就启动30秒定期重试
+      if (!connected && autoConnect && authorized && savedRemoteId != null && savedRemoteId!.isNotEmpty && !_factoryResetting) {
+        _startReconnectRetry();
+      }
     }
   }
 
@@ -995,7 +999,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           // 非用户主动断开 + 非恢复出厂 + 自动连接开启 → 启动自动重连
           if (!_userDisconnected && !_factoryResetting && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
             _tryAutoConnect();
-            _startReconnectRetry();
           }
         }
         _userDisconnected = false;
@@ -1445,6 +1448,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _stopHeartbeat();
     _stopRssiPolling();
     _stopScanRssi();
+    _stopReconnectRetry();
     commandTimer?.cancel();
     try {
       await bleGateway.dispose();
@@ -1976,6 +1980,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                       });
                       prefs?.setBool('auto_connect', v);
                       _logEvent('SETTINGS', '自动连接${v ? '开启' : '关闭'}');
+                      if (!v) {
+                        // OFF → 立即停止定期重连
+                        _stopReconnectRetry();
+                      }
                       // OFF→ON时立即开始自动连接
                       if (wasOff && v && !connected && !connecting && !_autoConnecting &&
                           savedRemoteId != null && savedRemoteId!.isNotEmpty && authorized) {
@@ -2132,7 +2140,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         // 收到OK RESET后，等待ESP32重启
                         await Future.delayed(const Duration(milliseconds: 500));
                         try { await ble.disconnect(); } catch (_) {}
-                        _factoryResetting = false;
                         await prefs?.clear();
                         ScaffoldMessenger.of(pageCtx).showSnackBar(
                           SnackBar(content: const Text('已恢复出厂设置'), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)),
@@ -2153,6 +2160,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         installId = newId;
                         await prefs?.setString('install_id', newId);
                         setState(() {});
+                        _factoryResetting = false;
                         Navigator.pop(pageCtx);
                       }
                     },

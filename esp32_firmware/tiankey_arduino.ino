@@ -140,13 +140,18 @@ class ServerCallbacks : public BLEServerCallbacks {
 
     void onDisconnect(BLEServer *pServer) {
         Serial.println("[BLE] Disconnected");
+        bool needDoubleLock = wasAuthenticated;
         handleDisconnect();
         connHandle = INVALID_CONN_HANDLE;
         deviceConnected = false;
         wasAuthenticated = false;
         // PM lock will be released by main loop if cpuSleepEnabled && !vehicleBusy
-        pServer->startAdvertising();
-        Serial.println("[BLE] Advertising restarted");
+        if (!needDoubleLock) {
+            // 未认证断线：立即恢复广播
+            pServer->startAdvertising();
+            Serial.println("[BLE] Advertising restarted");
+        }
+        // 已认证断线：等状态机完成双锁后再广播（由updateVehicleAction触发）
         if (mainTaskHandle != NULL) xTaskNotifyGive(mainTaskHandle);
     }
 };
@@ -670,6 +675,11 @@ void updateVehicleAction() {
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
                 Serial.println("[DISC] Double-lock complete");
+                // 双锁完成，恢复BLE广播
+                if (pServer != NULL) {
+                    pServer->startAdvertising();
+                    Serial.println("[BLE] Advertising restarted after double-lock");
+                }
             }
             break;
 
