@@ -173,16 +173,16 @@ void loop() {
     // If no heartbeat received within 60s, disconnect
     if (deviceConnected && connHandle != INVALID_CONN_HANDLE) {
         if (now - lastHeartbeat >= HEARTBEAT_TIMEOUT) {
-            Serial.println("[HB] Timeout - disconnecting");
             pServer->disconnect(connHandle);
         }
     }
 
-    // CPU sleep - works in both connected and advertising states
-    // BLE stack keeps running during light sleep
-    if (cpuSleepEnabled && !vehicleBusy) {
-        // Light sleep for 10ms, BLE stack continues
-        esp_sleep_enable_timer_wakeup(10000);  // 10ms
+    // CPU low power logic:
+    // - Connected: normal running, no forced sleep
+    // - Vehicle busy: no sleep, GPIO timing must not be delayed
+    // - Not connected + not busy: light sleep 500ms (BLE advertising keeps running)
+    if (!deviceConnected && cpuSleepEnabled && !vehicleBusy) {
+        esp_sleep_enable_timer_wakeup(500000);  // 500ms max
         esp_light_sleep_start();
     } else {
         delay(1);
@@ -624,7 +624,7 @@ void factoryReset() {
     prefs.end();
 
     sendResponse("OK RESET");
-    delay(100);
+    delay(500);
     ESP.restart();
 }
 

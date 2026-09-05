@@ -587,6 +587,49 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     );
   }
 
+  // ==================== LIGHTWEIGHT LOG ====================
+  static const int _maxLogEntries = 200;
+  static const Duration _maxLogAge = Duration(days: 5);
+
+  Future<void> _logEvent(String type, String message) async {
+    if (prefs == null) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final logsJson = prefs!.getString('app_logs') ?? '[]';
+    List<Map<String, dynamic>> logs = [];
+    try {
+      final decoded = jsonDecode(logsJson);
+      if (decoded is List) {
+        logs = decoded.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    logs.add({'t': now, 'type': type, 'msg': message});
+    // 200条上限
+    if (logs.length > _maxLogEntries) {
+      logs = logs.sublist(logs.length - _maxLogEntries);
+    }
+    await prefs!.setString('app_logs', jsonEncode(logs));
+  }
+
+  Future<void> _cleanupLogs() async {
+    if (prefs == null) return;
+    final logsJson = prefs!.getString('app_logs');
+    if (logsJson == null) return;
+    List<Map<String, dynamic>> logs = [];
+    try {
+      final decoded = jsonDecode(logsJson);
+      if (decoded is List) logs = decoded.cast<Map<String, dynamic>>();
+    } catch (_) {
+      await prefs!.remove('app_logs');
+      return;
+    }
+    final cutoff = DateTime.now().subtract(_maxLogAge).millisecondsSinceEpoch;
+    logs.removeWhere((e) => (e['t'] as int? ?? 0) < cutoff);
+    if (logs.length > _maxLogEntries) {
+      logs = logs.sublist(logs.length - _maxLogEntries);
+    }
+    await prefs!.setString('app_logs', jsonEncode(logs));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -670,6 +713,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (mounted) setState(() {});
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) setState(() => splashDone = true);
+    _cleanupLogs();
 
     // 检查蓝牙是否开启
     if (mounted) {
@@ -731,6 +775,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!autoConnect) return;
     if (_autoConnecting || connected || connecting) return;
     if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) return;
+    _stopScanRssi();
     _autoConnecting = true;
     try {
       setState(() => status = '正在自动重连...');
@@ -757,12 +802,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (mounted && !connected) setState(() => status = '自动重连失败');
     } finally {
       _autoConnecting = false;
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+        _startScanRssi();
+      }
     }
   }
 
   Future<void> scan({Duration? timeout}) async {
     if (!ready) return;
-    // 【修复】scan()自己管理scanning状态，不依赖外部状态
+    _stopScanRssi();
     setState(() {
       scanning = true;
       foundDevice = null;
@@ -783,8 +831,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (devices.length == 1) {
         final selected = devices.first;
         foundDevice = selected;
-        savedRemoteId = selected.remoteId;
-        await prefs?.setString('ble_remote_id', selected.remoteId);
         setState(() => status = '发现设备：${selected.name}');
       } else {
         setState(() => status = '发现 ${devices.length} 个设备，请选择');
@@ -794,15 +840,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       setState(() => status = 'BLE扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
+      if (!connected && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+        _startScanRssi();
+      }
     }
   }
 
   Future<void> connectToDevice(BleScanItem device) async {
     if (connecting || connected) return;
+    _stopScanRssi();
     _userDisconnected = false;
     foundDevice = device;
-    savedRemoteId = device.remoteId;
-    await prefs?.setString('ble_remote_id', device.remoteId);
 
     if (autoConnect && authorized && adminPassword.isNotEmpty) {
       setState(() => status = '正在连接并自动认证...');
@@ -820,6 +868,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> connect() async {
     if (connecting || connected || _autoConnecting) return;
+    _stopScanRssi();
     _userDisconnected = false;
     var target = foundDevice;
 
@@ -923,7 +972,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           }
         }
         _userDisconnected = false;
-        if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+        if (!autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
           _startScanRssi();
         }
       };
@@ -987,18 +1036,35 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           authorized = true;
           timeSynced = true;
           await prefs?.setBool('authorized', true);
-        } else {
+          _logEvent('AUTH', '自动认证成功');
+        } else if (reply != null && reply.contains('ERR')) {
+          // ESP32明确回复ERR = 密码错误，清除保存密码
           authorized = false;
           await prefs?.setBool('authorized', false);
           await prefs?.remove('admin_password');
+          _logEvent('AUTH', '密码错误，已清除保存密码');
           await ble.disconnect();
           setState(() {
             connecting = false;
-            status = '自动认证失败，已清除保存的密码';
+            status = '密码错误，已清除保存的密码';
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: const Text('自动认证失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
+              SnackBar(content: const Text('密码错误，请手动重新连接'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
+            );
+          }
+          return false;
+        } else {
+          // 通信失败（超时/断开/通知未收到），保留密码，允许下次重试
+          _logEvent('AUTH', '自动认证通信失败，保留密码');
+          await ble.disconnect();
+          setState(() {
+            connecting = false;
+            status = '自动认证通信失败，保留密码等待重试';
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: const Text('通信失败，保留密码等待重试'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 3)),
             );
           }
           return false;
@@ -1052,6 +1118,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
       await prefs?.setString('ble_remote_id', target.remoteId);
       savedRemoteId = target.remoteId;
+      _logEvent('CONNECT', '已连接 ${target.remoteId}');
       setState(() {
         connected = true;
         connecting = false;
@@ -1302,6 +1369,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> disconnect() async {
+    _logEvent('DISCONNECT', '用户断开连接');
     _userDisconnected = true;
     _stopHeartbeat();
     _stopRssiPolling();
@@ -1370,6 +1438,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
     setState(() => status = '$command 已发送');
+    _logEvent('VEHICLE', command);
     _msg(timed ? '$command 已发送（保持4秒）' : '$command 执行成功');
     commandTimer?.cancel();
     if (timed) {
@@ -1690,6 +1759,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             // ESP32成功后才更新本地
                             adminPassword = newCtrl.text.trim();
                             await prefs?.setString('admin_password', adminPassword);
+                            _logEvent('SETTINGS', '管理员密码已修改');
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('密码修改成功'), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)));
                             Navigator.pop(pageCtx);
@@ -1766,6 +1836,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             // ESP32成功后更新本地
                             deviceName = v;
                             await prefs?.setString('device_name', v);
+                            _logEvent('SETTINGS', '设备名称已修改为 $v');
                             final m = modelCtrl.text.trim();
                             if (m.isNotEmpty) {
                               carModel = m;
@@ -1952,6 +2023,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
                           if (reply != null && reply.contains('OK')) {
                             espResetConfirmed = true;
+                            _logEvent('RESET', '恢复出厂设置');
                           }
                         } catch (_) {
                           // ESP32重启导致BLE断开是正常的，但不能因此认为成功
