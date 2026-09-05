@@ -544,6 +544,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Timer? commandTimer;
   Timer? _heartbeatTimer;
   Timer? _rssiTimer;
+  Timer? _scanRssiTimer;
   StreamSubscription<BluetoothAdapterState>? _btAdapterSub;
   bool _connectCooldown = false;
   bool _userDisconnected = false;
@@ -559,6 +560,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool timeSynced = false;
   int rssiValue = 0;
   int commandSeconds = 0;
+  bool vehicleBusy = false;
   String deviceName = defaultName;
   String carModel = '未设置';
   String adminPassword = defaultPassword;
@@ -600,6 +602,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     commandTimer?.cancel();
     _stopHeartbeat();
     _stopRssiPolling();
+    _stopScanRssi();
     passwordController.dispose();
     unawaited(bleGateway.dispose());
     unawaited(ble.dispose());
@@ -624,9 +627,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           status = 'BLE连接已断开';
         });
         // 回到前台时自动重连
-        if (autoConnect) _tryAutoConnect();
+        if (autoConnect) {
+          _tryAutoConnect();
+        } else if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+          _startScanRssi();
+        }
       } else if (!connected && !connecting && !_autoConnecting) {
-        if (autoConnect) _tryAutoConnect();
+        if (autoConnect) {
+          _tryAutoConnect();
+        } else if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+          _startScanRssi();
+        }
       }
     }
   }
@@ -708,41 +719,42 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (mounted) setState(() {});
 
     // 启动后自动连接
-    if (autoConnect) _tryAutoConnect();
+    if (autoConnect) {
+      _tryAutoConnect();
+    } else if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+      // 未自动连接时，启动未连接RSSI扫描（用于寻车）
+      _startScanRssi();
+    }
   }
 
   Future<void> _tryAutoConnect() async {
-    // 【修复】第一层必须检查autoConnect开关
     if (!autoConnect) return;
     if (_autoConnecting || connected || connecting) return;
     if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) return;
     _autoConnecting = true;
     try {
       setState(() => status = '正在自动重连...');
-      // 先用保存的Remote ID直接连接
       final target = BleScanItem(
         device: BluetoothDevice.fromId(savedRemoteId!),
         name: deviceName,
         remoteId: savedRemoteId!,
       );
-      await _connectBle(target, autoAuth: true);
-    } catch (_) {
-      // 直接连接失败，尝试扫描匹配保存的设备
+      final ok = await _connectBle(target, autoAuth: true);
+      if (ok) return;
+      // 直接连接失败，扫描匹配保存的设备
       if (mounted && !connected) {
-        try {
-          setState(() => status = '自动扫描匹配中...');
-          final devices = await ble.scan(timeout: const Duration(seconds: 6));
-          if (!mounted) return;
-          final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
-          if (match.isNotEmpty) {
-            await _connectBle(match.first, autoAuth: true);
-          } else {
-            setState(() => status = '自动重连失败，未找到保存的设备');
-          }
-        } catch (_) {
-          if (mounted && !connected) setState(() => status = '自动重连失败');
+        setState(() => status = '自动扫描匹配中...');
+        final devices = await ble.scan(timeout: const Duration(seconds: 6));
+        if (!mounted) return;
+        final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
+        if (match.isNotEmpty) {
+          await _connectBle(match.first, autoAuth: true);
+        } else {
+          setState(() => status = '自动重连失败，未找到保存的设备');
         }
       }
+    } catch (_) {
+      if (mounted && !connected) setState(() => status = '自动重连失败');
     } finally {
       _autoConnecting = false;
     }
@@ -794,18 +806,16 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
     if (autoConnect && authorized && adminPassword.isNotEmpty) {
       setState(() => status = '正在连接并自动认证...');
-      try {
-        await _connectBle(device, autoAuth: true);
-      } catch (_) {
-        if (mounted && !connected) setState(() => connecting = false);
-      }
+      final ok = await _connectBle(device, autoAuth: true);
+      if (!ok && mounted && !connected) setState(() => connecting = false);
       return;
     }
 
     passwordController.clear();
     final pwd = await _askPassword();
     if (pwd == null || !mounted) return;
-    await _connectBle(device, password: pwd);
+    final ok = await _connectBle(device, password: pwd);
+    if (!ok && mounted && !connected) setState(() => connecting = false);
   }
 
   Future<void> connect() async {
@@ -844,26 +854,20 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
     if (autoConnect && authorized && adminPassword.isNotEmpty) {
       setState(() => status = '自动连接中...');
-      try {
-        await _connectBle(target, autoAuth: true);
-      } catch (_) {
-        if (mounted && !connected) setState(() => connecting = false);
-      }
+      final ok = await _connectBle(target, autoAuth: true);
+      if (!ok && mounted && !connected) setState(() => connecting = false);
       return;
     }
 
     passwordController.clear();
     final pwd = await _askPassword();
     if (pwd == null || !mounted) return;
-    try {
-      await _connectBle(target, password: pwd);
-    } catch (_) {
-      if (mounted && !connected) setState(() => connecting = false);
-    }
+    final ok = await _connectBle(target, password: pwd);
+    if (!ok && mounted && !connected) setState(() => connecting = false);
   }
 
-  Future<void> _connectBle(BleScanItem target, {String? password, bool autoAuth = false}) async {
-    if (connecting || connected) return;
+  Future<bool> _connectBle(BleScanItem target, {String? password, bool autoAuth = false}) async {
+    if (connecting || connected) return false;
     setState(() {
       connecting = true;
       status = '正在建立BLE连接...';
@@ -908,6 +912,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             adminSession = false;
             timeSynced = false;
             commandSeconds = 0;
+            vehicleBusy = false;
             foundDevice = null;
             status = _userDisconnected ? '已断开' : 'BLE连接意外断开';
           });
@@ -918,6 +923,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           }
         }
         _userDisconnected = false;
+        if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+          _startScanRssi();
+        }
       };
 
       bool serviceFound = false;
@@ -964,7 +972,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               SnackBar(content: const Text('无保存密码，请手动连接'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
             );
           }
-          return;
+          return false;
         }
         setState(() => status = 'BLE已连接，正在用密码认证...');
         final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -993,7 +1001,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               SnackBar(content: const Text('自动认证失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
             );
           }
-          return;
+          return false;
         }
       }
 
@@ -1035,7 +1043,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                 SnackBar(content: Text(errMsg), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
               );
             }
-            return;
+            return false;
           }
         }
       }
@@ -1051,7 +1059,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       });
       _startHeartbeat();
       _startRssiPolling();
+      _stopScanRssi();
       _queryCpuSleepState();
+      return true;
     } catch (error) {
       try {
         if (target.device != null && target.device!.isConnected) await target.device!.disconnect();
@@ -1059,7 +1069,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       try {
         await bleGateway.dispose();
       } catch (_) {}
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         connecting = false;
         connected = false;
@@ -1070,6 +1080,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           SnackBar(content: Text('连接失败：$error'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
         );
       }
+      return false;
     }
   }
 
@@ -1198,6 +1209,40 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  // ==================== UNCONNECTED RSSI SCAN ====================
+  void _startScanRssi() {
+    _stopScanRssi();
+    _scanRssiTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (connected || scanning || !mounted) return;
+      try {
+        final devices = await ble.scan(timeout: const Duration(seconds: 3));
+        if (!mounted) return;
+        // 更新扫描列表中设备的RSSI
+        for (final d in devices) {
+          final idx = scannedDevices.indexWhere((s) => s.remoteId == d.remoteId);
+          if (idx >= 0) {
+            scannedDevices[idx] = d;
+          }
+        }
+        // 如果有保存的设备，更新其RSSI
+        if (savedRemoteId != null) {
+          final match = devices.where((d) => d.remoteId == savedRemoteId).toList();
+          if (match.isNotEmpty) {
+            final rssi = match.first.rssi;
+            if (rssi != 0) {
+              setState(() => rssiValue = rssi);
+            }
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  void _stopScanRssi() {
+    _scanRssiTimer?.cancel();
+    _scanRssiTimer = null;
+  }
+
   // ==================== HEARTBEAT ====================
   int _heartbeatFailCount = 0;
 
@@ -1232,6 +1277,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         adminSession = false;
         timeSynced = false;
         commandSeconds = 0;
+        vehicleBusy = false;
         foundDevice = null;
         status = '心跳超时（60秒），连接已断开';
       });
@@ -1259,6 +1305,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _userDisconnected = true;
     _stopHeartbeat();
     _stopRssiPolling();
+    _stopScanRssi();
     commandTimer?.cancel();
     try {
       await bleGateway.dispose();
@@ -1275,6 +1322,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       adminSession = false;
       timeSynced = false;
       commandSeconds = 0;
+      vehicleBusy = false;
       rssiValue = 0;
       status = '已断开：车辆功能重新锁定';
     });
@@ -1284,6 +1332,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> vehicleCommand(String command) async {
     if (!vehicleEnabled) {
       _msg('未连接，无法执行');
+      return;
+    }
+    if (vehicleBusy) {
+      _msg('车辆操作进行中，请稍候');
       return;
     }
     late final String protocol;
@@ -1321,6 +1373,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _msg(timed ? '$command 已发送（保持4秒）' : '$command 执行成功');
     commandTimer?.cancel();
     if (timed) {
+      vehicleBusy = true;
       commandSeconds = 4;
       commandTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (!mounted) {
@@ -1331,6 +1384,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           timer.cancel();
           setState(() {
             commandSeconds = 0;
+            vehicleBusy = false;
             status = '$command 完成';
           });
           return;
@@ -1538,21 +1592,21 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             ]),
                             const SizedBox(height: 8),
                             Row(children: [
-                              Expanded(child: TKNeonButton(label: '锁车', icon: Icons.lock, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('锁车') : null, isEnabled: vehicleEnabled)),
+                              Expanded(child: TKNeonButton(label: '锁车', icon: Icons.lock, neonColor: TKColors.neonBlue, onTap: (vehicleEnabled && !vehicleBusy) ? () => vehicleCommand('锁车') : null, isEnabled: vehicleEnabled && !vehicleBusy)),
                               const SizedBox(width: 10),
-                              Expanded(child: TKNeonButton(label: '解锁', icon: Icons.lock_open, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('解锁') : null, isEnabled: vehicleEnabled)),
+                              Expanded(child: TKNeonButton(label: '解锁', icon: Icons.lock_open, neonColor: TKColors.neonBlue, onTap: (vehicleEnabled && !vehicleBusy) ? () => vehicleCommand('解锁') : null, isEnabled: vehicleEnabled && !vehicleBusy)),
                             ]),
                             const SizedBox(height: 8),
                             Row(children: [
-                              Expanded(child: TKNeonButton(label: '车窗升', icon: Icons.keyboard_double_arrow_up, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('车窗升') : null, isEnabled: vehicleEnabled)),
+                              Expanded(child: TKNeonButton(label: '车窗升', icon: Icons.keyboard_double_arrow_up, neonColor: TKColors.neonOrange, onTap: (vehicleEnabled && !vehicleBusy) ? () => vehicleCommand('车窗升') : null, isEnabled: vehicleEnabled && !vehicleBusy)),
                               const SizedBox(width: 10),
-                              Expanded(child: TKNeonButton(label: '车窗降', icon: Icons.keyboard_double_arrow_down, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('车窗降') : null, isEnabled: vehicleEnabled)),
+                              Expanded(child: TKNeonButton(label: '车窗降', icon: Icons.keyboard_double_arrow_down, neonColor: TKColors.neonOrange, onTap: (vehicleEnabled && !vehicleBusy) ? () => vehicleCommand('车窗降') : null, isEnabled: vehicleEnabled && !vehicleBusy)),
                             ]),
                             const SizedBox(height: 8),
                             Row(children: [
-                              Expanded(child: TKNeonButton(label: '寻车', icon: Icons.volume_up, neonColor: TKColors.neonBlue, onTap: vehicleEnabled ? () => vehicleCommand('寻车') : null, isEnabled: vehicleEnabled)),
+                              Expanded(child: TKNeonButton(label: '寻车', icon: Icons.volume_up, neonColor: TKColors.neonBlue, onTap: (vehicleEnabled && !vehicleBusy) ? () => vehicleCommand('寻车') : null, isEnabled: vehicleEnabled && !vehicleBusy)),
                               const SizedBox(width: 10),
-                              Expanded(child: TKNeonButton(label: '后备箱', icon: Icons.open_in_new, neonColor: TKColors.neonOrange, onTap: vehicleEnabled ? () => vehicleCommand('后备箱') : null, isEnabled: vehicleEnabled)),
+                              Expanded(child: TKNeonButton(label: '后备箱', icon: Icons.open_in_new, neonColor: TKColors.neonOrange, onTap: (vehicleEnabled && !vehicleBusy) ? () => vehicleCommand('后备箱') : null, isEnabled: vehicleEnabled && !vehicleBusy)),
                             ]),
                           ],
                         ),
@@ -1893,20 +1947,23 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         ),
                       );
                       if (ok == true) {
+                        bool espResetConfirmed = false;
                         try {
-                          // 【修复】必须ESP32成功后才清本地
                           final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
-                          if (reply == null || reply.contains('ERR')) {
-                            ScaffoldMessenger.of(pageCtx).showSnackBar(
-                              SnackBar(content: const Text('ESP32恢复出厂失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)),
-                            );
-                            return;
+                          if (reply != null && reply.contains('OK')) {
+                            espResetConfirmed = true;
                           }
-                          await Future.delayed(const Duration(milliseconds: 500));
                         } catch (_) {
-                          // ESP32重启导致BLE断开是正常的
+                          // ESP32重启导致BLE断开是正常的，但不能因此认为成功
                         }
-                        // 【修复】disconnect放在try/catch里
+                        if (!espResetConfirmed) {
+                          ScaffoldMessenger.of(pageCtx).showSnackBar(
+                            SnackBar(content: const Text('ESP32恢复出厂失败，未收到确认'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)),
+                          );
+                          return;
+                        }
+                        // 收到OK RESET后，等待ESP32重启
+                        await Future.delayed(const Duration(milliseconds: 500));
                         try { await ble.disconnect(); } catch (_) {}
                         await prefs?.clear();
                         ScaffoldMessenger.of(pageCtx).showSnackBar(

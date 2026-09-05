@@ -86,7 +86,8 @@ enum VehicleAction {
     ACTION_NONE,
     ACTION_LOCK_PULSE,       // 200ms pulse
     ACTION_UNLOCK_PULSE,     // 200ms pulse
-    ACTION_TRUNK_HOLD,       // 4000ms hold
+    ACTION_TRUNK_HOLD,       // 4000ms hold on GPIO4
+    ACTION_WINDOW_HOLD,      // 4000ms hold on GPIO14 or GPIO33
     ACTION_FINDCAR_STEP1,    // first pulse 200ms
     ACTION_FINDCAR_GAP,      // gap 100ms
     ACTION_FINDCAR_STEP2,    // second pulse 200ms
@@ -94,7 +95,8 @@ enum VehicleAction {
 
 VehicleAction currentAction = ACTION_NONE;
 unsigned long actionStartTime = 0;
-bool vehicleBusy = false;  // prevent concurrent GPIO actions
+bool vehicleBusy = false;
+int windowHoldPin = -1;  // which pin is held for window (PIN_LOCK or PIN_UNLOCK)
 
 // ==================== FUNCTION DECLARATIONS ====================
 void loadConfig();
@@ -362,7 +364,7 @@ void processCommand(String cmd) {
     if (command == "WINDOWUP") {
         if (vehicleBusy) { sendResponse("BUSY"); return; }
         releaseAllPins();
-        currentAction = ACTION_TRUNK_HOLD;
+        currentAction = ACTION_WINDOW_HOLD;
         actionStartTime = millis();
         digitalWrite(PIN_LOCK, LOW);
         vehicleBusy = true;
@@ -375,7 +377,7 @@ void processCommand(String cmd) {
     if (command == "WINDOWDOWN") {
         if (vehicleBusy) { sendResponse("BUSY"); return; }
         releaseAllPins();
-        currentAction = ACTION_TRUNK_HOLD;
+        currentAction = ACTION_WINDOW_HOLD;
         actionStartTime = millis();
         digitalWrite(PIN_UNLOCK, LOW);
         vehicleBusy = true;
@@ -392,7 +394,6 @@ void processCommand(String cmd) {
         actionStartTime = millis();
         digitalWrite(PIN_TRUNK, LOW);
         vehicleBusy = true;
-        windowHoldPin = -1;  // trunk, not window
         Serial.println("[CMD] Trunk (GPIO4 LOW 4s)");
         return;
     }
@@ -497,8 +498,6 @@ void sendResponse(String msg) {
 }
 
 // ==================== VEHICLE ACTION STATE MACHINE ====================
-// Tracks which pin we're using for window hold
-static int windowHoldPin = -1;
 
 void releaseAllPins() {
     digitalWrite(PIN_LOCK, HIGH);
@@ -560,16 +559,21 @@ void updateVehicleAction() {
 
         case ACTION_TRUNK_HOLD:
             if (elapsed >= TRUNK_HOLD_MS) {
-                // Check which pin is active
+                digitalWrite(PIN_TRUNK, HIGH);
+                currentAction = ACTION_NONE;
+                vehicleBusy = false;
+                Serial.println("[GPIO] Trunk hold complete");
+            }
+            break;
+
+        case ACTION_WINDOW_HOLD:
+            if (elapsed >= WINDOW_HOLD_MS) {
                 if (windowHoldPin == PIN_LOCK) {
                     digitalWrite(PIN_LOCK, HIGH);
                     Serial.println("[GPIO] Window Up complete");
                 } else if (windowHoldPin == PIN_UNLOCK) {
                     digitalWrite(PIN_UNLOCK, HIGH);
                     Serial.println("[GPIO] Window Down complete");
-                } else {
-                    digitalWrite(PIN_TRUNK, HIGH);
-                    Serial.println("[GPIO] Trunk hold complete");
                 }
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
