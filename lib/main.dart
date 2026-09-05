@@ -593,6 +593,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> _logEvent(String type, String message) async {
     if (prefs == null) return;
+    // 每次写入前清理过期日志
+    await _cleanupLogs();
     final now = DateTime.now().millisecondsSinceEpoch;
     final logsJson = prefs!.getString('app_logs') ?? '[]';
     List<Map<String, dynamic>> logs = [];
@@ -966,6 +968,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             status = _userDisconnected ? '已断开' : 'BLE连接意外断开';
           });
           if (!_userDisconnected && mounted) {
+            _logEvent('DISCONNECT', 'BLE连接意外断开（非用户操作）');
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: const Text('蓝牙连接断开'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)),
             );
@@ -998,9 +1001,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
               setState(() => status = '通知监听已启动');
               await Future.delayed(const Duration(milliseconds: 200));
             }
+            serviceFound = true;
+            break;
+          } else {
+            throw StateError('NUS服务存在但写命令通道未找到');
           }
-          serviceFound = true;
-          break;
         }
       }
       if (!serviceFound) {
@@ -1028,7 +1033,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         String? reply;
         for (int retry = 0; retry < 3; retry++) {
           reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $ts'), expectPrefix: 'OK');
-          if (reply != null && reply.contains('OK')) break;
+          if (reply != null && (reply.contains('OK') || reply.contains('ERR'))) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
         }
         if (reply != null && reply.contains('OK')) {
@@ -1072,45 +1077,61 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
 
       if (password != null && !autoAuth) {
-        if (bleGateway.readyForWrite) {
-          setState(() => status = '正在发送认证命令...');
-          final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-          String? reply;
-          for (int retry = 0; retry < 3; retry++) {
-            reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $ts'));
-            if (reply != null) break;
-            if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
+        if (!bleGateway.readyForWrite) {
+          throw StateError('BLE写通道未就绪，无法发送认证命令');
+        }
+        setState(() => status = '正在发送认证命令...');
+        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        String? reply;
+        for (int retry = 0; retry < 3; retry++) {
+          reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $ts'));
+          if (reply != null) break;
+          if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
+        }
+        if (reply != null && reply.contains('OK')) {
+          adminSession = true;
+          authorized = true;
+          timeSynced = true;
+          await prefs?.setBool('authorized', true);
+          await prefs?.setString('admin_password', password);
+          _logEvent('AUTH', '手动认证成功');
+          setState(() => status = '认证回复: OK');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: const Text('密码验证成功，已连接'), backgroundColor: TKColors.neonGreen, duration: const Duration(seconds: 2)),
+            );
           }
-          if (reply != null && reply.contains('OK')) {
-            adminSession = true;
-            authorized = true;
-            timeSynced = true;
-            await prefs?.setBool('authorized', true);
-            await prefs?.setString('admin_password', password);
-            setState(() => status = '认证回复: OK');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: const Text('密码验证成功，已连接'), backgroundColor: TKColors.neonGreen, duration: const Duration(seconds: 2)),
-              );
-            }
-          } else {
-            setState(() => status = '认证回复: 失败');
-            await ble.disconnect();
-            authorized = false;
-            await prefs?.setBool('authorized', false);
-            await prefs?.remove('admin_password');
-            final errMsg = (reply != null && reply.contains('ERR')) ? '密码错误' : '密码错误或蓝牙断开';
-            setState(() {
-              connecting = false;
-              status = errMsg;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(errMsg), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
-              );
-            }
-            return false;
+        } else if (reply != null && reply.contains('ERR')) {
+          // ESP32明确回复ERR = 密码错误
+          authorized = false;
+          await prefs?.setBool('authorized', false);
+          await prefs?.remove('admin_password');
+          _logEvent('AUTH', '密码错误');
+          await ble.disconnect();
+          setState(() {
+            connecting = false;
+            status = '密码错误';
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: const Text('密码错误'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
+            );
           }
+          return false;
+        } else {
+          // 通信失败（超时/断开/通知未收到），保留密码
+          _logEvent('AUTH', '手动认证通信失败');
+          await ble.disconnect();
+          setState(() {
+            connecting = false;
+            status = '通信失败，请重试';
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: const Text('通信失败，请重试'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 3)),
+            );
+          }
+          return false;
         }
       }
 
@@ -1280,7 +1301,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _startScanRssi() {
     _stopScanRssi();
     _scanRssiTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (connected || scanning || !mounted) return;
+      if (connected || scanning || connecting || _autoConnecting || !mounted) return;
       try {
         final devices = await ble.scan(timeout: const Duration(seconds: 3));
         if (!mounted) return;
@@ -1562,9 +1583,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             TKStatusCard(
                               icon: Icons.signal_cellular_alt,
                               title: '信号',
-                              status: connected ? '$rssiValue dBm\n${_rssiLabel(rssiValue)}' : (scannedDevices.isNotEmpty && foundDevice != null ? '${foundDevice!.rssi} dBm' : '--'),
+                              status: connected
+                                  ? (rssiValue == 0 ? '--' : '$rssiValue dBm\n${_rssiLabel(rssiValue)}')
+                                  : (scannedDevices.isNotEmpty && foundDevice != null ? '${foundDevice!.rssi} dBm' : '--'),
                               statusColor: connected
-                                  ? (rssiValue > -60 ? TKColors.neonBlue : rssiValue > -80 ? TKColors.neonOrange : TKColors.neonRed)
+                                  ? (rssiValue == 0 ? TKColors.textMuted : (rssiValue > -60 ? TKColors.neonBlue : rssiValue > -80 ? TKColors.neonOrange : TKColors.neonRed))
                                   : TKColors.textMuted,
                               iconColor: TKColors.neonBlue,
                             ),
@@ -1895,6 +1918,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         autoConnect = v;
                       });
                       prefs?.setBool('auto_connect', v);
+                      _logEvent('SETTINGS', '自动连接${v ? '开启' : '关闭'}');
                     },
                     leadingIcon: Icons.bluetooth,
                   ),
@@ -1943,6 +1967,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             cpuSleepEnabled = v;
                           });
                           await prefs?.setBool('cpu_sleep_en', v);
+                          _logEvent('SETTINGS', 'CPU低功耗${v ? '开启' : '关闭'}');
                           setLocalState(() {});
                           _msg('CPU低功耗已${v ? '开启' : '关闭'}');
                         } else {

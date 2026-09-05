@@ -64,11 +64,10 @@ class BleCharacteristicGateway {
       return;
     }
 
-    // 为当前命令创建一次性listener
+    // 为当前命令创建一次性listener — 接收所有回复，不按前缀过滤
     final sub = _notifyController?.stream.listen((value) {
       if (cmd.completer.isCompleted) return;
       final msg = String.fromCharCodes(value);
-      if (cmd.expectPrefix != null && !msg.startsWith(cmd.expectPrefix!)) return;
       if (!cmd.completer.isCompleted) cmd.completer.complete(msg);
     });
 
