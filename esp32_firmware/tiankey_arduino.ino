@@ -18,6 +18,7 @@
 #include <BLE2902.h>
 #include <Preferences.h>
 #include <esp_pm.h>
+#include <esp_idf_version.h>
 
 // ==================== PIN CONFIGURATION ====================
 // From old boot.py: Lock=14, Unlock=33, Trunk=4
@@ -80,11 +81,17 @@ String firstAuthPwd = "";
 unsigned long lastHeartbeat = 0;
 
 // ==================== POWER MANAGEMENT ====================
-// ESP32 Automatic Light Sleep + BLE Modem Sleep
-// PM lock held = CPU stays awake (connected / vehicle busy)
-// PM lock released = idle task can put CPU into automatic light sleep
-// BLE modem sleep is handled by the BLE stack independently
-esp_pm_lock_t cpuPmLock = NULL;
+// Two independent PM locks:
+//   1. cpuFreqLock  → keeps CPU at max frequency when held
+//   2. noSleepLock  → prevents light sleep when held
+// Both held when connected or vehicle busy → CPU runs at max, no sleep
+// Both released when idle → CPU enters automatic light sleep via idle task
+//
+// ESP-IDF 4.x (Arduino ESP32 2.x): esp_pm_lock_acquire(handle)
+// ESP-IDF 5.x (Arduino ESP32 3.x): esp_pm_lock_acquire(handle, mode)
+// Conditional compilation handles both.
+esp_pm_lock_t cpuFreqLock = NULL;
+esp_pm_lock_t noSleepLock = NULL;
 bool pmLockHeld = false;
 bool pmInitOk = false;
 TaskHandle_t mainTaskHandle = NULL;
@@ -128,9 +135,15 @@ class ServerCallbacks : public BLEServerCallbacks {
         deviceConnected = true;
         wasAuthenticated = false;
         lastHeartbeat = millis();
-        // Immediately acquire PM lock — CPU stays awake for command processing
-        if (cpuPmLock != NULL && !pmLockHeld) {
-            esp_pm_lock_acquire(cpuPmLock);
+        // Acquire both PM locks — CPU max freq + no sleep
+        if (!pmLockHeld && pmInitOk) {
+#if ESP_IDF_VERSION_MAJOR >= 5
+            esp_pm_lock_acquire(cpuFreqLock);
+            esp_pm_lock_acquire(noSleepLock);
+#else
+            esp_pm_lock_acquire(cpuFreqLock);
+            esp_pm_lock_acquire(noSleepLock);
+#endif
             pmLockHeld = true;
         }
         Serial.printf("[BLE] Connected, handle=%d\n", connHandle);
@@ -179,23 +192,37 @@ void setup() {
     Serial.printf("CPU Sleep: %s\n", cpuSleepEnabled ? "ON" : "OFF");
 
     // ===== Power Management Configuration =====
-    // Configure ESP32 automatic light sleep via PM (Power Management)
-    // When CONFIG_PM_ENABLE is set in sdkconfig (Arduino ESP32 default):
-    //   - FreeRTOS idle task calls esp_light_sleep_start() automatically
-    //   - BLE modem sleep is handled by the BLE stack (radio sleeps between events)
-    //   - CPU enters light sleep when no PM lock is held and idle task runs
-    //   - CPU wakes on: BLE event, GPIO, or any interrupt — no software timer needed
+    // Step 1: Configure automatic power management
     esp_pm_config_esp32_t pmConfig;
     pmConfig.max_freq_mhz = 240;
     pmConfig.min_freq_mhz = 80;
     pmConfig.light_sleep_enable = true;
-    esp_err_t pmResult = esp_pm_configure(&pmConfig);
-    Serial.printf("[PM] esp_pm_configure: %s\n", pmResult == ESP_OK ? "OK" : "FAIL");
+    esp_err_t errPM = esp_pm_configure(&pmConfig);
+    Serial.printf("[PM] esp_pm_configure: %s\n", errPM == ESP_OK ? "OK" : "FAIL");
 
-    pmResult = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "tiankey", &cpuPmLock);
-    Serial.printf("[PM] Lock create: %s\n", pmResult == ESP_OK ? "OK" : "FAIL");
+    // Step 2: Create CPU frequency lock (max performance when held)
+#if ESP_IDF_VERSION_MAJOR >= 5
+    // ESP-IDF 5.x (Arduino ESP32 3.x)
+    esp_err_t errFreq = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpu_freq", &cpuFreqLock);
+#else
+    // ESP-IDF 4.x (Arduino ESP32 2.x)
+    esp_err_t errFreq = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpu_freq", &cpuFreqLock);
+#endif
+    Serial.printf("[PM] CPU freq lock: %s\n", errFreq == ESP_OK ? "OK" : "FAIL");
 
-    pmInitOk = (pmResult == ESP_OK && cpuPmLock != NULL);
+    // Step 3: Create no-sleep lock (prevent light sleep when held)
+#if ESP_IDF_VERSION_MAJOR >= 5
+    // ESP-IDF 5.x — ESP_PM_LIGHT_SLEEP prevents automatic light sleep
+    esp_err_t errSleep = esp_pm_lock_create(ESP_PM_LIGHT_SLEEP, 0, "no_sleep", &noSleepLock);
+#else
+    // ESP-IDF 4.x — ESP_PM_NO_SLEEP prevents all sleep
+    esp_err_t errSleep = esp_pm_lock_create(ESP_PM_NO_SLEEP, 0, "no_sleep", &noSleepLock);
+#endif
+    Serial.printf("[PM] No-sleep lock: %s\n", errSleep == ESP_OK ? "OK" : "FAIL");
+
+    // pmInitOk only true if ALL three succeeded
+    pmInitOk = (errPM == ESP_OK && errFreq == ESP_OK && errSleep == ESP_OK
+                && cpuFreqLock != NULL && noSleepLock != NULL);
     Serial.printf("[PM] Init result: %s\n", pmInitOk ? "SUCCESS" : "FAILED");
 
     Serial.println("=== Setup Complete ===\n");
@@ -216,26 +243,34 @@ void loop() {
         }
     }
 
-    // ===== CPU low power via PM lock + task notification =====
+    // ===== CPU low power: two-lock mechanism =====
     bool shouldHoldLock = deviceConnected || vehicleBusy || !cpuSleepEnabled;
-    if (shouldHoldLock && !pmLockHeld) {
-        if (cpuPmLock != NULL) {
-            esp_pm_lock_acquire(cpuPmLock);
-            pmLockHeld = true;
-        }
-    } else if (!shouldHoldLock && pmLockHeld) {
-        if (cpuPmLock != NULL) {
-            esp_pm_lock_release(cpuPmLock);
-            pmLockHeld = false;
-        }
+    if (shouldHoldLock && !pmLockHeld && pmInitOk) {
+        // Acquire both locks: max freq + no sleep
+#if ESP_IDF_VERSION_MAJOR >= 5
+        esp_pm_lock_acquire(cpuFreqLock);
+        esp_pm_lock_acquire(noSleepLock);
+#else
+        esp_pm_lock_acquire(cpuFreqLock);
+        esp_pm_lock_acquire(noSleepLock);
+#endif
+        pmLockHeld = true;
+    } else if (!shouldHoldLock && pmLockHeld && pmInitOk) {
+        // Release both locks → idle task puts CPU into automatic light sleep
+#if ESP_IDF_VERSION_MAJOR >= 5
+        esp_pm_lock_release(noSleepLock);
+        esp_pm_lock_release(cpuFreqLock);
+#else
+        esp_pm_lock_release(noSleepLock);
+        esp_pm_lock_release(cpuFreqLock);
+#endif
+        pmLockHeld = false;
     }
 
-    // When idle: release PM lock + suspend this task
-    // CPU enters automatic light sleep (idle task calls esp_light_sleep_start)
-    // BLE advertising continues via BLE hardware/modem sleep
-    // CPU wakes when: BLE event (connect/data) → xTaskNotifyGive from callback
+    // When idle: suspend this task until BLE event wakes it
+    // No fixed timeout — truly waits forever until xTaskNotifyGive
     if (!shouldHoldLock && pmInitOk) {
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     } else {
         vTaskDelay(pdMS_TO_TICKS(1));
     }
@@ -308,7 +343,7 @@ void setupBLE() {
 
     pRxChar = pService->createCharacteristic(
         RX_CHAR_UUID,
-        BLECharacteristic::PROPERTY_WRITE
+        BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
     );
     pRxChar->setCallbacks(&rxCallbacks);
 
@@ -515,9 +550,15 @@ void processCommand(String cmd) {
         }
         if (args == "0") {
             cpuSleepEnabled = false;
-            // Immediately acquire PM lock to prevent sleep
-            if (cpuPmLock != NULL && !pmLockHeld) {
-                esp_pm_lock_acquire(cpuPmLock);
+            // Acquire both locks to prevent any sleep
+            if (!pmLockHeld && pmInitOk) {
+#if ESP_IDF_VERSION_MAJOR >= 5
+                esp_pm_lock_acquire(cpuFreqLock);
+                esp_pm_lock_acquire(noSleepLock);
+#else
+                esp_pm_lock_acquire(cpuFreqLock);
+                esp_pm_lock_acquire(noSleepLock);
+#endif
                 pmLockHeld = true;
             }
         } else if (args == "1") {
