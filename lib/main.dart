@@ -1447,9 +1447,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (bleGateway.readyForWrite) {
       try {
         await bleGateway.writeCommand(utf8.encode(protocol), withoutResponse: true);
-        if (timed) {
-          await Future.delayed(const Duration(milliseconds: 350));
-        }
       } catch (e) {
         _msg('$command 发送失败');
         return;
@@ -2076,6 +2073,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         adminSession = false;
                         timeSynced = false;
                         rssiValue = 0;
+                        cpuSleepEnabled = true;
+                        carModel = '未设置';
                         final newId = 'TK-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1000000)}';
                         installId = newId;
                         await prefs?.setString('install_id', newId);
