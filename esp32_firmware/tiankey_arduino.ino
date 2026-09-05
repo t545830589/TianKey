@@ -18,7 +18,6 @@
 #include <BLE2902.h>
 #include <Preferences.h>
 #include <esp_pm.h>
-#include <esp_idf_version.h>
 
 // ==================== PIN CONFIGURATION ====================
 // From old boot.py: Lock=14, Unlock=33, Trunk=4
@@ -53,9 +52,7 @@
 #define NVS_NAMESPACE       "tiankey"
 #define NVS_ADMIN_PWD       "admin_pwd"
 #define NVS_DEVICE_NAME     "dev_name"
-#define NVS_SAVED_TIME      "saved_time"
 #define NVS_CPU_SLEEP       "cpu_sleep"
-#define NVS_FIRST_AUTH_PWD  "first_auth"
 
 // Old keys to clean
 #define NVS_OLD_ADMIN_DEV   "admin_device"
@@ -74,9 +71,7 @@ bool deviceConnected = false;
 bool wasAuthenticated = false;
 String adminPassword = ADMIN_PWD_DEFAULT;
 String deviceName = DEVICE_NAME_DEFAULT;
-uint32_t savedTime = 0;
 bool cpuSleepEnabled = true;
-String firstAuthPwd = "";
 
 unsigned long lastHeartbeat = 0;
 
@@ -86,10 +81,6 @@ unsigned long lastHeartbeat = 0;
 //   2. noSleepLock  → prevents light sleep when held
 // Both held when connected or vehicle busy → CPU runs at max, no sleep
 // Both released when idle → CPU enters automatic light sleep via idle task
-//
-// ESP-IDF 4.x (Arduino ESP32 2.x): esp_pm_lock_acquire(handle)
-// ESP-IDF 5.x (Arduino ESP32 3.x): esp_pm_lock_acquire(handle, mode)
-// Conditional compilation handles both.
 esp_pm_lock_t cpuFreqLock = NULL;
 esp_pm_lock_t noSleepLock = NULL;
 bool pmLockHeld = false;
@@ -122,7 +113,6 @@ void setupBLE();
 void processCommand(String cmd);
 void sendResponse(String msg);
 void factoryReset();
-uint32_t getUnixTime();
 void handleDisconnect();
 void releaseAllPins();
 void startVehicleAction(VehicleAction action);
@@ -137,13 +127,8 @@ class ServerCallbacks : public BLEServerCallbacks {
         lastHeartbeat = millis();
         // Acquire both PM locks — CPU max freq + no sleep
         if (!pmLockHeld && pmInitOk) {
-#if ESP_IDF_VERSION_MAJOR >= 5
             esp_pm_lock_acquire(cpuFreqLock);
             esp_pm_lock_acquire(noSleepLock);
-#else
-            esp_pm_lock_acquire(cpuFreqLock);
-            esp_pm_lock_acquire(noSleepLock);
-#endif
             pmLockHeld = true;
         }
         Serial.printf("[BLE] Connected, handle=%d\n", connHandle);
@@ -192,7 +177,6 @@ void setup() {
     Serial.printf("CPU Sleep: %s\n", cpuSleepEnabled ? "ON" : "OFF");
 
     // ===== Power Management Configuration =====
-    // Step 1: Configure automatic power management
     esp_pm_config_esp32_t pmConfig;
     pmConfig.max_freq_mhz = 240;
     pmConfig.min_freq_mhz = 80;
@@ -200,27 +184,12 @@ void setup() {
     esp_err_t errPM = esp_pm_configure(&pmConfig);
     Serial.printf("[PM] esp_pm_configure: %s\n", errPM == ESP_OK ? "OK" : "FAIL");
 
-    // Step 2: Create CPU frequency lock (max performance when held)
-#if ESP_IDF_VERSION_MAJOR >= 5
-    // ESP-IDF 5.x (Arduino ESP32 3.x)
     esp_err_t errFreq = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpu_freq", &cpuFreqLock);
-#else
-    // ESP-IDF 4.x (Arduino ESP32 2.x)
-    esp_err_t errFreq = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpu_freq", &cpuFreqLock);
-#endif
     Serial.printf("[PM] CPU freq lock: %s\n", errFreq == ESP_OK ? "OK" : "FAIL");
 
-    // Step 3: Create no-sleep lock (prevent light sleep when held)
-#if ESP_IDF_VERSION_MAJOR >= 5
-    // ESP-IDF 5.x — ESP_PM_LIGHT_SLEEP prevents automatic light sleep
-    esp_err_t errSleep = esp_pm_lock_create(ESP_PM_LIGHT_SLEEP, 0, "no_sleep", &noSleepLock);
-#else
-    // ESP-IDF 4.x — ESP_PM_NO_SLEEP prevents all sleep
     esp_err_t errSleep = esp_pm_lock_create(ESP_PM_NO_SLEEP, 0, "no_sleep", &noSleepLock);
-#endif
     Serial.printf("[PM] No-sleep lock: %s\n", errSleep == ESP_OK ? "OK" : "FAIL");
 
-    // pmInitOk only true if ALL three succeeded
     pmInitOk = (errPM == ESP_OK && errFreq == ESP_OK && errSleep == ESP_OK
                 && cpuFreqLock != NULL && noSleepLock != NULL);
     Serial.printf("[PM] Init result: %s\n", pmInitOk ? "SUCCESS" : "FAILED");
@@ -246,24 +215,12 @@ void loop() {
     // ===== CPU low power: two-lock mechanism =====
     bool shouldHoldLock = deviceConnected || vehicleBusy || !cpuSleepEnabled;
     if (shouldHoldLock && !pmLockHeld && pmInitOk) {
-        // Acquire both locks: max freq + no sleep
-#if ESP_IDF_VERSION_MAJOR >= 5
         esp_pm_lock_acquire(cpuFreqLock);
         esp_pm_lock_acquire(noSleepLock);
-#else
-        esp_pm_lock_acquire(cpuFreqLock);
-        esp_pm_lock_acquire(noSleepLock);
-#endif
         pmLockHeld = true;
     } else if (!shouldHoldLock && pmLockHeld && pmInitOk) {
-        // Release both locks → idle task puts CPU into automatic light sleep
-#if ESP_IDF_VERSION_MAJOR >= 5
         esp_pm_lock_release(noSleepLock);
         esp_pm_lock_release(cpuFreqLock);
-#else
-        esp_pm_lock_release(noSleepLock);
-        esp_pm_lock_release(cpuFreqLock);
-#endif
         pmLockHeld = false;
     }
 
@@ -286,9 +243,7 @@ void loadConfig() {
     String loadedName = prefs.getString(NVS_DEVICE_NAME, DEVICE_NAME_DEFAULT);
     deviceName = loadedName.length() > 0 ? loadedName : DEVICE_NAME_DEFAULT;
 
-    savedTime = prefs.getUInt(NVS_SAVED_TIME, 0);
     cpuSleepEnabled = prefs.getBool(NVS_CPU_SLEEP, true);
-    firstAuthPwd = prefs.getString(NVS_FIRST_AUTH_PWD, "");
 
     prefs.end();
 
@@ -398,25 +353,10 @@ void processCommand(String cmd) {
 
         if (pwd == adminPassword) {
             wasAuthenticated = true;
-            savedTime = timestamp - (millis() / 1000);
-
-            if (firstAuthPwd.length() == 0) {
-                firstAuthPwd = pwd;
-            }
-
-            prefs.begin(NVS_NAMESPACE, false);
-            prefs.putUInt(NVS_SAVED_TIME, savedTime);
-            prefs.putString(NVS_FIRST_AUTH_PWD, firstAuthPwd);
-            prefs.end();
-
             sendResponse("OK TIME");
-            Serial.printf("[AUTH] Success, time=%lu\n", timestamp);
+            Serial.printf("[AUTH] Success\n");
         } else {
             wasAuthenticated = false;
-            firstAuthPwd = "";
-            prefs.begin(NVS_NAMESPACE, false);
-            prefs.putString(NVS_FIRST_AUTH_PWD, firstAuthPwd);
-            prefs.end();
             sendResponse("ERR");
             Serial.println("[AUTH] Failed");
         }
@@ -550,20 +490,13 @@ void processCommand(String cmd) {
         }
         if (args == "0") {
             cpuSleepEnabled = false;
-            // Acquire both locks to prevent any sleep
-            if (!pmLockHeld && pmInitOk) {
-#if ESP_IDF_VERSION_MAJOR >= 5
+            if (!pmLockHeld) {
                 esp_pm_lock_acquire(cpuFreqLock);
                 esp_pm_lock_acquire(noSleepLock);
-#else
-                esp_pm_lock_acquire(cpuFreqLock);
-                esp_pm_lock_acquire(noSleepLock);
-#endif
                 pmLockHeld = true;
             }
         } else if (args == "1") {
             cpuSleepEnabled = true;
-            // PM lock will be released by main loop if not connected/busy
         } else {
             sendResponse("ERR");
             return;
@@ -578,7 +511,11 @@ void processCommand(String cmd) {
 
     // ===== CPUSLEEP? (query) =====
     if (command == "CPUSLEEP?") {
-        sendResponse("CPUSLEEP:" + String(cpuSleepEnabled ? "1" : "0"));
+        if (!pmInitOk) {
+            sendResponse("CPUSLEEP:FAIL");
+        } else {
+            sendResponse("CPUSLEEP:" + String(cpuSleepEnabled ? "1" : "0"));
+        }
         return;
     }
 
@@ -730,11 +667,6 @@ void factoryReset() {
     sendResponse("OK RESET");
     delay(500);
     ESP.restart();
-}
-
-// ==================== TIME ====================
-uint32_t getUnixTime() {
-    return (uint32_t)(millis() / 1000) + savedTime;
 }
 
 // ==================== DISCONNECT HANDLER ====================

@@ -636,7 +636,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {});
+    _btAdapterSub = FlutterBluePlus.adapterState.listen((state) {
+      // 蓝牙重新打开时，自动连接开启则尝试重连
+      if (state == BluetoothAdapterState.on &&
+          autoConnect &&
+          !_userDisconnected &&
+          !connected &&
+          !connecting &&
+          !_autoConnecting &&
+          savedRemoteId != null &&
+          savedRemoteId!.isNotEmpty) {
+        _tryAutoConnect();
+      }
+    });
     _load();
   }
 
@@ -713,11 +725,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
     ready = true;
     if (mounted) setState(() {});
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => splashDone = true);
     _cleanupLogs();
 
-    // 检查蓝牙是否开启
+    // 检查蓝牙是否开启（不等动画结束）
     if (mounted) {
       try {
         final adapterState = await FlutterBluePlus.adapterState.first;
@@ -764,13 +774,16 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
     if (mounted) setState(() {});
 
-    // 启动后自动连接
+    // 启动后自动连接（不等动画结束）
     if (autoConnect) {
       _tryAutoConnect();
     } else if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
-      // 未自动连接时，启动未连接RSSI扫描（用于寻车）
       _startScanRssi();
     }
+
+    // 开机动画继续播2秒（不影响上面的BLE操作）
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => splashDone = true);
   }
 
   Future<void> _tryAutoConnect() async {
@@ -1428,20 +1441,29 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
     late final String protocol;
-    final timed = command == '车窗升' || command == '车窗降' || command == '后备箱';
+    final timed;
     switch (command) {
       case '锁车':
         protocol = '!LOCK';
+        timed = false;
       case '解锁':
         protocol = '!UNLOCK';
+        timed = false;
       case '寻车':
         protocol = '!FINDCAR';
+        timed = false;
       case '车窗升':
         protocol = '!WINDOWUP';
+        timed = true;
       case '车窗降':
         protocol = '!WINDOWDOWN';
-      default:
+        timed = true;
+      case '后备箱':
         protocol = '!TRUNK';
+        timed = true;
+      default:
+        _msg('未知车辆命令');
+        return;
     }
 
     if (bleGateway.readyForWrite) {
