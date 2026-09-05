@@ -18,7 +18,6 @@
 #include <BLE2902.h>
 #include <Preferences.h>
 #include <esp_pm.h>
-#include <esp_sleep.h>
 
 // ==================== PIN CONFIGURATION ====================
 // From old boot.py: Lock=14, Unlock=33, Trunk=4
@@ -180,7 +179,7 @@ void setup() {
     //   - FreeRTOS idle task calls esp_light_sleep_start() automatically
     //   - BLE modem sleep is handled by the BLE stack (radio sleeps between events)
     //   - CPU enters light sleep when no PM lock is held and idle task runs
-    //   - CPU wakes on: BLE event, timer, GPIO, or any interrupt
+    //   - CPU wakes on: BLE event, GPIO, or any interrupt — no software timer needed
     esp_pm_config_esp32_t pmConfig;
     pmConfig.max_freq_mhz = 240;
     pmConfig.min_freq_mhz = 80;    // 80MHz minimum (BLE requires ≥80MHz)
@@ -191,11 +190,6 @@ void setup() {
     // Create PM lock — held when connected or vehicle busy to prevent sleep
     pmResult = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "tiankey", &cpuPmLock);
     Serial.printf("[PM] Lock create: %s\n", pmResult == ESP_OK ? "OK" : "FAIL");
-
-    // Configure timer wakeup source for light sleep (fallback / idle wake)
-    // When BLE is not active, this ensures CPU wakes periodically to check state
-    // The timer only fires when CPU is actually in light sleep (idle task)
-    esp_sleep_enable_timer_wakeup(1000000);  // 1 second max idle interval
 
     Serial.println("=== Setup Complete ===\n");
 }
@@ -219,7 +213,7 @@ void loop() {
     // PM lock held   → CPU runs at max freq, no sleep
     // PM lock released → idle task puts CPU into automatic light sleep
     //   BLE modem sleep handles radio power independently
-    //   CPU wakes on: BLE advertising event, BLE connection event, timer, or GPIO
+    //   CPU wakes on: BLE advertising event, BLE connection event, or GPIO interrupt
     //
     // States:
     //   Connected           → lock held  → CPU awake, handles commands
