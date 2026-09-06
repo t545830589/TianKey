@@ -805,6 +805,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!autoConnect) return;
     // 先锁住，再检查。防止多个触发同时通过检查
     if (_autoConnecting) return;
+    if (_manualScanActive || scanning || connecting) return;
     _autoConnecting = true;
     if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) { _autoConnecting = false; return; }
     await _stopScanRssi();
@@ -1662,7 +1663,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _startReconnectRetry() {
     _reconnectRetryTimer?.cancel();
     _reconnectRetryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (connected || !autoConnect || !authorized || _autoConnecting || _factoryResetting) return;
+      if (connected || !autoConnect || !authorized || _autoConnecting || _manualScanActive || scanning || connecting || _factoryResetting) return;
       if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
         _tryAutoConnect();
       }
