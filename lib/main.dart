@@ -1705,6 +1705,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (_heartbeatFailCount >= 6 && connected) {
       _stopHeartbeat();
       _stopRssiPolling();
+      commandTimer?.cancel();
+      commandTimer = null;
       setState(() {
         connected = false;
         adminSession = false;
@@ -2143,6 +2145,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           }
                           if (newCtrl.text.trim().length < 6) {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('新密码至少6位'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                            return;
+                          }
+                          if (newCtrl.text.trim().length > 31) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('新密码最多31位'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                             return;
                           }
                           if (newCtrl.text.trim() != confirmCtrl.text.trim()) {

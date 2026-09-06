@@ -203,11 +203,6 @@ void loop() {
     } else {
         vTaskDelay(pdMS_TO_TICKS(1));
     }
-
-    // 检查断线后动作（NAME重启/RESET恢复出厂），双锁完成后触发
-    if (currentAction == ACTION_NONE && !vehicleBusy && postDisconnectAction != POST_NONE) {
-        handlePostDisconnect();
-    }
 }
 
 // ==================== CONFIGURATION ====================
@@ -646,11 +641,15 @@ void updateVehicleAction() {
                 vehicleBusy = false;
                 disconnectDoubleLockPending = false;
                 Serial.println("[DISC] Double-lock complete");
-                if (pServer != NULL) {
-                    pServer->startAdvertising();
-                    Serial.println("[BLE] Advertising restarted after double-lock");
+                // 普通断线恢复Advertising；NAME/RESET直接执行动作不恢复Advertising
+                if (postDisconnectAction == POST_NONE) {
+                    if (pServer != NULL) {
+                        pServer->startAdvertising();
+                        Serial.println("[BLE] Advertising restarted after double-lock");
+                    }
+                } else {
+                    handlePostDisconnect();
                 }
-                handlePostDisconnect();
             }
             break;
 
