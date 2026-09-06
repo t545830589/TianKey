@@ -890,23 +890,70 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!ok && mounted && !connected) setState(() => connecting = false);
   }
 
+  Future<BleScanItem?> _showDevicePickerDialog() async {
+    if (!mounted) return null;
+    return showDialog<BleScanItem>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1117),
+        title: Row(
+          children: [
+            const Icon(Icons.bluetooth_searching, color: Color(0xFF00E5FF), size: 22),
+            const SizedBox(width: 8),
+            Text('发现 ${scannedDevices.length} 个设备', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: scannedDevices.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF1A2332)),
+            itemBuilder: (ctx, i) {
+              final d = scannedDevices[i];
+              final isTian = d.name.toLowerCase().contains('tian');
+              return ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                leading: Icon(
+                  isTian ? Icons.directions_car : Icons.bluetooth,
+                  color: isTian ? const Color(0xFFFF8800) : const Color(0xFF00E5FF),
+                  size: 22,
+                ),
+                title: Text(d.name, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: Text('${d.remoteId}  ${d.rssi} dBm', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                trailing: const Icon(Icons.chevron_right, color: Color(0xFF00E5FF), size: 18),
+                onTap: () => Navigator.pop(ctx, d),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> connect() async {
     if (connecting || connected || _autoConnecting) return;
     _stopScanRssi();
     _userDisconnected = false;
     var target = foundDevice;
 
-    // 【修复】不再自己设置scanning=true，让scan()自己管理
     if (target == null) {
       setState(() => status = '正在扫描蓝牙设备...');
-      await scan(timeout: const Duration(seconds: 3));
+      await scan(timeout: const Duration(seconds: 5));
       if (!mounted) return;
       if (scannedDevices.isEmpty) {
         setState(() => status = '未发现设备，请确认ESP32已开启');
         _msg('未发现蓝牙设备，请确认ESP32已开启并靠近手机');
         return;
       }
-      // 优先匹配保存的设备
       if (savedRemoteId != null) {
         final match = scannedDevices.where((d) => d.remoteId == savedRemoteId).toList();
         if (match.isNotEmpty) {
@@ -914,14 +961,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           target = foundDevice;
         }
       }
-      // 只有一个设备就直接选
       if (target == null && scannedDevices.length == 1) {
         foundDevice = scannedDevices.first;
         target = foundDevice;
       }
       if (target == null) {
-        setState(() => status = '发现 ${scannedDevices.length} 个设备，请选择');
-        return;
+        target = await _showDevicePickerDialog();
+        if (target == null) {
+          setState(() => status = '已取消选择');
+          return;
+        }
+        foundDevice = target;
       }
     }
 

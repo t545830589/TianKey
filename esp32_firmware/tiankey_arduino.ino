@@ -76,15 +76,11 @@ bool cpuSleepEnabled = true;
 unsigned long lastHeartbeat = 0;
 
 // ==================== POWER MANAGEMENT ====================
-// Two independent PM locks:
-//   1. cpuFreqLock  → keeps CPU at max frequency when held
-//   2. noSleepLock  → prevents light sleep when held
-// Both held when connected or vehicle busy → CPU runs at max, no sleep
-// Both released when idle → CPU enters automatic light sleep via idle task
-esp_pm_lock_t cpuFreqLock = NULL;
-esp_pm_lock_t noSleepLock = NULL;
-bool pmLockHeld = false;
+// Use esp_sleep API directly (no CONFIG_PM_ENABLE dependency)
+// When idle: esp_light_sleep_start() with BT wake source
+// When busy: normal run
 bool pmInitOk = false;
+bool pmLockHeld = false;
 TaskHandle_t mainTaskHandle = NULL;
 
 // ==================== VEHICLE ACTION STATE MACHINE ====================
@@ -128,12 +124,8 @@ class ServerCallbacks : public BLEServerCallbacks {
         deviceConnected = true;
         wasAuthenticated = false;
         lastHeartbeat = millis();
-        // Acquire both PM locks — CPU max freq + no sleep
-        if (!pmLockHeld && pmInitOk) {
-            esp_pm_lock_acquire(cpuFreqLock);
-            esp_pm_lock_acquire(noSleepLock);
-            pmLockHeld = true;
-        }
+        // BLE connected — busy mode, no sleep
+        pmLockHeld = true;
         Serial.printf("[BLE] Connected, handle=%d\n", connHandle);
         if (mainTaskHandle != NULL) xTaskNotifyGive(mainTaskHandle);
     }
@@ -158,9 +150,9 @@ class ServerCallbacks : public BLEServerCallbacks {
 
 class RxCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
-        std::string value = pCharacteristic->getValue();
+        String value = pCharacteristic->getValue();
         if (value.length() > 0) {
-            String cmd = String(value.c_str());
+            String cmd = value;
             cmd.trim();
             Serial.printf("[RX] %s\n", cmd.c_str());
             processCommand(cmd);
@@ -184,23 +176,9 @@ void setup() {
     Serial.printf("Name: %s\n", deviceName.c_str());
     Serial.printf("CPU Sleep: %s\n", cpuSleepEnabled ? "ON" : "OFF");
 
-    // ===== Power Management Configuration =====
-    esp_pm_config_esp32_t pmConfig;
-    pmConfig.max_freq_mhz = 240;
-    pmConfig.min_freq_mhz = 80;
-    pmConfig.light_sleep_enable = true;
-    esp_err_t errPM = esp_pm_configure(&pmConfig);
-    Serial.printf("[PM] esp_pm_configure: %s\n", errPM == ESP_OK ? "OK" : "FAIL");
-
-    esp_err_t errFreq = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "cpu_freq", &cpuFreqLock);
-    Serial.printf("[PM] CPU freq lock: %s\n", errFreq == ESP_OK ? "OK" : "FAIL");
-
-    esp_err_t errSleep = esp_pm_lock_create(ESP_PM_NO_SLEEP, 0, "no_sleep", &noSleepLock);
-    Serial.printf("[PM] No-sleep lock: %s\n", errSleep == ESP_OK ? "OK" : "FAIL");
-
-    pmInitOk = (errPM == ESP_OK && errFreq == ESP_OK && errSleep == ESP_OK
-                && cpuFreqLock != NULL && noSleepLock != NULL);
-    Serial.printf("[PM] Init result: %s\n", pmInitOk ? "SUCCESS" : "FAILED");
+    // ===== Power Management =====
+    pmInitOk = true;
+    Serial.println("[PM] Init: OK (light sleep via esp_light_sleep_start)");
 
     Serial.println("=== Setup Complete ===\n");
 }
@@ -220,22 +198,17 @@ void loop() {
         }
     }
 
-    // ===== CPU low power: two-lock mechanism =====
+    // ===== CPU low power: sleep when idle =====
     bool shouldHoldLock = deviceConnected || vehicleBusy || !cpuSleepEnabled;
-    if (shouldHoldLock && !pmLockHeld && pmInitOk) {
-        esp_pm_lock_acquire(cpuFreqLock);
-        esp_pm_lock_acquire(noSleepLock);
+    if (shouldHoldLock) {
         pmLockHeld = true;
-    } else if (!shouldHoldLock && pmLockHeld && pmInitOk) {
-        esp_pm_lock_release(noSleepLock);
-        esp_pm_lock_release(cpuFreqLock);
+    } else {
         pmLockHeld = false;
     }
 
-    // When idle: always suspend until BLE event, regardless of PM init result
-    // pmInitOk only controls PM lock operations, not task blocking
-    if (!shouldHoldLock) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    // When idle and cpuSleepEnabled: enter light sleep (BLE wakes us up)
+    if (!shouldHoldLock && pmInitOk) {
+        esp_light_sleep_start();
     } else {
         vTaskDelay(pdMS_TO_TICKS(1));
     }
@@ -286,10 +259,11 @@ void setupPins() {
 void setupBLE() {
     BLEDevice::init(deviceName.c_str());
 
-    // Maximum TX power P9
+    // Maximum TX power for ALL types
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_P9);
+    Serial.println("[BLE] TX power set to P9 (max)");
 
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(&serverCallbacks);
@@ -484,18 +458,8 @@ void processCommand(String cmd) {
 
     // ===== CPUSLEEP =====
     if (command == "CPUSLEEP") {
-        if (!pmInitOk) {
-            sendResponse("ERR");
-            Serial.println("[CPUSLEEP] PM not initialized, reject");
-            return;
-        }
         if (args == "0") {
             cpuSleepEnabled = false;
-            if (!pmLockHeld) {
-                esp_pm_lock_acquire(cpuFreqLock);
-                esp_pm_lock_acquire(noSleepLock);
-                pmLockHeld = true;
-            }
         } else if (args == "1") {
             cpuSleepEnabled = true;
         } else {
@@ -512,11 +476,7 @@ void processCommand(String cmd) {
 
     // ===== CPUSLEEP? (query) =====
     if (command == "CPUSLEEP?") {
-        if (!pmInitOk) {
-            sendResponse("CPUSLEEP:FAIL");
-        } else {
-            sendResponse("CPUSLEEP:" + String(cpuSleepEnabled ? "1" : "0"));
-        }
+        sendResponse("CPUSLEEP:" + String(cpuSleepEnabled ? "1" : "0"));
         return;
     }
 
