@@ -308,18 +308,18 @@ void processCommand(String cmd) {
     }
     command.toUpperCase();
 
-    // ===== AUTH (format: !AUTH password timestamp) =====
+    // ===== AUTH (format: !AUTH password) =====
     if (command == "AUTH") {
-        int pwdEnd = args.indexOf(' ');
-        if (pwdEnd < 0) {
+        String pwd = args;
+        pwd.trim();
+        if (pwd.length() == 0) {
             sendResponse("ERR");
             return;
         }
-        String pwd = args.substring(0, pwdEnd);
 
         if (pwd == adminPassword) {
             wasAuthenticated = true;
-            sendResponse("OK TIME");
+            sendResponse("OK AUTH");
             Serial.println("[AUTH] Success");
         } else {
             wasAuthenticated = false;

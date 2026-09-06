@@ -1344,12 +1344,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           return false;
         }
         setState(() => status = 'BLE已连接，正在用密码认证...');
-        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         String? reply;
         for (int retry = 0; retry < 3; retry++) {
           reply = await bleGateway.sendAndWait(
-            utf8.encode('!AUTH $savedPwd $ts'),
-            replyMatcher: (r) => r == 'OK TIME',
+            utf8.encode('!AUTH $savedPwd'),
+            replyMatcher: (r) => r == 'OK AUTH',
           );
           if (reply != null && (reply.contains('OK') || reply.contains('ERR'))) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
@@ -1398,12 +1397,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           throw StateError('BLE写通道未就绪，无法发送认证命令');
         }
         setState(() => status = '正在发送认证命令...');
-        final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         String? reply;
         for (int retry = 0; retry < 3; retry++) {
           reply = await bleGateway.sendAndWait(
-            utf8.encode('!AUTH $password $ts'),
-            replyMatcher: (r) => r == 'OK TIME',
+            utf8.encode('!AUTH $password'),
+            replyMatcher: (r) => r == 'OK AUTH',
           );
           if (reply != null) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
