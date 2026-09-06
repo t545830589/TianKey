@@ -34,7 +34,7 @@
 // ==================== CONSTANTS ====================
 #define FIRMWARE_VERSION    "3.0"
 #define DEVICE_NAME_DEFAULT "TianKey"
-#define ADMIN_PWD_DEFAULT   "123456"
+#define ADMIN_PWD_DEFAULT   "123456789"
 #define INVALID_CONN_HANDLE 0xFFFF
 
 // Action timing (from old boot.py)

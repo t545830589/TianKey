@@ -530,7 +530,7 @@ class TianKeyHome extends StatefulWidget {
 }
 
 class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
-  static const defaultPassword = '123456';
+  static const defaultPassword = '123456789';
   static const defaultName = 'TianKey';
 
   final TianKeyBleService ble = TianKeyBleService();
@@ -944,6 +944,92 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Future<void> _showManualScanDialog() async {
+    if (!mounted || connected) return;
+    List<BleScanItem>? devices = await ble.scan(timeout: const Duration(seconds: 5));
+    if (!mounted) return;
+    if (devices.isEmpty) {
+      final retry = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0D1117),
+          title: Row(
+            children: const [
+              Icon(Icons.bluetooth_disabled, color: Color(0xFFFF5252), size: 22),
+              SizedBox(width: 8),
+              Text('未发现设备', style: TextStyle(color: Color(0xFFFF5252), fontSize: 18)),
+            ],
+          ),
+          content: const Text('附近没有找到BLE设备\n请确认ESP32已开启并靠近手机',
+              style: TextStyle(color: Colors.white70, fontSize: 14)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消', style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('重新搜索', style: TextStyle(color: Color(0xFF00E5FF))),
+            ),
+          ],
+        ),
+      );
+      if (retry == true && mounted) {
+        _showManualScanDialog();
+      }
+      return;
+    }
+    final selected = await showDialog<BleScanItem>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1117),
+        title: Row(
+          children: [
+            const Icon(Icons.bluetooth_searching, color: Color(0xFF00E5FF), size: 22),
+            const SizedBox(width: 8),
+            Text('发现 ${devices.length} 个设备', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: devices.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF1A2332)),
+            itemBuilder: (ctx, i) {
+              final d = devices[i];
+              final isTian = d.name.toLowerCase().contains('tian');
+              return ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                leading: Icon(
+                  isTian ? Icons.directions_car : Icons.bluetooth,
+                  color: isTian ? const Color(0xFFFF8800) : const Color(0xFF00E5FF),
+                  size: 22,
+                ),
+                title: Text(d.name.isNotEmpty ? d.name : '未命名BLE设备', style: const TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: Text('${d.remoteId}  ${d.rssi} dBm', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                trailing: const Icon(Icons.chevron_right, color: Color(0xFF00E5FF), size: 18),
+                onTap: () => Navigator.pop(ctx, d),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+    if (selected != null && mounted) {
+      connectToDevice(selected);
+    }
   }
 
   Future<void> _showFirstBindDialog() async {
@@ -1865,6 +1951,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                                               }
                                             }),
                                   isEnabled: true,
+                                ),
+                              ),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(
+                                child: TKNeonButton(
+                                  label: '搜索设备',
+                                  icon: Icons.bluetooth_searching,
+                                  neonColor: TKColors.neonOrange,
+                                  onTap: connected ? null : () => _showManualScanDialog(),
+                                  isEnabled: !connected,
                                 ),
                               ),
                             ]),
