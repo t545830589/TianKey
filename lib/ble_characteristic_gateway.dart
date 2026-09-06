@@ -15,6 +15,7 @@ class BleCharacteristicGateway {
   // 串行命令队列：防止多个sendAndWait同时监听导致响应串线
   final List<_PendingCommand> _queue = [];
   bool _processing = false;
+  _PendingCommand? _activeCommand;
 
   void bind({
     required BluetoothCharacteristic writeCharacteristic,
@@ -49,41 +50,61 @@ class BleCharacteristicGateway {
     if (_processing) return;
     _processing = true;
 
-    while (_queue.isNotEmpty) {
-      final cmd = _queue.removeAt(0);
-      await _executeCommand(cmd);
+    try {
+      while (_queue.isNotEmpty) {
+        final cmd = _queue.removeAt(0);
+        await _executeCommand(cmd);
+      }
+    } finally {
+      _processing = false;
     }
-
-    _processing = false;
   }
 
   Future<void> _executeCommand(_PendingCommand cmd) async {
-    final characteristic = _writeCharacteristic;
-    if (characteristic == null) {
-      if (!cmd.completer.isCompleted) cmd.completer.complete(null);
-      return;
-    }
+    _activeCommand = cmd;
+    StreamSubscription<List<int>>? sub;
 
-    // 为当前命令创建一次性listener — 接收所有回复，不按前缀过滤
-    final sub = _notifyController?.stream.listen((value) {
-      if (cmd.completer.isCompleted) return;
-      final msg = String.fromCharCodes(value);
-      if (!cmd.completer.isCompleted) cmd.completer.complete(msg);
-    });
-
-    await characteristic.write(cmd.data, withoutResponse: true);
-
-    // 等待响应或超时
     try {
-      await cmd.completer.future.timeout(cmd.timeout, onTimeout: () {
+      final characteristic = _writeCharacteristic;
+      if (characteristic == null) {
         if (!cmd.completer.isCompleted) cmd.completer.complete(null);
-        return null;
+        return;
+      }
+
+      // 为当前命令创建listener — 按expectPrefix过滤，ERR始终放行
+      sub = _notifyController?.stream.listen((value) {
+        if (cmd.completer.isCompleted) return;
+        final msg = String.fromCharCodes(value);
+        final errMatch = msg.startsWith('ERR') || msg.startsWith('err');
+        if (errMatch) {
+          cmd.completer.complete(msg);
+          return;
+        }
+        if (cmd.expectPrefix == null || cmd.expectPrefix!.isEmpty) {
+          cmd.completer.complete(msg);
+        } else if (msg.startsWith(cmd.expectPrefix!)) {
+          cmd.completer.complete(msg);
+        }
+        // 不匹配则忽略，继续等待
       });
+
+      await characteristic.write(cmd.data, withoutResponse: true);
+
+      // 等待响应或超时
+      try {
+        await cmd.completer.future.timeout(cmd.timeout, onTimeout: () {
+          if (!cmd.completer.isCompleted) cmd.completer.complete(null);
+          return null;
+        });
+      } catch (_) {
+        if (!cmd.completer.isCompleted) cmd.completer.complete(null);
+      }
     } catch (_) {
       if (!cmd.completer.isCompleted) cmd.completer.complete(null);
+    } finally {
+      await sub?.cancel();
+      _activeCommand = null;
     }
-
-    await sub?.cancel();
   }
 
   Future<Stream<List<int>>> startNotify() async {
@@ -105,11 +126,18 @@ class BleCharacteristicGateway {
   }
 
   Future<void> dispose() async {
-    // 等待队列中所有命令完成
+    // 完成未执行的队列命令
     for (final cmd in _queue) {
       if (!cmd.completer.isCompleted) cmd.completer.complete(null);
     }
     _queue.clear();
+
+    // 完成正在执行的命令
+    final active = _activeCommand;
+    if (active != null && !active.completer.isCompleted) {
+      active.completer.complete(null);
+    }
+    _activeCommand = null;
     _processing = false;
 
     await _notifySubscription?.cancel();

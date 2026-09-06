@@ -951,7 +951,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> _showManualScanDialog() async {
-    if (!mounted || connected || connecting || _autoConnecting || scanning || _manualScanActive) return;
+    if (!mounted || connected || connecting || _autoConnecting || scanning) return;
     _manualScanActive = true;
     _stopScanRssi();
     setState(() { scanning = true; status = '正在搜索设备...'; });
@@ -961,8 +961,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     } catch (e) {
       if (!mounted) { _manualScanActive = false; return; }
       setState(() { scanning = false; status = '搜索失败'; });
-      _manualScanActive = false;
-      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
+      // _manualScanActive 保持 true，弹窗期间继续独占
       final retry = await showDialog<bool>(
         context: context,
         barrierDismissible: true,
@@ -982,14 +981,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           ],
         ),
       );
-      if (retry == true && mounted) _showManualScanDialog();
+      if (retry == true && mounted) {
+        _showManualScanDialog();
+        return;
+      }
+      // 用户取消：结束手动搜索流程
+      _manualScanActive = false;
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
       return;
     }
     if (!mounted) { _manualScanActive = false; return; }
     setState(() { scanning = false; status = '搜索完成'; });
     if (devices.isEmpty) {
-      _manualScanActive = false;
-      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
+      // _manualScanActive 保持 true，弹窗期间继续独占
       final retry = await showDialog<bool>(
         context: context,
         barrierDismissible: true,
@@ -1010,7 +1014,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           ],
         ),
       );
-      if (retry == true && mounted) _showManualScanDialog();
+      if (retry == true && mounted) {
+        _showManualScanDialog();
+        return;
+      }
+      // 用户取消：结束手动搜索流程
+      _manualScanActive = false;
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
       return;
     }
     final selected = await showDialog<BleScanItem>(
@@ -1990,12 +2000,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             Row(children: [
                               Expanded(
                                 child: TKNeonButton(
-                                  label: connected ? '断开连接' : (_connectCooldown ? '请稍候...' : '快速连接'),
+                                  label: connected ? '断开连接' : (_connectCooldown ? '请稍候...' : (connecting ? '连接中...' : '快速连接')),
                                   icon: Icons.bluetooth,
                                   neonColor: TKColors.neonBlue,
                                   onTap: connected
                                       ? () => disconnect()
-                                      : (_connectCooldown || scanning || _autoConnecting || _manualScanActive
+                                      : (_connectCooldown || connecting || scanning || _autoConnecting || _manualScanActive
                                           ? null
                                           : () async {
                                               _connectCooldown = true;
@@ -2011,7 +2021,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                                                 });
                                               }
                                             }),
-                                  isEnabled: connected || (!scanning && !_autoConnecting && !_manualScanActive && !_connectCooldown),
+                                  isEnabled: connected || (!connecting && !scanning && !_autoConnecting && !_manualScanActive && !_connectCooldown),
                                 ),
                               ),
                             ]),

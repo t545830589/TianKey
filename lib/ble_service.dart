@@ -74,6 +74,7 @@ class TianKeyBleService {
       await FlutterBluePlus.startScan(timeout: timeout);
       await FlutterBluePlus.isScanning.where((value) => value == false).first;
     } finally {
+      try { await FlutterBluePlus.stopScan(); } catch (_) {}
       await _scanSubscription?.cancel();
       _scanSubscription = null;
     }
@@ -137,6 +138,7 @@ class TianKeyBleService {
         }
       }
     } catch (error) {
+      try { await target.disconnect(); } catch (_) {}
       await _connectionSubscription?.cancel();
       await _servicesResetSubscription?.cancel();
       _connectionSubscription = null;
