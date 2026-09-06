@@ -679,6 +679,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (connected && !actuallyConnected) {
         _stopHeartbeat();
         _stopRssiPolling();
+        commandTimer?.cancel();
+        commandTimer = null;
+        vehicleBusy = false;
         setState(() {
           connected = false;
           connecting = false;
@@ -686,7 +689,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           timeSynced = false;
           commandSeconds = 0;
           foundDevice = null;
-          status = 'BLE连接已断开';
+          status = 'BLE已断开，ESP将完成当前动作后自动双锁';
         });
         // 回到前台时自动重连
         if (autoConnect) {
@@ -829,11 +832,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
     } catch (_) {
       if (mounted && !connected) setState(() => status = '自动重连失败');
-    } finally {
+    }       finally {
       _autoConnecting = false;
-      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
-        _startScanRssi();
-      }
       // 统一：任何自动重连失败后，满足条件就启动30秒定期重试
       if (!connected && autoConnect && authorized && savedRemoteId != null && savedRemoteId!.isNotEmpty && !_factoryResetting) {
         _startReconnectRetry();
@@ -1270,17 +1270,19 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       ble.onDisconnect = () {
         _stopHeartbeat();
         _stopRssiPolling();
+        commandTimer?.cancel();
+        commandTimer = null;
         if (mounted) {
           setState(() {
-        connected = false;
-        connecting = false;
-        adminSession = false;
-        timeSynced = false;
-        commandSeconds = 0;
-        vehicleBusy = false;
-        foundDevice = null;
-        _cpuSleepAvailable = true;
-        status = _userDisconnected ? '已断开' : '等待自动连接';
+            connected = false;
+            connecting = false;
+            adminSession = false;
+            timeSynced = false;
+            commandSeconds = 0;
+            vehicleBusy = false;
+            foundDevice = null;
+            _cpuSleepAvailable = true;
+            status = _userDisconnected ? '已断开' : 'BLE已断开，ESP将完成当前动作后自动双锁';
           });
           // 非用户主动断开 + 自动连接开启 → 静默重连，不弹提示不写日志
           if (!_userDisconnected && !_factoryResetting && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
@@ -1755,6 +1757,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     _stopScanRssi();
     _stopReconnectRetry();
     commandTimer?.cancel();
+    commandTimer = null;
     try {
       await bleGateway.dispose();
     } catch (_) {}
@@ -2452,7 +2455,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             utf8.encode('!RESET'),
                             replyMatcher: (r) => r == 'OK RESET',
                           );
-                          if (reply != null && reply.contains('OK')) {
+                        if (reply != null && reply.contains('OK')) {
                             espResetConfirmed = true;
                             _logEvent('RESET', '恢复出厂设置');
                           }
@@ -2462,16 +2465,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         if (!espResetConfirmed) {
                           _factoryResetting = false;
                           ScaffoldMessenger.of(pageCtx).showSnackBar(
-                            SnackBar(content: const Text('ESP32恢复出厂失败，未收到确认'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)),
+                            SnackBar(content: const Text('ESP32未确认恢复出厂'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)),
                           );
                           return;
                         }
-                        // 收到OK RESET后，等待ESP32重启
-                        await Future.delayed(const Duration(milliseconds: 500));
-                        try { await ble.disconnect(); } catch (_) {}
+                        // 已收到OK RESET，ESP32将主动断开BLE并执行双锁+恢复出厂
+                        // APK立即清除本地数据，不依赖BLE断开时序
                         await prefs?.clear();
                         ScaffoldMessenger.of(pageCtx).showSnackBar(
-                          SnackBar(content: const Text('已恢复出厂设置'), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)),
+                          SnackBar(content: const Text('恢复出厂设置已确认，ESP32正在处理'), backgroundColor: TKColors.neonBlue, duration: const Duration(seconds: 2)),
                         );
                         adminPassword = defaultPassword;
                         savedRemoteId = null;
