@@ -75,14 +75,21 @@ class BleCharacteristicGateway {
       sub = _notifyController?.stream.listen((value) {
         if (cmd.completer.isCompleted) return;
         final msg = String.fromCharCodes(value);
-        final errMatch = msg.startsWith('ERR') || msg.startsWith('err');
-        if (errMatch) {
+
+        // ERR始终放行，不管expectPrefix是什么
+        if (msg.startsWith('ERR') || msg.startsWith('err')) {
           cmd.completer.complete(msg);
           return;
         }
+
+        // 无expectPrefix：收到任何非ERR回复即匹配
         if (cmd.expectPrefix == null || cmd.expectPrefix!.isEmpty) {
           cmd.completer.complete(msg);
-        } else if (msg.startsWith(cmd.expectPrefix!)) {
+          return;
+        }
+
+        // 有expectPrefix：回复必须以该prefix开头
+        if (msg.startsWith(cmd.expectPrefix!)) {
           cmd.completer.complete(msg);
         }
         // 不匹配则忽略，继续等待

@@ -57,6 +57,8 @@ class TianKeyBleService {
   Future<List<BleScanItem>> scan({Duration timeout = const Duration(seconds: 6)}) async {
     _found.clear();
     await _scanSubscription?.cancel();
+    // 确保旧扫描真正停止
+    try { await FlutterBluePlus.stopScan(); } catch (_) {}
     _scanSubscription = FlutterBluePlus.onScanResults.listen((results) {
       for (final result in results) {
         final name = result.advertisementData.advName.trim().isNotEmpty
@@ -105,6 +107,8 @@ class TianKeyBleService {
   Future<void> connect(BluetoothDevice target, {Duration timeout = const Duration(seconds: 10)}) async {
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
+    // 确保旧扫描真正停止
+    try { await FlutterBluePlus.stopScan(); } catch (_) {}
     device = target;
     _services = <BluetoothService>[];
 
@@ -138,6 +142,7 @@ class TianKeyBleService {
         }
       }
     } catch (error) {
+      // 连接成功但服务发现失败：必须真实断开
       try { await target.disconnect(); } catch (_) {}
       await _connectionSubscription?.cancel();
       await _servicesResetSubscription?.cancel();

@@ -872,9 +872,6 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       setState(() => status = 'BLE扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
-      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
-        _startScanRssi();
-      }
     }
   }
 
@@ -890,15 +887,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (canUseSavedPwd) {
       setState(() => status = '正在连接并自动认证...');
       final ok = await _connectBle(device, autoAuth: true);
-      if (!ok && mounted && !connected) setState(() => connecting = false);
+      if (!ok && mounted && !connected) { setState(() => connecting = false); _tryResumeScanRssi(); }
       return;
     }
 
     passwordController.clear();
     final pwd = await _askPassword();
-    if (pwd == null || !mounted) return;
+    if (pwd == null || !mounted) { _tryResumeScanRssi(); return; }
     final ok = await _connectBle(device, password: pwd);
-    if (!ok && mounted && !connected) setState(() => connecting = false);
+    if (!ok && mounted && !connected) { setState(() => connecting = false); _tryResumeScanRssi(); }
   }
 
   Future<BleScanItem?> _showDevicePickerDialog() async {
@@ -1186,6 +1183,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (scannedDevices.isEmpty) {
         setState(() => status = '未发现设备，请确认ESP32已开启');
         _msg('未发现蓝牙设备，请确认ESP32已开启并靠近手机');
+        _tryResumeScanRssi();
         return;
       }
       if (savedRemoteId != null) {
@@ -1203,6 +1201,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         target = await _showDevicePickerDialog();
         if (target == null) {
           setState(() => status = '已取消选择');
+          _tryResumeScanRssi();
           return;
         }
         foundDevice = target;
@@ -1215,15 +1214,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (canUseSavedPwd) {
       setState(() => status = '自动连接中...');
       final ok = await _connectBle(target, autoAuth: true);
-      if (!ok && mounted && !connected) setState(() => connecting = false);
+      if (!ok && mounted && !connected) { setState(() => connecting = false); _tryResumeScanRssi(); }
       return;
     }
 
     passwordController.clear();
     final pwd = await _askPassword();
-    if (pwd == null || !mounted) return;
+    if (pwd == null || !mounted) { _tryResumeScanRssi(); return; }
     final ok = await _connectBle(target, password: pwd);
-    if (!ok && mounted && !connected) setState(() => connecting = false);
+    if (!ok && mounted && !connected) { setState(() => connecting = false); _tryResumeScanRssi(); }
   }
 
   Future<bool> _connectBle(BleScanItem target, {String? password, bool autoAuth = false}) async {
@@ -1391,7 +1390,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         String? reply;
         for (int retry = 0; retry < 3; retry++) {
-          reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $ts'));
+          reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $ts'), expectPrefix: 'OK');
           if (reply != null) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -1638,6 +1637,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _stopScanRssi() {
     _scanRssiTimer?.cancel();
     _scanRssiTimer = null;
+    // 确保正在执行的ble.scan(3秒)也能真正停止
+    try { FlutterBluePlus.stopScan(); } catch (_) {}
+  }
+
+  void _tryResumeScanRssi() {
+    if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty && !scanning && !connecting && !_autoConnecting && !_manualScanActive && mounted) {
+      _startScanRssi();
+    }
   }
 
   void _startReconnectRetry() {
@@ -2127,7 +2134,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           setLocalState(() => saving = true);
                           try {
                             // 【修复】必须ESP32成功后才改本地密码
-                            final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${currentCtrl.text.trim()} ${newCtrl.text.trim()}'));
+                            final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${currentCtrl.text.trim()} ${newCtrl.text.trim()}'), expectPrefix: 'OK');
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('ESP32修改密码失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
@@ -2204,7 +2211,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           setLocalState(() => saving = true);
                           try {
                             // 【修复】发送名称修改，ESP32会重启
-                            final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'));
+                            final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'), expectPrefix: 'OK');
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('ESP32修改名称失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
