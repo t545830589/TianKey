@@ -160,10 +160,9 @@ class TianKeyBleService {
   }
 
   Future<void> dispose() async {
-    await _scanSubscription?.cancel();
+    await stopCurrentScan();
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
-    _scanSubscription = null;
     _connectionSubscription = null;
     _servicesResetSubscription = null;
     if (device?.isConnected ?? false) {

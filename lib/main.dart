@@ -842,7 +842,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> scan({Duration? timeout}) async {
     if (!ready) return;
-    _stopScanRssi();
+    await _stopScanRssi();
     setState(() {
       scanning = true;
       foundDevice = null;
@@ -1341,7 +1341,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         for (int retry = 0; retry < 3; retry++) {
           reply = await bleGateway.sendAndWait(
             utf8.encode('!AUTH $savedPwd $ts'),
-            replyMatcher: (r) => r.startsWith('OK'),
+            replyMatcher: (r) => r == 'OK TIME',
           );
           if (reply != null && (reply.contains('OK') || reply.contains('ERR'))) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
@@ -1395,7 +1395,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         for (int retry = 0; retry < 3; retry++) {
           reply = await bleGateway.sendAndWait(
             utf8.encode('!AUTH $password $ts'),
-            replyMatcher: (r) => r.startsWith('OK'),
+            replyMatcher: (r) => r == 'OK TIME',
           );
           if (reply != null) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
@@ -2225,7 +2225,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             // 【修复】发送名称修改，ESP32会重启
                             final reply = await bleGateway.sendAndWait(
                               utf8.encode('!NAME $v'),
-                              replyMatcher: (r) => r.startsWith('OK'),
+                              replyMatcher: (r) => r.startsWith('OK NAME '),
                             );
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;

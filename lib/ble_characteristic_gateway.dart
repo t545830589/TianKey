@@ -12,10 +12,12 @@ class BleCharacteristicGateway {
   bool get readyForWrite => _writeCharacteristic != null;
   bool get readyForNotify => _notifyCharacteristic != null;
 
-  // 串行命令队列：防止多个sendAndWait同时监听导致响应串线
+  // 串行命令队列
   final List<_PendingCommand> _queue = [];
   bool _processing = false;
   _PendingCommand? _activeCommand;
+  // 跟踪当前processor的Future，dispose时等待它结束
+  Future<void>? _processorFuture;
 
   void bind({
     required BluetoothCharacteristic writeCharacteristic,
@@ -61,10 +63,13 @@ class BleCharacteristicGateway {
     return completer.future;
   }
 
-  Future<void> _processQueue() async {
+  void _processQueue() {
     if (_processing) return;
     _processing = true;
+    _processorFuture = _processorLoop();
+  }
 
+  Future<void> _processorLoop() async {
     try {
       while (_queue.isNotEmpty) {
         final cmd = _queue.removeAt(0);
@@ -72,6 +77,7 @@ class BleCharacteristicGateway {
       }
     } finally {
       _processing = false;
+      _activeCommand = null;
     }
   }
 
@@ -134,7 +140,7 @@ class BleCharacteristicGateway {
       if (!cmd.completer.isCompleted) cmd.completer.complete(null);
     } finally {
       await sub?.cancel();
-      _activeCommand = null;
+      // activeCommand由_processorLoop的finally清理
     }
   }
 
@@ -157,20 +163,28 @@ class BleCharacteristicGateway {
   }
 
   Future<void> dispose() async {
-    // 完成未执行的队列命令
+    // 1. 完成未执行的队列命令
     for (final cmd in _queue) {
       if (!cmd.completer.isCompleted) cmd.completer.complete(null);
     }
     _queue.clear();
 
-    // 完成正在执行的命令
+    // 2. 完成正在执行的active command（让旧processor能正常退出）
     final active = _activeCommand;
     if (active != null && !active.completer.isCompleted) {
       active.completer.complete(null);
     }
-    _activeCommand = null;
-    _processing = false;
 
+    // 3. 等待旧processor真正退出
+    final processor = _processorFuture;
+    if (processor != null) {
+      try { await processor.timeout(const Duration(seconds: 3)); } catch (_) {}
+    }
+    _processorFuture = null;
+    _processing = false;
+    _activeCommand = null;
+
+    // 4. 清理notify/characteristic
     await _notifySubscription?.cancel();
     await _notifyController?.close();
     _notifySubscription = null;
