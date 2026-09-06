@@ -556,6 +556,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   bool connecting = false;
   bool connected = false;
   bool _autoConnecting = false;
+  bool _manualScanActive = false;
   bool authorized = false;
   bool adminSession = false;
   bool autoConnect = true;
@@ -799,7 +800,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> _tryAutoConnect() async {
     if (!autoConnect) return;
-    if (_autoConnecting || connected || connecting || scanning) return;
+    if (_autoConnecting || connected || connecting || scanning || _manualScanActive) return;
     if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) return;
     _stopScanRssi();
     _autoConnecting = true;
@@ -871,19 +872,22 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       setState(() => status = 'BLE扫描失败：$error');
     } finally {
       if (mounted) setState(() => scanning = false);
-      if (!connected && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
         _startScanRssi();
       }
     }
   }
 
   Future<void> connectToDevice(BleScanItem device) async {
-    if (connecting || connected) return;
+    if (connecting || connected || _autoConnecting || scanning || _manualScanActive) return;
     _stopScanRssi();
     _userDisconnected = false;
     foundDevice = device;
 
-    if (autoConnect && authorized && adminPassword.isNotEmpty) {
+    // 密码判断：三项全部满足才用保存密码，否则必须输入
+    final savedPwd = prefs?.getString('admin_password');
+    final bool canUseSavedPwd = authorized && savedRemoteId != null && device.remoteId == savedRemoteId && savedPwd != null && savedPwd.isNotEmpty;
+    if (canUseSavedPwd) {
       setState(() => status = '正在连接并自动认证...');
       final ok = await _connectBle(device, autoAuth: true);
       if (!ok && mounted && !connected) setState(() => connecting = false);
@@ -947,16 +951,18 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> _showManualScanDialog() async {
-    if (!mounted || connected || connecting || _autoConnecting || scanning) return;
+    if (!mounted || connected || connecting || _autoConnecting || scanning || _manualScanActive) return;
+    _manualScanActive = true;
     _stopScanRssi();
     setState(() { scanning = true; status = '正在搜索设备...'; });
     List<BleScanItem> devices;
     try {
       devices = await ble.scan(timeout: const Duration(seconds: 5));
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) { _manualScanActive = false; return; }
       setState(() { scanning = false; status = '搜索失败'; });
-      if (!autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
+      _manualScanActive = false;
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
       final retry = await showDialog<bool>(
         context: context,
         barrierDismissible: true,
@@ -979,10 +985,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (retry == true && mounted) _showManualScanDialog();
       return;
     }
-    if (!mounted) return;
+    if (!mounted) { _manualScanActive = false; return; }
     setState(() { scanning = false; status = '搜索完成'; });
-    if (!autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
     if (devices.isEmpty) {
+      _manualScanActive = false;
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) _startScanRssi();
       final retry = await showDialog<bool>(
         context: context,
         barrierDismissible: true,
@@ -1048,15 +1055,17 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         ],
       ),
     );
+    _manualScanActive = false;
     if (selected != null && mounted) {
       connectToDevice(selected);
     } else {
-      if (!autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty && mounted) _startScanRssi();
+      if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty && mounted) _startScanRssi();
     }
   }
 
   Future<void> _showFirstBindDialog() async {
     if (!mounted) return;
+    _manualScanActive = true;
     setState(() {
       scanning = true;
       status = '正在搜索BLE设备...';
@@ -1066,8 +1075,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     try {
       devices = await ble.scan(timeout: const Duration(seconds: 5));
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) { _manualScanActive = false; return; }
       setState(() { scanning = false; status = '搜索失败'; });
+      _manualScanActive = false;
       final retry = await showDialog<bool>(
         context: context,
         barrierDismissible: true,
@@ -1091,10 +1101,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       return;
     }
 
-    if (!mounted) return;
+    if (!mounted) { _manualScanActive = false; return; }
     setState(() => scanning = false);
 
     if (devices.isEmpty) {
+      _manualScanActive = false;
       setState(() => status = '未发现设备，请确认ESP32已开启');
       _msg('未发现蓝牙设备，请确认ESP32已开启并靠近手机');
       return;
@@ -1146,13 +1157,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       ),
     );
 
+    _manualScanActive = false;
     if (selected != null && mounted) {
       connectToDevice(selected);
     }
   }
 
   Future<void> connect() async {
-    if (connecting || connected || _autoConnecting) return;
+    if (connecting || connected || _autoConnecting || scanning || _manualScanActive) return;
     _stopScanRssi();
     _userDisconnected = false;
     var target = foundDevice;
@@ -1187,7 +1199,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       }
     }
 
-    if (autoConnect && authorized && adminPassword.isNotEmpty) {
+    // 密码判断：三项全部满足才用保存密码，否则必须输入
+    final savedPwd = prefs?.getString('admin_password');
+    final bool canUseSavedPwd = authorized && savedRemoteId != null && target.remoteId == savedRemoteId && savedPwd != null && savedPwd.isNotEmpty;
+    if (canUseSavedPwd) {
       setState(() => status = '自动连接中...');
       final ok = await _connectBle(target, autoAuth: true);
       if (!ok && mounted && !connected) setState(() => connecting = false);
@@ -1585,7 +1600,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   void _startScanRssi() {
     _stopScanRssi();
     _scanRssiTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (connected || scanning || connecting || _autoConnecting || !mounted) return;
+      if (connected || scanning || connecting || _autoConnecting || _manualScanActive || !mounted) return;
       try {
         final devices = await ble.scan(timeout: const Duration(seconds: 3));
         if (!mounted) return;
@@ -1980,7 +1995,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                                   neonColor: TKColors.neonBlue,
                                   onTap: connected
                                       ? () => disconnect()
-                                      : (_connectCooldown
+                                      : (_connectCooldown || scanning || _autoConnecting || _manualScanActive
                                           ? null
                                           : () async {
                                               _connectCooldown = true;
@@ -1996,7 +2011,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                                                 });
                                               }
                                             }),
-                                  isEnabled: true,
+                                  isEnabled: connected || (!scanning && !_autoConnecting && !_manualScanActive && !_connectCooldown),
                                 ),
                               ),
                             ]),
@@ -2007,8 +2022,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                                   label: '搜索设备',
                                   icon: Icons.bluetooth_searching,
                                   neonColor: TKColors.neonOrange,
-                                  onTap: (!connected && !connecting && !_autoConnecting && !scanning) ? () => _showManualScanDialog() : null,
-                                  isEnabled: !connected && !connecting && !_autoConnecting && !scanning,
+                                  onTap: (!connected && !connecting && !_autoConnecting && !scanning && !_manualScanActive) ? () => _showManualScanDialog() : null,
+                                  isEnabled: !connected && !connecting && !_autoConnecting && !scanning && !_manualScanActive,
                                 ),
                               ),
                             ]),
@@ -2298,7 +2313,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                   else
                     TKSwitchTile(
                       title: 'CPU低功耗',
-                      subtitle: '开启后CPU空闲时自动休眠，BLE保持广播可随时连接',
+                      subtitle: '开启后空闲时主任务停止空转，BLE保持广播可随时连接',
                       value: cpuSleepEnabled,
                       onChanged: (v) async {
                         if (!connected || !bleGateway.readyForWrite) {
@@ -2483,7 +2498,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                   decoration: BoxDecoration(color: TKColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: TKColors.borderSubtle)),
                   child: Column(children: [
                     _infoRow('车型', carModel),
-                    _infoRow('车牌', deviceName),
+                    _infoRow('设备名称', deviceName),
                     _infoRow('设备ID', installId ?? '未知'),
                     const Divider(color: TKColors.divider, height: 20),
                     _infoRow('连接状态', connected ? '已连接' : '未连接'),
