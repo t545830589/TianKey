@@ -947,9 +947,39 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> _showManualScanDialog() async {
-    if (!mounted || connected) return;
-    List<BleScanItem>? devices = await ble.scan(timeout: const Duration(seconds: 5));
-    if (!mounted) return;
+    if (!mounted || connected || connecting || _autoConnecting || scanning) return;
+    _stopScanRssi();
+    setState(() { scanning = true; status = '正在搜索设备...'; });
+    List<BleScanItem> devices;
+    try {
+      devices = await ble.scan(timeout: const Duration(seconds: 5));
+    } catch (e) {
+      if (!mounted) { setState(() => scanning = false); return; }
+      setState(() { scanning = false; status = '搜索失败'; });
+      final retry = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0D1117),
+          title: Row(
+            children: const [
+              Icon(Icons.error_outline, color: Color(0xFFFF5252), size: 22),
+              SizedBox(width: 8),
+              Text('搜索失败', style: TextStyle(color: Color(0xFFFF5252), fontSize: 18)),
+            ],
+          ),
+          content: Text('BLE扫描出错：$e', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消', style: TextStyle(color: Colors.white54))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('重新搜索', style: TextStyle(color: Color(0xFF00E5FF)))),
+          ],
+        ),
+      );
+      if (retry == true && mounted) _showManualScanDialog();
+      return;
+    }
+    if (!mounted) { setState(() => scanning = false); return; }
+    setState(() { scanning = false; status = '搜索完成'; });
     if (devices.isEmpty) {
       final retry = await showDialog<bool>(
         context: context,
@@ -966,20 +996,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           content: const Text('附近没有找到BLE设备\n请确认ESP32已开启并靠近手机',
               style: TextStyle(color: Colors.white70, fontSize: 14)),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消', style: TextStyle(color: Colors.white54)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('重新搜索', style: TextStyle(color: Color(0xFF00E5FF))),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消', style: TextStyle(color: Colors.white54))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('重新搜索', style: TextStyle(color: Color(0xFF00E5FF)))),
           ],
         ),
       );
-      if (retry == true && mounted) {
-        _showManualScanDialog();
-      }
+      if (retry == true && mounted) _showManualScanDialog();
       return;
     }
     final selected = await showDialog<BleScanItem>(
@@ -1020,10 +1042,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: Colors.white54)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消', style: TextStyle(color: Colors.white54))),
         ],
       ),
     );
