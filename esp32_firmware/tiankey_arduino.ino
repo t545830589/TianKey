@@ -198,17 +198,12 @@ void loop() {
         }
     }
 
-    // ===== CPU low power: sleep when idle =====
+    // ===== CPU low power =====
     bool shouldHoldLock = deviceConnected || vehicleBusy || !cpuSleepEnabled;
-    if (shouldHoldLock) {
-        pmLockHeld = true;
-    } else {
-        pmLockHeld = false;
-    }
 
-    // When idle and cpuSleepEnabled: enter light sleep (BLE wakes us up)
-    if (!shouldHoldLock && pmInitOk) {
-        esp_light_sleep_start();
+    // Idle: block until BLE event wakes us; Busy: short delay
+    if (!shouldHoldLock) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     } else {
         vTaskDelay(pdMS_TO_TICKS(1));
     }
