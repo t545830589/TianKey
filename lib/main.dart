@@ -778,16 +778,23 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
     if (mounted) setState(() {});
 
-    // 启动后自动连接（不等动画结束）
+    // 开机动画播2秒
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => splashDone = true);
+
+    // 第一次绑定：自动弹出BLE搜索框
+    final bool isFirstBind = (savedRemoteId == null || savedRemoteId!.isEmpty || !authorized);
+    if (isFirstBind) {
+      _showFirstBindDialog();
+      return;
+    }
+
+    // 已绑定：正常自动连接
     if (autoConnect) {
       _tryAutoConnect();
     } else if (savedRemoteId != null && savedRemoteId!.isNotEmpty) {
       _startScanRssi();
     }
-
-    // 开机动画继续播2秒（不影响上面的BLE操作）
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => splashDone = true);
   }
 
   Future<void> _tryAutoConnect() async {
@@ -921,7 +928,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                   color: isTian ? const Color(0xFFFF8800) : const Color(0xFF00E5FF),
                   size: 22,
                 ),
-                title: Text(d.name, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                title: Text(d.name.isNotEmpty ? d.name : '未命名BLE设备', style: const TextStyle(color: Colors.white, fontSize: 14)),
                 subtitle: Text('${d.remoteId}  ${d.rssi} dBm', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
                 trailing: const Icon(Icons.chevron_right, color: Color(0xFF00E5FF), size: 18),
                 onTap: () => Navigator.pop(ctx, d),
@@ -937,6 +944,75 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Future<void> _showFirstBindDialog() async {
+    if (!mounted) return;
+    setState(() {
+      scanning = true;
+      status = '正在搜索BLE设备...';
+    });
+
+    final devices = await ble.scan(timeout: const Duration(seconds: 5));
+
+    if (!mounted) return;
+    setState(() => scanning = false);
+
+    if (devices.isEmpty) {
+      setState(() => status = '未发现设备，请确认ESP32已开启');
+      _msg('未发现蓝牙设备，请确认ESP32已开启并靠近手机');
+      return;
+    }
+
+    final selected = await showDialog<BleScanItem>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1117),
+        title: Row(
+          children: [
+            const Icon(Icons.bluetooth_searching, color: Color(0xFF00E5FF), size: 22),
+            const SizedBox(width: 8),
+            Text('发现 ${devices.length} 个设备', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: devices.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF1A2332)),
+            itemBuilder: (ctx, i) {
+              final d = devices[i];
+              final isTian = d.name.toLowerCase().contains('tian');
+              return ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                leading: Icon(
+                  isTian ? Icons.directions_car : Icons.bluetooth,
+                  color: isTian ? const Color(0xFFFF8800) : const Color(0xFF00E5FF),
+                  size: 22,
+                ),
+                title: Text(d.name.isNotEmpty ? d.name : '未命名BLE设备', style: const TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: Text('${d.remoteId}  ${d.rssi} dBm', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                trailing: const Icon(Icons.chevron_right, color: Color(0xFF00E5FF), size: 18),
+                onTap: () => Navigator.pop(ctx, d),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null && mounted) {
+      connectToDevice(selected);
+    }
   }
 
   Future<void> connect() async {
