@@ -1198,7 +1198,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         }
       }
       if (!bleReady) {
-        if (mounted) {
+        if (mounted && !_autoConnecting) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: const Text('蓝牙连接失败，请确认设备在附近'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
           );
@@ -1219,15 +1219,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         vehicleBusy = false;
         foundDevice = null;
         _cpuSleepAvailable = true;
-        status = _userDisconnected ? '已断开' : 'BLE连接意外断开';
+        status = _userDisconnected ? '已断开' : '等待自动连接';
           });
-          if (!_userDisconnected && mounted) {
-            _logEvent('DISCONNECT', 'BLE连接意外断开（非用户操作）');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: const Text('蓝牙连接断开'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 2)),
-            );
-          }
-          // 非用户主动断开 + 非恢复出厂 + 自动连接开启 → 启动自动重连
+          // 非用户主动断开 + 自动连接开启 → 静默重连，不弹提示不写日志
           if (!_userDisconnected && !_factoryResetting && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
             _tryAutoConnect();
           }
@@ -1279,7 +1273,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             connecting = false;
             status = '无保存密码，需手动认证';
           });
-          if (mounted) {
+          if (mounted && !_autoConnecting) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: const Text('无保存密码，请手动连接'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
             );
@@ -1311,7 +1305,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             connecting = false;
             status = '密码错误，已清除保存的密码';
           });
-          if (mounted) {
+          if (mounted && !_autoConnecting) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: const Text('密码错误，请手动重新连接'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
             );
@@ -1325,7 +1319,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             connecting = false;
             status = '自动认证通信失败，保留密码等待重试';
           });
-          if (mounted) {
+          if (mounted && !_autoConnecting) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: const Text('通信失败，保留密码等待重试'), backgroundColor: TKColors.neonOrange, duration: const Duration(seconds: 3)),
             );
@@ -1420,9 +1414,10 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       setState(() {
         connecting = false;
         connected = false;
-        status = '连接失败：$error';
+        status = _autoConnecting ? '等待自动连接' : '连接失败：$error';
       });
-      if (mounted) {
+      // 只有用户手动操作才弹提示
+      if (mounted && !_autoConnecting) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('连接失败：$error'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
         );
