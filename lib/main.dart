@@ -802,7 +802,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     if (!autoConnect) return;
     if (_autoConnecting || connected || connecting || scanning || _manualScanActive) return;
     if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) return;
-    _stopScanRssi();
+    await _stopScanRssi();
     _autoConnecting = true;
     try {
       setState(() => status = '正在自动重连...');
