@@ -16,8 +16,10 @@ class BleCharacteristicGateway {
   final List<_PendingCommand> _queue = [];
   bool _processing = false;
   _PendingCommand? _activeCommand;
-  // 跟踪当前processor的Future，dispose时等待它结束
+  // 跟当前processor的Future，dispose时等它退出
   Future<void>? _processorFuture;
+  // generation计数：每次新processor启动时+1，旧processor检查此值判断自己是否过期
+  int _generation = 0;
 
   void bind({
     required BluetoothCharacteristic writeCharacteristic,
@@ -35,10 +37,6 @@ class BleCharacteristicGateway {
     await characteristic.write(data, withoutResponse: withoutResponse);
   }
 
-  /// 发送命令并等待回复。
-  /// [replyMatcher]：精确匹配回复，返回true表示是当前命令的回复。
-  /// [expectPrefix]：当replyMatcher为null时的回退方案，回复以该前缀开头即匹配。
-  /// ERR回复始终放行，不受matcher影响。
   Future<String?> sendAndWait(
     List<int> data, {
     Duration timeout = const Duration(seconds: 2),
@@ -66,22 +64,28 @@ class BleCharacteristicGateway {
   void _processQueue() {
     if (_processing) return;
     _processing = true;
-    _processorFuture = _processorLoop();
+    _generation++;
+    _processorFuture = _processorLoop(_generation);
   }
 
-  Future<void> _processorLoop() async {
+  Future<void> _processorLoop(int myGeneration) async {
     try {
       while (_queue.isNotEmpty) {
+        // 如果自己已经过期（新processor已启动），停止处理
+        if (myGeneration != _generation) break;
         final cmd = _queue.removeAt(0);
-        await _executeCommand(cmd);
+        await _executeCommand(cmd, myGeneration);
       }
     } finally {
-      _processing = false;
-      _activeCommand = null;
+      // 只有自己还是当前generation时才清理状态
+      if (myGeneration == _generation) {
+        _processing = false;
+        _activeCommand = null;
+      }
     }
   }
 
-  Future<void> _executeCommand(_PendingCommand cmd) async {
+  Future<void> _executeCommand(_PendingCommand cmd, int myGeneration) async {
     _activeCommand = cmd;
     StreamSubscription<List<int>>? sub;
 
@@ -92,12 +96,13 @@ class BleCharacteristicGateway {
         return;
       }
 
-      // 为当前命令创建listener — 精确匹配，ERR始终放行
       sub = _notifyController?.stream.listen((value) {
         if (cmd.completer.isCompleted) return;
+        // 如果自己已过期，忽略所有notify
+        if (myGeneration != _generation) return;
         final msg = String.fromCharCodes(value);
 
-        // ERR始终放行，不管matcher是什么
+        // ERR始终放行
         if (msg.startsWith('ERR') || msg.startsWith('err')) {
           cmd.completer.complete(msg);
           return;
@@ -108,13 +113,11 @@ class BleCharacteristicGateway {
           if (cmd.replyMatcher!(msg)) {
             cmd.completer.complete(msg);
           }
-          // 不匹配则忽略，继续等待
           return;
         }
 
         // 回退到expectPrefix匹配
         if (cmd.expectPrefix == null || cmd.expectPrefix!.isEmpty) {
-          // 无前缀：收到任何非ERR回复即匹配
           cmd.completer.complete(msg);
           return;
         }
@@ -122,12 +125,10 @@ class BleCharacteristicGateway {
         if (msg.startsWith(cmd.expectPrefix!)) {
           cmd.completer.complete(msg);
         }
-        // 不匹配则忽略，继续等待
       });
 
       await characteristic.write(cmd.data, withoutResponse: true);
 
-      // 等待响应或超时
       try {
         await cmd.completer.future.timeout(cmd.timeout, onTimeout: () {
           if (!cmd.completer.isCompleted) cmd.completer.complete(null);
@@ -140,7 +141,6 @@ class BleCharacteristicGateway {
       if (!cmd.completer.isCompleted) cmd.completer.complete(null);
     } finally {
       await sub?.cancel();
-      // activeCommand由_processorLoop的finally清理
     }
   }
 
@@ -169,13 +169,16 @@ class BleCharacteristicGateway {
     }
     _queue.clear();
 
-    // 2. 完成正在执行的active command（让旧processor能正常退出）
+    // 2. 完成正在执行的active command
     final active = _activeCommand;
     if (active != null && !active.completer.isCompleted) {
       active.completer.complete(null);
     }
 
-    // 3. 等待旧processor真正退出
+    // 3. 递增generation使旧processor过期
+    _generation++;
+
+    // 4. 等待旧processor真正退出
     final processor = _processorFuture;
     if (processor != null) {
       try { await processor.timeout(const Duration(seconds: 3)); } catch (_) {}
@@ -184,7 +187,7 @@ class BleCharacteristicGateway {
     _processing = false;
     _activeCommand = null;
 
-    // 4. 清理notify/characteristic
+    // 5. 清理notify/characteristic
     await _notifySubscription?.cancel();
     await _notifyController?.close();
     _notifySubscription = null;

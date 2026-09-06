@@ -800,10 +800,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> _tryAutoConnect() async {
     if (!autoConnect) return;
-    if (_autoConnecting || connected || connecting || scanning || _manualScanActive) return;
-    if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) return;
-    await _stopScanRssi();
+    // 先锁住，再检查。防止多个触发同时通过检查
+    if (_autoConnecting) return;
     _autoConnecting = true;
+    if (!authorized || savedRemoteId == null || savedRemoteId!.isEmpty) { _autoConnecting = false; return; }
+    await _stopScanRssi();
     try {
       setState(() => status = '正在自动重连...');
       final target = BleScanItem(
@@ -876,7 +877,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   Future<void> connectToDevice(BleScanItem device) async {
-    if (connecting || connected || _autoConnecting || scanning || _manualScanActive) return;
+    if (connecting || connected || _autoConnecting || scanning) return;
     await _stopScanRssi();
     _userDisconnected = false;
     foundDevice = device;
@@ -1062,10 +1063,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         ],
       ),
     );
-    _manualScanActive = false;
     if (selected != null && mounted) {
-      connectToDevice(selected);
+      _manualScanActive = true;
+      await connectToDevice(selected);
+      _manualScanActive = false;
     } else {
+      _manualScanActive = false;
       if (!connected && !autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty && mounted) _startScanRssi();
     }
   }
@@ -1164,9 +1167,12 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       ),
     );
 
-    _manualScanActive = false;
     if (selected != null && mounted) {
-      connectToDevice(selected);
+      _manualScanActive = true;
+      await connectToDevice(selected);
+      _manualScanActive = false;
+    } else {
+      _manualScanActive = false;
     }
   }
 
