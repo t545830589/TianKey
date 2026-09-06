@@ -1342,6 +1342,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           reply = await bleGateway.sendAndWait(
             utf8.encode('!AUTH $savedPwd $ts'),
             replyMatcher: (r) => r.startsWith('OK'),
+          );
           if (reply != null && (reply.contains('OK') || reply.contains('ERR'))) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -1395,6 +1396,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           reply = await bleGateway.sendAndWait(
             utf8.encode('!AUTH $password $ts'),
             replyMatcher: (r) => r.startsWith('OK'),
+          );
           if (reply != null) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -1718,6 +1720,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       final reply = await bleGateway.sendAndWait(
         utf8.encode('!CPUSLEEP?'),
         replyMatcher: (r) => r.startsWith('CPUSLEEP:'),
+      );
       if (reply != null && reply.startsWith('CPUSLEEP:')) {
         final payload = reply.substring(9);
         if (payload == 'FAIL') {
@@ -2143,6 +2146,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             final reply = await bleGateway.sendAndWait(
                               utf8.encode('!PWD ${currentCtrl.text.trim()} ${newCtrl.text.trim()}'),
                               replyMatcher: (r) => r == 'OK',
+                            );
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('ESP32修改密码失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
@@ -2222,6 +2226,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             final reply = await bleGateway.sendAndWait(
                               utf8.encode('!NAME $v'),
                               replyMatcher: (r) => r.startsWith('OK'),
+                            );
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('ESP32修改名称失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
@@ -2352,6 +2357,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           final reply = await bleGateway.sendAndWait(
                             utf8.encode(cmd),
                             replyMatcher: (r) => r == 'OK CPUSLEEP',
+                          );
                           if (reply != null && reply.contains('OK')) {
                             setState(() {
                               cpuSleepEnabled = v;
@@ -2439,6 +2445,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           final reply = await bleGateway.sendAndWait(
                             utf8.encode('!RESET'),
                             replyMatcher: (r) => r == 'OK RESET',
+                          );
                           if (reply != null && reply.contains('OK')) {
                             espResetConfirmed = true;
                             _logEvent('RESET', '恢复出厂设置');
