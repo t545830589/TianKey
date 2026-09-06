@@ -877,7 +877,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> connectToDevice(BleScanItem device) async {
     if (connecting || connected || _autoConnecting || scanning || _manualScanActive) return;
-    _stopScanRssi();
+    await _stopScanRssi();
     _userDisconnected = false;
     foundDevice = device;
 
@@ -950,7 +950,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> _showManualScanDialog() async {
     if (!mounted || connected || connecting || _autoConnecting || scanning) return;
     _manualScanActive = true;
-    _stopScanRssi();
+    await _stopScanRssi();
     setState(() { scanning = true; status = '正在搜索设备...'; });
     List<BleScanItem> devices;
     try {
@@ -1172,7 +1172,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
 
   Future<void> connect() async {
     if (connecting || connected || _autoConnecting || scanning || _manualScanActive) return;
-    _stopScanRssi();
+    await _stopScanRssi();
     _userDisconnected = false;
     var target = foundDevice;
 
@@ -1339,7 +1339,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         String? reply;
         for (int retry = 0; retry < 3; retry++) {
-          reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $savedPwd $ts'), expectPrefix: 'OK');
+          reply = await bleGateway.sendAndWait(
+            utf8.encode('!AUTH $savedPwd $ts'),
+            replyMatcher: (r) => r.startsWith('OK'),
           if (reply != null && (reply.contains('OK') || reply.contains('ERR'))) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -1390,7 +1392,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         String? reply;
         for (int retry = 0; retry < 3; retry++) {
-          reply = await bleGateway.sendAndWait(utf8.encode('!AUTH $password $ts'), expectPrefix: 'OK');
+          reply = await bleGateway.sendAndWait(
+            utf8.encode('!AUTH $password $ts'),
+            replyMatcher: (r) => r.startsWith('OK'),
           if (reply != null) break;
           if (retry < 2) await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -1606,8 +1610,8 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   }
 
   // ==================== UNCONNECTED RSSI SCAN ====================
-  void _startScanRssi() {
-    _stopScanRssi();
+  Future<void> _startScanRssi() async {
+    await _stopScanRssi();
     _scanRssiTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (connected || scanning || connecting || _autoConnecting || _manualScanActive || !mounted) return;
       try {
@@ -1634,11 +1638,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     });
   }
 
-  void _stopScanRssi() {
+  Future<void> _stopScanRssi() async {
     _scanRssiTimer?.cancel();
     _scanRssiTimer = null;
-    // 确保正在执行的ble.scan(3秒)也能真正停止
-    try { FlutterBluePlus.stopScan(); } catch (_) {}
+    // 真正等待旧RSSI扫描彻底结束
+    try { await ble.stopCurrentScan(); } catch (_) {}
   }
 
   void _tryResumeScanRssi() {
@@ -1711,7 +1715,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
   Future<void> _queryCpuSleepState() async {
     if (!connected || !bleGateway.readyForWrite) return;
     try {
-      final reply = await bleGateway.sendAndWait(utf8.encode('!CPUSLEEP?'), expectPrefix: 'CPUSLEEP');
+      final reply = await bleGateway.sendAndWait(
+        utf8.encode('!CPUSLEEP?'),
+        replyMatcher: (r) => r.startsWith('CPUSLEEP:'),
       if (reply != null && reply.startsWith('CPUSLEEP:')) {
         final payload = reply.substring(9);
         if (payload == 'FAIL') {
@@ -2134,7 +2140,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           setLocalState(() => saving = true);
                           try {
                             // 【修复】必须ESP32成功后才改本地密码
-                            final reply = await bleGateway.sendAndWait(utf8.encode('!PWD ${currentCtrl.text.trim()} ${newCtrl.text.trim()}'), expectPrefix: 'OK');
+                            final reply = await bleGateway.sendAndWait(
+                              utf8.encode('!PWD ${currentCtrl.text.trim()} ${newCtrl.text.trim()}'),
+                              replyMatcher: (r) => r == 'OK',
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('ESP32修改密码失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
@@ -2211,7 +2219,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                           setLocalState(() => saving = true);
                           try {
                             // 【修复】发送名称修改，ESP32会重启
-                            final reply = await bleGateway.sendAndWait(utf8.encode('!NAME $v'), expectPrefix: 'OK');
+                            final reply = await bleGateway.sendAndWait(
+                              utf8.encode('!NAME $v'),
+                              replyMatcher: (r) => r.startsWith('OK'),
                             if (reply == null || !reply.contains('OK')) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('ESP32修改名称失败'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
@@ -2339,7 +2349,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         }
                         final cmd = v ? '!CPUSLEEP 1' : '!CPUSLEEP 0';
                         try {
-                          final reply = await bleGateway.sendAndWait(utf8.encode(cmd), expectPrefix: 'OK');
+                          final reply = await bleGateway.sendAndWait(
+                            utf8.encode(cmd),
+                            replyMatcher: (r) => r == 'OK CPUSLEEP',
                           if (reply != null && reply.contains('OK')) {
                             setState(() {
                               cpuSleepEnabled = v;
@@ -2424,7 +2436,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                         _factoryResetting = true;
                         bool espResetConfirmed = false;
                         try {
-                          final reply = await bleGateway.sendAndWait(utf8.encode('!RESET'), expectPrefix: 'OK');
+                          final reply = await bleGateway.sendAndWait(
+                            utf8.encode('!RESET'),
+                            replyMatcher: (r) => r == 'OK RESET',
                           if (reply != null && reply.contains('OK')) {
                             espResetConfirmed = true;
                             _logEvent('RESET', '恢复出厂设置');

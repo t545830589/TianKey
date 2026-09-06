@@ -27,16 +27,10 @@ class TianKeyBleService {
   List<BleScanItem> get foundDevices => _found.values.toList(growable: false);
   List<BluetoothService> get discoveredServices => List<BluetoothService>.unmodifiable(_services);
 
-  /// UUID-only inventory of the GATT services actually returned by the
-  /// connected peripheral. This is diagnostic data only: no service UUID is
-  /// treated as a TianKey protocol UUID here.
   List<String> get discoveredServiceUuids => List<String>.unmodifiable(
         _services.map((service) => service.serviceUuid.toString()),
       );
 
-  /// UUID-only inventory of characteristics actually returned by the
-  /// peripheral, grouped as `serviceUuid/characteristicUuid` strings.
-  /// This deliberately does not assign protocol meanings to any UUID.
   List<String> get discoveredCharacteristicUuids => List<String>.unmodifiable(
         _services.expand(
           (service) => service.characteristics.map(
@@ -45,8 +39,6 @@ class TianKeyBleService {
         ),
       );
 
-  /// Stable, human-readable diagnostic snapshot for protocol integration.
-  /// The returned values come only from FlutterBluePlus discovery results.
   List<String> get discoveredGattInventory => List<String>.unmodifiable(<String>[
         ...discoveredServiceUuids.map((uuid) => 'service:$uuid'),
         ...discoveredCharacteristicUuids.map((uuid) => 'characteristic:$uuid'),
@@ -54,11 +46,17 @@ class TianKeyBleService {
 
   Future<bool> isSupported() async => FlutterBluePlus.isSupported;
 
+  /// 真正停止当前BLE扫描，等待扫描彻底结束后再返回
+  Future<void> stopCurrentScan() async {
+    await _scanSubscription?.cancel();
+    _scanSubscription = null;
+    try { await FlutterBluePlus.stopScan(); } catch (_) {}
+  }
+
   Future<List<BleScanItem>> scan({Duration timeout = const Duration(seconds: 6)}) async {
     _found.clear();
-    await _scanSubscription?.cancel();
-    // 确保旧扫描真正停止
-    try { await FlutterBluePlus.stopScan(); } catch (_) {}
+    // 确保旧扫描真正停止后再开始新扫描
+    await stopCurrentScan();
     _scanSubscription = FlutterBluePlus.onScanResults.listen((results) {
       for (final result in results) {
         final name = result.advertisementData.advName.trim().isNotEmpty
@@ -76,9 +74,7 @@ class TianKeyBleService {
       await FlutterBluePlus.startScan(timeout: timeout);
       await FlutterBluePlus.isScanning.where((value) => value == false).first;
     } finally {
-      try { await FlutterBluePlus.stopScan(); } catch (_) {}
-      await _scanSubscription?.cancel();
-      _scanSubscription = null;
+      await stopCurrentScan();
     }
     return foundDevices;
   }
@@ -94,8 +90,6 @@ class TianKeyBleService {
     return discoveredServices;
   }
 
-  /// Reconnect using the exact platform remoteId previously persisted by the
-  /// app. This does not scan, guess a device name, or invent a protocol UUID.
   Future<void> reconnectSavedRemoteId(String remoteId) async {
     final normalized = remoteId.trim();
     if (normalized.isEmpty) {
@@ -108,7 +102,7 @@ class TianKeyBleService {
     await _connectionSubscription?.cancel();
     await _servicesResetSubscription?.cancel();
     // 确保旧扫描真正停止
-    try { await FlutterBluePlus.stopScan(); } catch (_) {}
+    await stopCurrentScan();
     device = target;
     _services = <BluetoothService>[];
 
@@ -124,13 +118,11 @@ class TianKeyBleService {
       if (!target.isConnected) return;
       try {
         await discoverServices();
-      } catch (_) {
-      }
+      } catch (_) {}
     });
 
     try {
       await target.connect(timeout: timeout);
-      // 等待ESP32 GATT服务就绪
       for (int i = 0; i < 3; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         if (!target.isConnected) throw StateError('BLE设备未连接');
@@ -142,7 +134,7 @@ class TianKeyBleService {
         }
       }
     } catch (error) {
-      // 连接成功但服务发现失败：必须真实断开
+      // 连接成功但服务发现失败：必须真实断开物理连接
       try { await target.disconnect(); } catch (_) {}
       await _connectionSubscription?.cancel();
       await _servicesResetSubscription?.cancel();

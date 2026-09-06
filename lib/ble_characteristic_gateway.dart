@@ -33,14 +33,29 @@ class BleCharacteristicGateway {
     await characteristic.write(data, withoutResponse: withoutResponse);
   }
 
-  Future<String?> sendAndWait(List<int> data, {Duration timeout = const Duration(seconds: 2), String? expectPrefix}) async {
+  /// 发送命令并等待回复。
+  /// [replyMatcher]：精确匹配回复，返回true表示是当前命令的回复。
+  /// [expectPrefix]：当replyMatcher为null时的回退方案，回复以该前缀开头即匹配。
+  /// ERR回复始终放行，不受matcher影响。
+  Future<String?> sendAndWait(
+    List<int> data, {
+    Duration timeout = const Duration(seconds: 2),
+    String? expectPrefix,
+    bool Function(String reply)? replyMatcher,
+  }) async {
     final characteristic = _writeCharacteristic;
     if (characteristic == null) {
       throw StateError('未绑定可写 characteristic');
     }
 
     final completer = Completer<String?>();
-    final cmd = _PendingCommand(data: data, completer: completer, expectPrefix: expectPrefix, timeout: timeout);
+    final cmd = _PendingCommand(
+      data: data,
+      completer: completer,
+      expectPrefix: expectPrefix,
+      replyMatcher: replyMatcher,
+      timeout: timeout,
+    );
     _queue.add(cmd);
     _processQueue();
     return completer.future;
@@ -71,24 +86,33 @@ class BleCharacteristicGateway {
         return;
       }
 
-      // 为当前命令创建listener — 按expectPrefix过滤，ERR始终放行
+      // 为当前命令创建listener — 精确匹配，ERR始终放行
       sub = _notifyController?.stream.listen((value) {
         if (cmd.completer.isCompleted) return;
         final msg = String.fromCharCodes(value);
 
-        // ERR始终放行，不管expectPrefix是什么
+        // ERR始终放行，不管matcher是什么
         if (msg.startsWith('ERR') || msg.startsWith('err')) {
           cmd.completer.complete(msg);
           return;
         }
 
-        // 无expectPrefix：收到任何非ERR回复即匹配
+        // 优先使用replyMatcher精确匹配
+        if (cmd.replyMatcher != null) {
+          if (cmd.replyMatcher!(msg)) {
+            cmd.completer.complete(msg);
+          }
+          // 不匹配则忽略，继续等待
+          return;
+        }
+
+        // 回退到expectPrefix匹配
         if (cmd.expectPrefix == null || cmd.expectPrefix!.isEmpty) {
+          // 无前缀：收到任何非ERR回复即匹配
           cmd.completer.complete(msg);
           return;
         }
 
-        // 有expectPrefix：回复必须以该prefix开头
         if (msg.startsWith(cmd.expectPrefix!)) {
           cmd.completer.complete(msg);
         }
@@ -160,12 +184,14 @@ class _PendingCommand {
   final List<int> data;
   final Completer<String?> completer;
   final String? expectPrefix;
+  final bool Function(String reply)? replyMatcher;
   final Duration timeout;
 
   _PendingCommand({
     required this.data,
     required this.completer,
     this.expectPrefix,
+    this.replyMatcher,
     required this.timeout,
   });
 }
