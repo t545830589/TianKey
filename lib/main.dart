@@ -1327,7 +1327,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
         throw StateError('无法发现NUS服务');
       }
 
-      // AUTH + TIME merged
+      // AUTH
       if (autoAuth) {
         final savedPwd = prefs?.getString('admin_password');
         if (savedPwd == null || savedPwd.isEmpty) {
@@ -1775,9 +1775,9 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       commandSeconds = 0;
       vehicleBusy = false;
       rssiValue = 0;
-      status = '已断开：车辆功能重新锁定';
+      status = 'BLE已断开，ESP将完成当前动作后自动双锁';
     });
-    _msg('已断开，车辆功能已锁定');
+    _msg('BLE已断开，ESP将完成当前动作后自动双锁');
   }
 
   Future<void> vehicleCommand(String command) async {
@@ -1828,7 +1828,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
     }
     setState(() => status = '$command 已发送');
     _logEvent('VEHICLE', command);
-    _msg(timed ? '$command 已发送（保持4秒）' : '$command 执行成功');
+    _msg(timed ? '$command 已发送（保持4秒）' : '$command 指令已发送');
     commandTimer?.cancel();
     if (timed) {
       vehicleBusy = true;
@@ -1959,7 +1959,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                                   : TKColors.textMuted,
                               iconColor: TKColors.neonBlue,
                             ),
-                            TKStatusCard(icon: Icons.sync, title: '同步', status: timeSynced ? '已同步' : '未同步', statusColor: timeSynced ? TKColors.neonBlue : TKColors.textMuted, iconColor: TKColors.neonBlue),
+                            TKStatusCard(icon: Icons.sync, title: '认证', status: timeSynced ? '已认证' : '未认证', statusColor: timeSynced ? TKColors.neonBlue : TKColors.textMuted, iconColor: TKColors.neonBlue),
                           ],
                         ),
                       ),
@@ -2229,6 +2229,11 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('名称不能为空'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
                             return;
                           }
+                          final nameBytes = utf8.encode(v).length;
+                          if (nameBytes > 31) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('设备名称最多31字节'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 2)));
+                            return;
+                          }
                           if (!connected || !bleGateway.readyForWrite) {
                             _msg('请先连接设备');
                             return;
@@ -2256,6 +2261,13 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
                               await prefs?.setString('car_model', m);
                             }
                             // ESP32即将重启，断开连接
+                            _stopHeartbeat();
+                            _stopRssiPolling();
+                            commandTimer?.cancel();
+                            commandTimer = null;
+                            commandSeconds = 0;
+                            vehicleBusy = false;
+                            rssiValue = 0;
                             try { await ble.disconnect(); } catch (_) {}
                             connected = false;
                             adminSession = false;
