@@ -148,8 +148,6 @@ class ServerCallbacks : public BLEServerCallbacks {
         } else {
             Serial.println("[DISC] Unauthenticated disconnect, skip double-lock");
             disconnectDoubleLockPending = false;
-            currentAction = ACTION_NONE;
-            vehicleBusy = false;
             pServer->startAdvertising();
             Serial.println("[BLE] Advertising restarted (unauthenticated disconnect)");
         }

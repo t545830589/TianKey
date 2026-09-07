@@ -106,14 +106,6 @@ class TianKeyBleService {
     device = target;
     _services = <BluetoothService>[];
 
-    _connectionSubscription = target.connectionState.listen((state) {
-      if (state == BluetoothConnectionState.disconnected) {
-        device = null;
-        _services = <BluetoothService>[];
-        onDisconnect?.call();
-      }
-    });
-
     _servicesResetSubscription = target.onServicesReset.listen((_) async {
       if (!target.isConnected) return;
       try {
@@ -123,6 +115,16 @@ class TianKeyBleService {
 
     try {
       await target.connect(timeout: timeout);
+
+      // 连接成功后才监听掉线，避免连接阶段的瞬断清空device
+      _connectionSubscription = target.connectionState.listen((state) {
+        if (state == BluetoothConnectionState.disconnected) {
+          device = null;
+          _services = <BluetoothService>[];
+          onDisconnect?.call();
+        }
+      });
+
       for (int i = 0; i < 3; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         if (!target.isConnected) throw StateError('BLE设备未连接');
@@ -134,7 +136,6 @@ class TianKeyBleService {
         }
       }
     } catch (error) {
-      // 连接成功但服务发现失败：必须真实断开物理连接
       try { await target.disconnect(); } catch (_) {}
       await _connectionSubscription?.cancel();
       await _servicesResetSubscription?.cancel();
