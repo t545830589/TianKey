@@ -1,1 +1,4 @@
 esp32_firmware/arduino-cli.exe
+esp32_firmware/build/
+esp32_firmware/esp-idf-setup.exe
+esp32_firmware/pm_test/

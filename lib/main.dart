@@ -1242,6 +1242,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (target.device == null) throw StateError('BLE设备对象无效');
 
       bool bleReady = false;
+      Object? lastBleError;
       for (int attempt = 1; attempt <= 3; attempt++) {
         try {
           setState(() => status = '正在连接蓝牙设备（第${attempt}次尝试）...');
@@ -1254,6 +1255,7 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
           bleReady = true;
           break;
         } catch (e) {
+          lastBleError = e;
           if (attempt < 3) {
             await Future.delayed(const Duration(milliseconds: 500));
           }
@@ -1262,13 +1264,15 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
       if (!bleReady) {
         if (mounted && !_autoConnecting) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: const Text('蓝牙连接失败，请确认设备在附近'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
+            SnackBar(content: Text('BLE连接失败：$lastBleError'), backgroundColor: TKColors.neonRed, duration: const Duration(seconds: 3)),
           );
         }
         throw StateError('BLE连接失败');
       }
 
       ble.onDisconnect = () {
+        final wasFullyConnected = connected;
+        final wasUserDisconnected = _userDisconnected;
         _stopHeartbeat();
         _stopRssiPolling();
         commandTimer?.cancel();
@@ -1283,11 +1287,14 @@ class _TianKeyHomeState extends State<TianKeyHome> with WidgetsBindingObserver {
             vehicleBusy = false;
             foundDevice = null;
             _cpuSleepAvailable = true;
-            status = _userDisconnected ? '已断开' : 'BLE已断开，ESP将完成当前动作后自动双锁';
+            status = wasUserDisconnected ? '已断开' : 'BLE已断开，ESP将完成当前动作后自动双锁';
           });
-          // 非用户主动断开 + 自动连接开启 → 静默重连，不弹提示不写日志
-          if (!_userDisconnected && !_factoryResetting && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
-            _tryAutoConnect();
+          if (!wasUserDisconnected && wasFullyConnected && !_factoryResetting && autoConnect && savedRemoteId != null && savedRemoteId!.isNotEmpty) {
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !connected && !connecting && !_autoConnecting && !_manualScanActive && !scanning && autoConnect && authorized && savedRemoteId != null && savedRemoteId!.isNotEmpty && !_factoryResetting) {
+                _tryAutoConnect();
+              }
+            });
           }
         }
         _userDisconnected = false;

@@ -139,10 +139,20 @@ class ServerCallbacks : public BLEServerCallbacks {
 
     void onDisconnect(BLEServer *pServer) {
         Serial.println("[BLE] Disconnected");
+        bool hadAuthenticatedSession = wasAuthenticated;
         deviceConnected = false;
         wasAuthenticated = false;
         connHandle = INVALID_CONN_HANDLE;
-        handleDisconnect();
+        if (hadAuthenticatedSession) {
+            handleDisconnect();
+        } else {
+            Serial.println("[DISC] Unauthenticated disconnect, skip double-lock");
+            disconnectDoubleLockPending = false;
+            currentAction = ACTION_NONE;
+            vehicleBusy = false;
+            pServer->startAdvertising();
+            Serial.println("[BLE] Advertising restarted (unauthenticated disconnect)");
+        }
         if (mainTaskHandle != NULL) xTaskNotifyGive(mainTaskHandle);
     }
 };
