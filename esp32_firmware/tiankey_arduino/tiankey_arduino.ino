@@ -74,6 +74,17 @@ bool cpuSleepEnabled = true;
 
 unsigned long lastHeartbeat = 0;
 
+// ===== 断线双锁待执行标志 =====
+bool disconnectDoubleLockPending = false;
+
+// ===== 断线后执行的动作（NAME重启/RESET恢复出厂）=====
+enum PostDisconnectAction {
+    POST_NONE,
+    POST_RESTART,
+    POST_FACTORY_RESET,
+};
+PostDisconnectAction postDisconnectAction = POST_NONE;
+
 // ==================== POWER MANAGEMENT ====================
 // CPU空闲时FreeRTOS任务阻塞(portMAX_DELAY)，BLE广播由硬件独立维持
 // BLE事件通过xTaskNotifyGive(mainTaskHandle)唤醒主任务
@@ -112,6 +123,8 @@ void handleDisconnect();
 void releaseAllPins();
 void startVehicleAction(VehicleAction action);
 void updateVehicleAction();
+void checkDisconnectPending();
+void handlePostDisconnect();
 
 // ==================== BLE CALLBACKS ====================
 class ServerCallbacks : public BLEServerCallbacks {
@@ -126,17 +139,18 @@ class ServerCallbacks : public BLEServerCallbacks {
 
     void onDisconnect(BLEServer *pServer) {
         Serial.println("[BLE] Disconnected");
-        bool needDoubleLock = wasAuthenticated;
-        handleDisconnect();
-        connHandle = INVALID_CONN_HANDLE;
+        bool hadAuthenticatedSession = wasAuthenticated;
         deviceConnected = false;
         wasAuthenticated = false;
-        if (!needDoubleLock) {
-            // 未认证断线：立即恢复广播
+        connHandle = INVALID_CONN_HANDLE;
+        if (hadAuthenticatedSession) {
+            handleDisconnect();
+        } else {
+            Serial.println("[DISC] Unauthenticated disconnect, skip double-lock");
+            disconnectDoubleLockPending = false;
             pServer->startAdvertising();
-            Serial.println("[BLE] Advertising restarted");
+            Serial.println("[BLE] Advertising restarted (unauthenticated disconnect)");
         }
-        // 已认证断线：等状态机完成双锁后再广播（由updateVehicleAction触发）
         if (mainTaskHandle != NULL) xTaskNotifyGive(mainTaskHandle);
     }
 };
@@ -188,7 +202,8 @@ void loop() {
     }
 
     // ===== CPU low power =====
-    bool shouldHoldLock = deviceConnected || vehicleBusy || !cpuSleepEnabled;
+    // 只要有车辆动作、双锁待执行、或待处理重启/恢复出厂，主任务必须保持运行
+    bool shouldHoldLock = deviceConnected || vehicleBusy || disconnectDoubleLockPending || !cpuSleepEnabled;
 
     // Idle: block until BLE event wakes us; Busy: short delay
     if (!shouldHoldLock) {
@@ -243,11 +258,11 @@ void setupPins() {
 void setupBLE() {
     BLEDevice::init(deviceName.c_str());
 
-    // Maximum TX power for ALL types
+    // Maximum TX power for ALL types (+9 dBm)
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_P9);
-    Serial.println("[BLE] TX power set to P9 (max)");
+    Serial.println("[BLE] TX power set to P9 (max, +9dBm)");
 
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(&serverCallbacks);
@@ -270,14 +285,24 @@ void setupBLE() {
 
     pService->start();
 
+    // ===== BLE advertising optimization =====
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMinPreferred(0x12);
+
+    // Advertising interval: 80ms~160ms (0x50~0xA0 × 0.625ms)
+    // Faster than NimBLE default for quicker phone discovery
+    pAdvertising->setMinInterval(0x50);
+    pAdvertising->setMaxInterval(0xA0);
+
+    // Preferred connection interval hint for phone: 30ms~60ms (0x26~0x4B × 1.25ms)
+    // Longer interval = better range and stability, reasonable latency for car key
+    pAdvertising->setMinPreferred(0x26);
+    pAdvertising->setMaxPreferred(0x4B);
+
     BLEDevice::startAdvertising();
 
-    Serial.println("[BLE] NUS service started, advertising...");
+    Serial.println("[BLE] NUS service started, advertising optimized (80~160ms interval)");
 }
 
 // ==================== COMMAND PROCESSOR ====================
@@ -301,18 +326,18 @@ void processCommand(String cmd) {
     }
     command.toUpperCase();
 
-    // ===== AUTH (format: !AUTH password timestamp) =====
+    // ===== AUTH (format: !AUTH password) =====
     if (command == "AUTH") {
-        int pwdEnd = args.indexOf(' ');
-        if (pwdEnd < 0) {
+        String pwd = args;
+        pwd.trim();
+        if (pwd.length() == 0) {
             sendResponse("ERR");
             return;
         }
-        String pwd = args.substring(0, pwdEnd);
 
         if (pwd == adminPassword) {
             wasAuthenticated = true;
-            sendResponse("OK TIME");
+            sendResponse("OK AUTH");
             Serial.println("[AUTH] Success");
         } else {
             wasAuthenticated = false;
@@ -404,9 +429,12 @@ void processCommand(String cmd) {
             prefs.putString(NVS_DEVICE_NAME, deviceName);
             prefs.end();
             sendResponse("OK NAME " + deviceName);
-            Serial.printf("[NAME] Changed to: %s, restarting...\n", deviceName.c_str());
-            delay(200);
-            ESP.restart();
+            Serial.printf("[NAME] Changed to: %s, will restart after double-lock...\n", deviceName.c_str());
+            postDisconnectAction = POST_RESTART;
+            delay(100);
+            if (connHandle != INVALID_CONN_HANDLE) {
+                pServer->disconnect(connHandle);
+            }
         }
         return;
     }
@@ -427,7 +455,7 @@ void processCommand(String cmd) {
             Serial.println("[PWD] Wrong old password");
             return;
         }
-        if (newPwd.length() == 0 || newPwd.length() > 31) {
+        if (newPwd.length() < 6 || newPwd.length() > 31) {
             sendResponse("ERR");
             return;
         }
@@ -466,7 +494,13 @@ void processCommand(String cmd) {
 
     // ===== RESET =====
     if (command == "RESET") {
-        factoryReset();
+        sendResponse("OK RESET");
+        Serial.println("[RESET] Acknowledged, will factory reset after double-lock...");
+        postDisconnectAction = POST_FACTORY_RESET;
+        delay(100);
+        if (connHandle != INVALID_CONN_HANDLE) {
+            pServer->disconnect(connHandle);
+        }
         return;
     }
 
@@ -531,6 +565,7 @@ void updateVehicleAction() {
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
                 Serial.println("[GPIO] Lock pulse complete");
+                checkDisconnectPending();
             }
             break;
 
@@ -540,6 +575,7 @@ void updateVehicleAction() {
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
                 Serial.println("[GPIO] Unlock pulse complete");
+                checkDisconnectPending();
             }
             break;
 
@@ -549,6 +585,7 @@ void updateVehicleAction() {
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
                 Serial.println("[GPIO] Trunk hold complete");
+                checkDisconnectPending();
             }
             break;
 
@@ -564,6 +601,7 @@ void updateVehicleAction() {
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
                 windowHoldPin = -1;
+                checkDisconnectPending();
             }
             break;
 
@@ -591,6 +629,7 @@ void updateVehicleAction() {
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
                 Serial.println("[GPIO] FindCar complete");
+                checkDisconnectPending();
             }
             break;
 
@@ -618,11 +657,16 @@ void updateVehicleAction() {
                 digitalWrite(PIN_LOCK, HIGH);
                 currentAction = ACTION_NONE;
                 vehicleBusy = false;
+                disconnectDoubleLockPending = false;
                 Serial.println("[DISC] Double-lock complete");
-                // 双锁完成，恢复BLE广播
-                if (pServer != NULL) {
-                    pServer->startAdvertising();
-                    Serial.println("[BLE] Advertising restarted after double-lock");
+                // 普通断线恢复Advertising；NAME/RESET直接执行动作不恢复Advertising
+                if (postDisconnectAction == POST_NONE) {
+                    if (pServer != NULL) {
+                        pServer->startAdvertising();
+                        Serial.println("[BLE] Advertising restarted after double-lock");
+                    }
+                } else {
+                    handlePostDisconnect();
                 }
             }
             break;
@@ -636,28 +680,55 @@ void updateVehicleAction() {
 
 // ==================== FACTORY RESET ====================
 void factoryReset() {
-    Serial.println("[RESET] Factory reset...");
-
+    Serial.println("[RESET] Factory reset - clearing NVS and restarting...");
     prefs.begin(NVS_NAMESPACE, false);
     prefs.clear();
     prefs.end();
-
-    sendResponse("OK RESET");
-    delay(500);
     ESP.restart();
+}
+
+// ==================== DISCONNECT PENDING CHECK ====================
+// 车辆动作完成时调用，检查是否需要开始断线双锁
+void checkDisconnectPending() {
+    if (!deviceConnected && disconnectDoubleLockPending && !vehicleBusy) {
+        disconnectDoubleLockPending = false;
+        Serial.println("[DISC] Vehicle action done, starting double-lock");
+        currentAction = ACTION_DISCONNECT_LOCK1;
+        actionStartTime = millis();
+        vehicleBusy = true;
+        digitalWrite(PIN_LOCK, LOW);
+    }
+}
+
+// ==================== POST DISCONNECT ACTION ====================
+// 双锁完成后，根据postDisconnectAction执行重启或恢复出厂
+void handlePostDisconnect() {
+    if (postDisconnectAction == POST_RESTART) {
+        postDisconnectAction = POST_NONE;
+        Serial.println("[POST] Restarting ESP32 after double-lock...");
+        ESP.restart();
+    } else if (postDisconnectAction == POST_FACTORY_RESET) {
+        postDisconnectAction = POST_NONE;
+        Serial.println("[POST] Factory reset after double-lock...");
+        factoryReset();
+    }
 }
 
 // ==================== DISCONNECT HANDLER ====================
 void handleDisconnect() {
-    // Release all vehicle GPIOs first
-    releaseAllPins();
-
-    // Double-lock if authenticated — non-blocking, handled by state machine
-    if (wasAuthenticated) {
-        Serial.println("[DISC] Auto double-lock engaged");
+    // 不断开GPIO！车辆动作必须完整执行完。
+    // 如果当前有车辆动作在执行，设置pending等待动作完成后双锁。
+    if (vehicleBusy) {
+        disconnectDoubleLockPending = true;
+        Serial.println("[DISC] Vehicle action in progress, double-lock pending...");
+        if (mainTaskHandle != NULL) xTaskNotifyGive(mainTaskHandle);
+    } else {
+        // 无动作，立即开始双锁
+        Serial.println("[DISC] Auto double-lock engaged (immediate)");
         currentAction = ACTION_DISCONNECT_LOCK1;
         actionStartTime = millis();
         vehicleBusy = true;
+        disconnectDoubleLockPending = false;
         digitalWrite(PIN_LOCK, LOW);
     }
 }

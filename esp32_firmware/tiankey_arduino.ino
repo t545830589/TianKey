@@ -258,11 +258,11 @@ void setupPins() {
 void setupBLE() {
     BLEDevice::init(deviceName.c_str());
 
-    // Maximum TX power for ALL types
+    // Maximum TX power for ALL types (+9 dBm)
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_P9);
-    Serial.println("[BLE] TX power set to P9 (max)");
+    Serial.println("[BLE] TX power set to P9 (max, +9dBm)");
 
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(&serverCallbacks);
@@ -285,14 +285,24 @@ void setupBLE() {
 
     pService->start();
 
+    // ===== BLE advertising optimization =====
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMinPreferred(0x12);
+
+    // Advertising interval: 80ms~160ms (0x50~0xA0 × 0.625ms)
+    // Faster than NimBLE default for quicker phone discovery
+    pAdvertising->setMinInterval(0x50);
+    pAdvertising->setMaxInterval(0xA0);
+
+    // Preferred connection interval hint for phone: 30ms~60ms (0x26~0x4B × 1.25ms)
+    // Longer interval = better range and stability, reasonable latency for car key
+    pAdvertising->setMinPreferred(0x26);
+    pAdvertising->setMaxPreferred(0x4B);
+
     BLEDevice::startAdvertising();
 
-    Serial.println("[BLE] NUS service started, advertising...");
+    Serial.println("[BLE] NUS service started, advertising optimized (80~160ms interval)");
 }
 
 // ==================== COMMAND PROCESSOR ====================
